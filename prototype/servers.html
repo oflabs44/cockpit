@@ -22,13 +22,39 @@
     letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer;
   }
   .protobar button[aria-current='true'] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--s4);
+  }
+  .srv-head { display: flex; align-items: flex-start; gap: var(--s3); }
+  .srv-name { font-weight: 500; font-size: var(--t-base); }
+  .srv-meta {
+    font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-40);
+    margin-top: 2px; display: flex; gap: var(--s2); flex-wrap: wrap;
+  }
+  .srv-meta .sep { opacity: .5; }
+  .srv-foot { display: flex; align-items: center; gap: var(--s3); font-size: var(--t-sm); }
+  .srv-foot .spacer { flex: 1; }
+  .srv-count { font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-60); }
+  .srv-flag {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 1px 5px; border: 1px solid currentColor;
+  }
+  .f-danger { color: var(--color-danger); }
+  .f-warn { color: var(--color-warn); }
+  .f-info { color: var(--color-info); }
+  .view { display: none; }
+  .view[data-active] { display: block; }
+  .view.empty[data-active] { display: flex; }
 </style>
 </head>
 <body>
 
 <div class="protobar">
   <span class="label">servers</span>
-  <button aria-current="true">empty</button>
+  <button onclick="show('empty')">empty</button>
+  <button onclick="show('populated')" aria-current="true">populated</button>
   <span class="spacer"></span>
   <button onclick="toggleTheme()">view <span data-theme-label>light</span></button>
   <button onclick="location.href='index.html'">index</button>
@@ -100,15 +126,17 @@
         <kbd>&#8984;K</kbd>
       </button>
 
-      <!-- No primary action in the bar when the screen is empty: the empty
-           state already carries it, and two identical primaries on one screen
-           is exactly the redundancy the frame contract is meant to prevent. -->
+      <!-- The bar carries the primary action only once the list is populated.
+           On the empty screen the empty state already carries it, and two
+           identical primaries on one screen is the duplication the frame
+           contract exists to prevent. -->
+      <button class="btn btn-primary btn-sm" data-add hidden>Add server</button>
     </header>
 
     <div class="content">
       <div class="content-inner">
 
-        <div class="empty animate-rise">
+        <div class="view empty animate-rise" data-view-name="empty">
           <div class="empty-art">
 <svg viewBox="0 0 180 170" width="200" height="189"
                  fill="none" stroke="currentColor" stroke-width="1"
@@ -145,9 +173,147 @@
           </div>
         </div>
 
+
+        <div class="view" data-view-name="populated" data-active>
+          <div class="grid">
+        <a class="card" href="#">
+          <div class="card-section">
+            <div class="srv-head">
+              <span class="dot dot-failed" style="margin-top:6px"></span>
+              <span style="min-width:0">
+                <span class="srv-name">prod-fsn1</span>
+                <span class="srv-meta"><span>hetzner</span><span class="sep">/</span><span>cpx31</span><span class="sep">/</span><span>arm64</span></span>
+              </span>
+            </div>
+          </div>
+          <div class="card-section">
+            <div class="gauges">
+              <div class="gauge"><div class="gauge-track"><div class="gauge-fill" style="width:38%"></div></div><div class="gauge-k"><span>cpu</span><span>38</span></div></div>
+              <div class="gauge"><div class="gauge-track"><div class="gauge-fill" style="width:71%"></div></div><div class="gauge-k"><span>mem</span><span>71</span></div></div>
+              <div class="gauge"><div class="gauge-track"><div class="gauge-fill" style="width:52%"></div></div><div class="gauge-k"><span>disk</span><span>52</span></div></div>
+            </div>
+          </div>
+          <div class="card-section card-foot">
+            <div class="srv-foot">
+              <span class="srv-count">6 resources</span>
+              <span class="spacer"></span>
+              <span class="srv-flag f-danger">1 failing</span>
+            </div>
+          </div>
+        </a>
+        <a class="card" href="#">
+          <div class="card-section">
+            <div class="srv-head">
+              <span class="dot dot-degraded" style="margin-top:6px"></span>
+              <span style="min-width:0">
+                <span class="srv-name">edge-ash</span>
+                <span class="srv-meta"><span>hetzner</span><span class="sep">/</span><span>cpx21</span><span class="sep">/</span><span>amd64</span></span>
+              </span>
+            </div>
+          </div>
+          <div class="card-section">
+            <div class="gauges">
+              <div class="gauge"><div class="gauge-track"><div class="gauge-fill" style="width:14%"></div></div><div class="gauge-k"><span>cpu</span><span>14</span></div></div>
+              <div class="gauge"><div class="gauge-track"><div class="gauge-fill" style="width:33%"></div></div><div class="gauge-k"><span>mem</span><span>33</span></div></div>
+              <div class="gauge"><div class="gauge-track"><div class="gauge-fill" style="width:21%"></div></div><div class="gauge-k"><span>disk</span><span>21</span></div></div>
+            </div>
+          </div>
+          <div class="card-section card-foot">
+            <div class="srv-foot">
+              <span class="srv-count">2 resources</span>
+              <span class="spacer"></span>
+              <span class="srv-flag f-warn">drifted</span>
+            </div>
+          </div>
+        </a>
+        <a class="card" href="#">
+          <div class="card-section">
+            <div class="srv-head">
+              <span class="dot dot-healthy" style="margin-top:6px"></span>
+              <span style="min-width:0">
+                <span class="srv-name">build-hel</span>
+                <span class="srv-meta"><span>hetzner</span><span class="sep">/</span><span>ccx13</span><span class="sep">/</span><span>amd64</span></span>
+              </span>
+            </div>
+          </div>
+          <div class="card-section">
+            <div class="gauges">
+              <div class="gauge"><div class="gauge-track"><div class="gauge-fill" data-hot style="width:88%"></div></div><div class="gauge-k"><span>cpu</span><span>88</span></div></div>
+              <div class="gauge"><div class="gauge-track"><div class="gauge-fill" style="width:44%"></div></div><div class="gauge-k"><span>mem</span><span>44</span></div></div>
+              <div class="gauge"><div class="gauge-track"><div class="gauge-fill" style="width:67%"></div></div><div class="gauge-k"><span>disk</span><span>67</span></div></div>
+            </div>
+          </div>
+          <div class="card-section card-foot">
+            <div class="srv-foot">
+              <span class="srv-count">1 resource</span>
+              <span class="spacer"></span>
+              <span class="srv-count" style="color:var(--ink-40)">up 12d</span>
+            </div>
+          </div>
+        </a>
+        <a class="card" href="#">
+          <div class="card-section">
+            <div class="srv-head">
+              <span class="dot dot-stopped" style="margin-top:6px"></span>
+              <span style="min-width:0">
+                <span class="srv-name">lab-nbg1</span>
+                <span class="srv-meta"><span>hetzner</span><span class="sep">/</span><span>cx22</span><span class="sep">/</span><span>amd64</span></span>
+              </span>
+            </div>
+          </div>
+          <!-- No gauges: cockpit has heard nothing, so showing stale bars would
+               be inventing data. The absence is the information. -->
+          <div class="card-section" style="color:var(--ink-40);font-size:var(--t-sm)">
+            No contact from the daemon
+          </div>
+          <div class="card-section card-foot">
+            <div class="srv-foot">
+              <span class="srv-count" style="color:var(--ink-40)">last seen 3d ago</span>
+              <span class="spacer"></span>
+              <span class="srv-flag f-warn">disconnected</span>
+            </div>
+          </div>
+        </a>
+        <a class="card" href="#">
+          <div class="card-section">
+            <div class="srv-head">
+              <span class="dot dot-pending dot-live" style="margin-top:6px"></span>
+              <span style="min-width:0">
+                <span class="srv-name">store-hel</span>
+                <span class="srv-meta"><span>waiting for first contact</span></span>
+              </span>
+            </div>
+          </div>
+          <div class="card-section" style="padding-top:0;padding-bottom:var(--s5)">
+            <div class="sweep"></div>
+          </div>
+          <div class="card-section card-foot">
+            <div class="srv-foot">
+              <span class="srv-count" style="color:var(--ink-40)">token issued 2m ago</span>
+              <span class="spacer"></span>
+              <span class="srv-flag f-info">enrolling</span>
+            </div>
+          </div>
+        </a>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </div>
+<script>
+  function show(name) {
+    document.querySelectorAll('.view').forEach(function (v) {
+      if (v.dataset.viewName === name) v.setAttribute('data-active', '');
+      else v.removeAttribute('data-active');
+    });
+    document.querySelector('[data-add]').hidden = name !== 'populated';
+    document.querySelectorAll('.protobar button').forEach(function (b) {
+      var oc = b.getAttribute('onclick') || '';
+      if (oc.indexOf('show(') === 0) b.setAttribute('aria-current', oc.indexOf("'" + name + "'") > -1 ? 'true' : 'false');
+    });
+  }
+  show('populated');
+</script>
 </body>
 </html>
