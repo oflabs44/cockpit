@@ -96,7 +96,14 @@
   }
   .nav .count[data-attention] { color: var(--color-info); }
 
-  .nav-sep { margin: var(--s3) var(--s3); height: 1px; background: var(--ink-12); }
+  /* Dividers run edge to edge, always. The nav has horizontal padding, so the
+     separator is pulled back out to the rail's own edges with negative margin.
+     A rule that stops short of its container reads as decoration; a rule that
+     reaches the edge reads as structure, which is what it is. */
+  .nav-sep {
+    height: 1px; background: var(--ink-12);
+    margin: var(--s3) calc(var(--s2) * -1);
+  }
 
   .rail-foot { margin-top: auto; border-top: 1px solid var(--ink-12); padding: var(--s2); }
   .who {

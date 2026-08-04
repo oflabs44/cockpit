@@ -19,6 +19,10 @@
   .sec-head .hr { flex: 1; }
   .why { color: var(--ink-60); font-size: var(--t-sm); line-height: 1.6; max-width: 70ch; }
   .demo { background: var(--color-sheet); border: 1px solid var(--ink-12); padding: var(--s5); margin-bottom: var(--s4); }
+  /* Divided lists go flush; the rows inset themselves, so every rule reaches
+     the container edge. */
+  .demo-flush { padding-left: 0; padding-right: 0; }
+  .demo-flush .notice-group { --notice-inset: var(--s5); }
   .narrow { max-width: 348px; }
   .caption { margin-bottom: var(--s3); }
   .row { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; }
@@ -48,7 +52,7 @@
     </p>
 
     <div class="caption label">Severities &mdash; stacked as a group</div>
-    <div class="demo">
+    <div class="demo demo-flush">
       <div class="notice-group">
         <div class="notice" data-severity="danger">
           <div class="notice-meta">
@@ -104,7 +108,7 @@
     </p>
 
     <div class="caption label">Narrow containers &mdash; stacked variant</div>
-    <div class="demo narrow">
+    <div class="demo demo-flush narrow">
       <div class="notice-group">
         <div class="notice notice-stacked" data-severity="danger">
           <div class="notice-meta">
@@ -151,7 +155,7 @@
     </p>
 
     <div class="caption label">In a plan diff</div>
-    <div class="demo">
+    <div class="demo demo-flush">
       <div class="notice-group">
         <div class="notice">
           <div class="notice-meta">

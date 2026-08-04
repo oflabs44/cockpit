@@ -269,13 +269,21 @@ a { color: inherit; }
    it spreads colour across three elements instead of concentrating it.
    -------------------------------------------------------------------------- */
 
-.notice-group { border-bottom: 1px solid var(--ink-12); }
+/* Dividers run edge to edge. A divided list therefore goes flush against its
+   container and each row carries its own horizontal inset — never the other
+   way round, which would leave every rule stopping short of the edge. Set
+   --notice-inset on the group to control that inset (0 when the notice sits
+   directly in an already-padded region, as in the auth panel). */
+.notice-group {
+  border-bottom: 1px solid var(--ink-12);
+  --notice-inset: 0px;
+}
 
 .notice {
   display: grid;
   grid-template-columns: 168px 1fr;
   gap: var(--s5);
-  padding: var(--s4) 0;
+  padding: var(--s4) var(--notice-inset, 0px);
   border-top: 1px solid var(--ink-12);
 }
 
