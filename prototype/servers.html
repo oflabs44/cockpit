@@ -110,31 +110,26 @@
 
         <div class="empty animate-rise">
           <div class="empty-art">
-            <!-- A slab lifting off a stack: a machine joining the fleet. Drawn
-                 in the same hairlines as the rest of the UI, with faces filled
-                 in paper so the upper forms occlude the lower ones. -->
-            <svg viewBox="0 0 200 150" width="240" height="180"
+<svg viewBox="0 0 180 170" width="200" height="189"
                  fill="none" stroke="currentColor" stroke-width="1"
                  stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true">
-              <!-- bottom slab -->
-              <path d="M50 110 L100 137 L100 148 L50 121 Z" fill="var(--color-paper)"/>
-              <path d="M100 137 L150 110 L150 121 L100 148 Z" fill="var(--color-paper)"/>
-              <path d="M100 83 L150 110 L100 137 L50 110 Z" fill="var(--color-paper)"/>
-              <path d="M112 140 L136 128"/>
-              <!-- middle slab -->
-              <path d="M50 99 L100 126 L100 137 L50 110 Z" fill="var(--color-paper)"/>
-              <path d="M100 126 L150 99 L150 110 L100 137 Z" fill="var(--color-paper)"/>
-              <path d="M100 72 L150 99 L100 126 L50 99 Z" fill="var(--color-paper)"/>
-              <path d="M112 129 L136 117"/>
-              <!-- alignment guides -->
-              <path d="M50 66 L50 88" stroke-dasharray="2 3" opacity=".7"/>
-              <path d="M150 66 L150 88" stroke-dasharray="2 3" opacity=".7"/>
-              <path d="M100 93 L100 115" stroke-dasharray="2 3" opacity=".7"/>
-              <!-- incoming slab -->
-              <path d="M50 55 L100 82 L100 93 L50 66 Z" fill="var(--color-paper)"/>
-              <path d="M100 82 L150 55 L150 66 L100 93 Z" fill="var(--color-paper)"/>
-              <path d="M100 28 L150 55 L100 82 L50 55 Z" fill="var(--color-paper)"/>
-              <path d="M112 85 L136 73"/>
+              <!-- Solid = what exists (the rack). Dashed = what is absent (the
+                   servers). Flat elevation rather than isometric: blueprint
+                   drawing sits closer to paper-and-ink, and isometric spot art
+                   is what every other platform reaches for. -->
+              <path d="M30 8h120v144H30z"/>
+              <path d="M41 8v144M139 8v144" opacity=".4"/>
+              <g opacity=".45">
+                <path d="M34 20h4M34 38h4M34 56h4M34 74h4M34 92h4M34 110h4M34 128h4M34 140h4"/>
+                <path d="M142 20h4M142 38h4M142 56h4M142 74h4M142 92h4M142 110h4M142 128h4M142 140h4"/>
+              </g>
+              <g stroke-dasharray="4 4" opacity=".8">
+                <path d="M49 20h82v34H49z"/>
+                <path d="M49 63h82v34H49z"/>
+                <path d="M49 106h82v34H49z"/>
+              </g>
+              <path d="M38 152v10M142 152v10" opacity=".6"/>
+              <path d="M22 162h136" opacity=".45"/>
             </svg>
           </div>
 
