@@ -441,21 +441,88 @@ a { color: inherit; }
 .empty-inline .empty-actions { margin-top: var(--s4); }
 
 /* --------------------------------------------------------------------------
-   Command block — a copy-paste shell line. Appears in empty states, enrolment,
-   and anywhere cockpit asks you to run something on a box.
+   Terminal — a copy-paste command block. Appears in empty states, enrolment,
+   exec output, and anywhere cockpit asks you to run something on a box.
+
+   Syntax is highlighted structurally rather than chromatically: weight and ink
+   alpha, not hue. Every other colour in cockpit means a state (healthy,
+   pending, drifted, failed), so a purple keyword and a blue string would be
+   the only colours in the product that mean nothing. Structure survives that
+   constraint fine — the command, its flags, and its values still separate.
    -------------------------------------------------------------------------- */
 
-.cmd { border: 1px solid var(--ink-12); background: var(--color-sheet); }
-.cmd-head {
-  display: flex; align-items: center; gap: var(--s3);
-  padding: var(--s2) var(--s3);
+.term {
+  border: 1px solid var(--ink-12);
+  background: var(--color-sheet);
+  overflow: hidden;
+}
+
+.term-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  height: 38px;
+  padding: 0 var(--s3);
   border-bottom: 1px solid var(--ink-12);
 }
-.cmd-head .spacer { flex: 1; }
-.cmd-body {
-  display: block; padding: var(--s3);
-  font-family: var(--font-mono); font-size: var(--t-sm);
-  line-height: 1.6; white-space: pre-wrap; word-break: break-all;
-  color: var(--color-ink);
+.term-head .spacer { flex: 1; }
+.term-head svg {
+  width: 15px; height: 15px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.25;
+  stroke-linecap: butt; stroke-linejoin: miter;
+  color: var(--ink-40);
 }
-.cmd-body .prompt { color: var(--ink-40); user-select: none; }
+.term-title {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-60);
+}
+
+.term-body {
+  display: block;
+  margin: 0;
+  padding: var(--s4) var(--s3);
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink-60);
+  overflow-x: auto;
+}
+
+/* Tokens. The command is the only thing at full ink — it is what you are
+   actually being asked to run; everything else is qualification. */
+.term .t-prompt   { color: var(--ink-20); user-select: none; }
+.term .t-cmd      { color: var(--color-ink); font-weight: 500; }
+.term .t-flag     { color: var(--ink-60); }
+.term .t-str      { color: var(--ink-80); }
+.term .t-url      { color: var(--ink-80); text-decoration: underline; text-decoration-color: var(--ink-20); text-underline-offset: 3px; }
+.term .t-op       { color: var(--ink-40); }
+.term .t-comment  { color: var(--ink-40); font-style: italic; }
+/* A value you must substitute. Dashed underline says "not literal" without
+   needing a legend. */
+.term .t-slot {
+  color: var(--color-ink);
+  border-bottom: 1px dashed var(--ink-40);
+}
+.term .t-out { color: var(--ink-40); }
+
+/* Tinted variant — kept behind a modifier so the decision stays visible
+   rather than leaking into the default. */
+.term-tinted .t-cmd  { color: var(--color-info); font-weight: 400; }
+.term-tinted .t-flag { color: var(--color-warn); }
+.term-tinted .t-str,
+.term-tinted .t-url  { color: var(--color-accent); }
+
+.term-copy { position: relative; }
+.term-copy[data-copied]::after {
+  content: 'copied';
+  position: absolute; right: calc(100% + 8px); top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono); font-size: var(--t-micro);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-40); white-space: nowrap;
+}

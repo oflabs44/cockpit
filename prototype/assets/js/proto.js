@@ -24,3 +24,20 @@
     });
   });
 })();
+
+/* Terminal copy. Copies the command text only — prompts and sample output are
+   marked so they never end up on the clipboard. */
+window.copyTerm = function (btn) {
+  var body = btn.closest('.term').querySelector('.term-body').cloneNode(true);
+  body.querySelectorAll('.t-prompt, .t-out, .t-comment').forEach(function (n) { n.remove(); });
+  var text = body.textContent.replace(/[ \t]+\n/g, '\n').trim();
+
+  var done = function () {
+    btn.setAttribute('data-copied', '');
+    clearTimeout(btn._t);
+    btn._t = setTimeout(function () { btn.removeAttribute('data-copied'); }, 1600);
+  };
+
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done);
+  else done();
+};

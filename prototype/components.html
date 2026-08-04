@@ -314,14 +314,15 @@
           <span class="mono">cockpitd</span>, and enrols automatically.
         </p>
         <div class="empty-extra">
-          <div class="cmd">
-            <div class="cmd-head">
-              <span class="label">run on the server</span>
-              <span class="spacer"></span>
-              <button class="btn btn-quiet btn-sm">Copy</button>
-            </div>
-            <code class="cmd-body"><span class="prompt">$ </span>curl -fsSL https://cockpit.oflabs.dev/install.sh | sh -s -- --token ck_enrol_8fkq2t</code>
-          </div>
+          <div class="term ">
+        <div class="term-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 4.5h19v15h-19zM6.5 10l3 2.5-3 2.5M12.5 15.5h5"/></svg>
+          <span class="term-title">Terminal</span>
+          <span class="spacer"></span>
+          <button class="btn btn-quiet btn-icon btn-sm term-copy" onclick="copyTerm(this)" title="Copy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5h11v11h-11zM15.5 8.5v-4h-11v11h4"/></svg></button>
+        </div>
+        <code class="term-body"><span class="t-prompt">$ </span><span class="t-cmd">curl</span> <span class="t-flag">-fsSL</span> <span class="t-url">https://cockpit.oflabs.dev/install.sh</span> <span class="t-op">|</span> <span class="t-cmd">sh</span> <span class="t-flag">-s</span> <span class="t-op">--</span> <span class="t-flag">--token</span> <span class="t-slot">ck_enrol_8fkq2t</span></code>
+      </div>
         </div>
       </div>
     </div>
@@ -343,6 +344,73 @@
       No illustration and smaller type: it is a gap in a page, not a page. Using the full
       variant here would make an empty section shout louder than the populated ones
       around it.
+    </p>
+  </section>
+
+
+  <!-- ================= TERMINAL ================= -->
+  <section>
+    <div class="sec-head"><h2>Terminal</h2><hr class="hr"></div>
+    <p class="why" style="margin:0 0 var(--s5)">
+      A copy-paste command block &mdash; enrolment, exec, migrations, anywhere cockpit asks
+      you to run something. Copy takes the command only: prompts, comments, and sample
+      output are marked so they never reach the clipboard.
+    </p>
+
+    <div class="caption label">Default &mdash; structural highlighting</div>
+    <div class="demo">
+      <div class="term ">
+        <div class="term-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 4.5h19v15h-19zM6.5 10l3 2.5-3 2.5M12.5 15.5h5"/></svg>
+          <span class="term-title">Terminal</span>
+          <span class="spacer"></span>
+          <button class="btn btn-quiet btn-icon btn-sm term-copy" onclick="copyTerm(this)" title="Copy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5h11v11h-11zM15.5 8.5v-4h-11v11h4"/></svg></button>
+        </div>
+        <code class="term-body"><span class="t-prompt">$ </span><span class="t-cmd">curl</span> <span class="t-flag">-fsSL</span> <span class="t-url">https://cockpit.oflabs.dev/install.sh</span> <span class="t-op">|</span> <span class="t-cmd">sh</span> <span class="t-flag">-s</span> <span class="t-op">--</span> <span class="t-flag">--token</span> <span class="t-slot">ck_enrol_8fkq2t</span></code>
+      </div>
+    </div>
+    <p class="why" style="margin-bottom:var(--s6)">
+      Highlighted by weight and ink alpha rather than hue. Every other colour in cockpit
+      means a state &mdash; healthy, pending, drifted, failed &mdash; so a purple keyword
+      and a blue string would be the only colours in the product that mean nothing. The
+      command sits at full ink because it is what you are being asked to run; flags and
+      values are qualification. A dashed underline marks a value you must substitute,
+      which needs no legend.
+    </p>
+
+    <div class="caption label">Multi-line, with output</div>
+    <div class="demo">
+      <div class="term ">
+        <div class="term-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 4.5h19v15h-19zM6.5 10l3 2.5-3 2.5M12.5 15.5h5"/></svg>
+          <span class="term-title">Exec &mdash; jerry</span>
+          <span class="spacer"></span>
+          <button class="btn btn-quiet btn-icon btn-sm term-copy" onclick="copyTerm(this)" title="Copy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5h11v11h-11zM15.5 8.5v-4h-11v11h4"/></svg></button>
+        </div>
+        <code class="term-body"><span class="t-comment"># run inside the container</span>
+<span class="t-prompt">$ </span><span class="t-cmd">pnpm</span> <span class="t-str">migrate:deploy</span>
+<span class="t-out">4 migrations applied in 812ms</span>
+<span class="t-prompt">$ </span><span class="t-cmd">cockpit</span> <span class="t-str">logs</span> <span class="t-flag">--follow</span> <span class="t-slot">jerry</span></code>
+      </div>
+    </div>
+
+    <div class="caption label">Tinted variant &mdash; for comparison</div>
+    <div class="demo">
+      <div class="term term-tinted">
+        <div class="term-head">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 4.5h19v15h-19zM6.5 10l3 2.5-3 2.5M12.5 15.5h5"/></svg>
+          <span class="term-title">Terminal</span>
+          <span class="spacer"></span>
+          <button class="btn btn-quiet btn-icon btn-sm term-copy" onclick="copyTerm(this)" title="Copy"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 8.5h11v11h-11zM15.5 8.5v-4h-11v11h4"/></svg></button>
+        </div>
+        <code class="term-body"><span class="t-prompt">$ </span><span class="t-cmd">curl</span> <span class="t-flag">-fsSL</span> <span class="t-url">https://cockpit.oflabs.dev/install.sh</span> <span class="t-op">|</span> <span class="t-cmd">sh</span> <span class="t-flag">-s</span> <span class="t-op">--</span> <span class="t-flag">--token</span> <span class="t-slot">ck_enrol_8fkq2t</span></code>
+      </div>
+    </div>
+    <p class="why">
+      The same block using the semantic accents as syntax colours. It reads fine in
+      isolation, but it spends green, blue, and amber on tokens that carry no state
+      &mdash; and those three colours are what a failing container, a pending plan, and
+      drift are supposed to own.
     </p>
   </section>
 
