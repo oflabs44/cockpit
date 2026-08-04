@@ -296,9 +296,9 @@
         <span class="label">Files</span>
         <table style="margin-top:var(--s3)">
           <tbody>
-            <tr><td class="mono">favicon.svg</td><td class="note" style="margin:0">Primary. Inverts automatically via <span class="mono">prefers-color-scheme</span>, so it stays legible in a dark browser chrome.</td></tr>
-            <tr><td class="mono">favicon.ico</td><td class="note" style="margin:0">16 + 32 fallback for older browsers and pinned tabs.</td></tr>
-            <tr><td class="mono">apple-touch-icon.png</td><td class="note" style="margin:0">180&times;180, ink field with the mark knocked out — iOS masks corners, so it must not rely on the paper background.</td></tr>
+            <tr><td class="mono">favicon.svg</td><td class="note" style="margin:0">Primary. A <em>tile</em>, not a bare mark &mdash; it carries its own background so it never depends on the tab colour, and inverts via <span class="mono">prefers-color-scheme</span> so it always contrasts with the chrome. A bare ink mark disappears into a light tab bar.</td></tr>
+            <tr><td class="mono">favicon.ico</td><td class="note" style="margin:0">16 + 32 fallback. Cannot adapt, so it takes the ink-tile variant.</td></tr>
+            <tr><td class="mono">apple-touch-icon.png</td><td class="note" style="margin:0">180&times;180, the same ink tile at a larger scale — iOS masks corners and composites on unknown backgrounds, so a tile is mandatory here.</td></tr>
             <tr><td class="mono">mark.svg</td><td class="note" style="margin:0">In-app, <span class="mono">currentColor</span>.</td></tr>
             <tr><td class="mono">mark-small.svg</td><td class="note" style="margin:0">The &lt;20&nbsp;px cut.</td></tr>
             <tr><td class="mono">mark-banked.svg</td><td class="note" style="margin:0">Alert state only.</td></tr>
