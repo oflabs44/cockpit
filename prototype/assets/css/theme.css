@@ -20,10 +20,17 @@
   --font-sans: 'Schibsted Grotesk', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
 
-  /* Surfaces + the single foreground. */
-  --color-paper: oklch(0.977 0.0025 255);
-  --color-sheet: oklch(0.996 0.001 255);
-  --color-ink: oklch(0.21 0.012 262);
+  /* Surfaces + the single foreground.
+
+     Deliberately short of the extremes. Near-white ink on a near-black canvas
+     (and near-black on near-white) is the highest contrast available and the
+     most tiring to read for any length of time — it glares, and glyph edges
+     bloom. cockpit is a dashboard people leave open, so both themes pull the
+     foreground back off the ceiling and lift the canvas off the floor. The
+     result still clears WCAG AA comfortably; it just stops shouting. */
+  --color-paper: oklch(0.972 0.003 255);
+  --color-sheet: oklch(0.993 0.0015 255);
+  --color-ink: oklch(0.28 0.014 262);
 
   /* Semantic accents — the ONLY colour, and only ever to carry meaning.
      cockpit's state vocabulary maps onto these exactly:
@@ -72,9 +79,9 @@
 }
 
 [data-theme='light'] {
-  --color-paper: oklch(0.977 0.0025 255);
-  --color-sheet: oklch(0.996 0.001 255);
-  --color-ink: oklch(0.21 0.012 262);
+  --color-paper: oklch(0.972 0.003 255);
+  --color-sheet: oklch(0.993 0.0015 255);
+  --color-ink: oklch(0.28 0.014 262);
 
   --color-accent: oklch(0.52 0.12 152);
   --color-info: oklch(0.52 0.13 245);
@@ -86,14 +93,14 @@
 }
 
 [data-theme='dark'] {
-  --color-paper: oklch(0.168 0.004 264);
-  --color-sheet: oklch(0.205 0.005 264);
-  --color-ink: oklch(0.93 0.004 250);
+  --color-paper: oklch(0.192 0.005 264);
+  --color-sheet: oklch(0.228 0.006 264);
+  --color-ink: oklch(0.875 0.006 250);
 
-  --color-accent: oklch(0.8 0.13 152);
-  --color-info: oklch(0.76 0.12 245);
-  --color-warn: oklch(0.83 0.13 80);
-  --color-danger: oklch(0.72 0.16 25);
+  --color-accent: oklch(0.76 0.12 152);
+  --color-info: oklch(0.72 0.11 245);
+  --color-warn: oklch(0.79 0.12 80);
+  --color-danger: oklch(0.68 0.15 25);
 
   --id-l: 0.8;
   --id-c: 0.1;
