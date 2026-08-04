@@ -187,6 +187,157 @@
     </div>
   </section>
 
+
+  <!-- ================= BUTTONS ================= -->
+  <section>
+    <div class="sec-head"><h2>Button</h2><hr class="hr"></div>
+    <p class="why" style="margin:0 0 var(--s5)">
+      Four variants, three sizes. Emphasis comes from contrast, not colour &mdash; the
+      primary action is solid ink, never a brand colour. Danger is the single exception
+      and is reserved for actions that destroy something; using it to mean "important"
+      is what makes it stop registering in the one place it matters.
+    </p>
+
+    <div class="caption label">Variants</div>
+    <div class="demo">
+      <div class="row">
+        <button class="btn btn-primary">Deploy</button>
+        <button class="btn btn-ghost">Plan changes</button>
+        <button class="btn btn-quiet">View logs</button>
+        <button class="btn btn-danger">Destroy server</button>
+      </div>
+    </div>
+    <p class="why" style="margin-bottom:var(--s6)">
+      <span class="mono">primary</span> solid ink, one per screen &mdash; if there are two,
+      one of them is not primary. <span class="mono">ghost</span> the default for everything
+      else. <span class="mono">quiet</span> borderless, for dense contexts like table rows
+      where a border on every item would out-weigh the data beside it.
+      <span class="mono">danger</span> solid, because a destructive action should look as
+      committed as it is; outlining it reads as a warning rather than a decision.
+    </p>
+
+    <div class="caption label">Sizes</div>
+    <div class="demo">
+      <div class="row">
+        <button class="btn btn-ghost btn-sm">Small &mdash; rows, bars</button>
+        <button class="btn btn-ghost">Default</button>
+        <button class="btn btn-ghost btn-lg">Large &mdash; one decisive action</button>
+      </div>
+    </div>
+
+    <div class="caption label">With icon, icon-only, and states</div>
+    <div class="demo">
+      <div class="row">
+        <button class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="butt" stroke-linejoin="miter"><path d="M12 4v13M6 11l6 6 6-6"/></svg>
+          Add server
+        </button>
+        <button class="btn btn-ghost btn-icon" title="Restart">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="butt" stroke-linejoin="miter"><path d="M20 12a8 8 0 1 1-2.5-5.8M20 3v5h-5"/></svg>
+        </button>
+        <button class="btn btn-quiet btn-icon btn-sm" title="More">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.5 10.5h3v3h-3zM10.5 10.5h3v3h-3zM16.5 10.5h3v3h-3z"/></svg>
+        </button>
+        <button class="btn btn-primary" aria-busy="true"><span class="spinner"></span> Applying</button>
+        <button class="btn btn-ghost" disabled>Disabled</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= EMPTY STATE ================= -->
+  <section>
+    <div class="sec-head"><h2>Empty state</h2><hr class="hr"></div>
+    <p class="why" style="margin:0 0 var(--s5)">
+      One component for every "nothing here yet" screen &mdash; no servers, no plans, no
+      activity, no releases, no logs, a filter that matched nothing. The anatomy is fixed
+      so they all read as the same object: <span class="mono">art</span> (optional),
+      <span class="mono">title</span> stating what is absent,
+      <span class="mono">body</span> of one sentence on what to do,
+      <span class="mono">actions</span> with exactly one primary, and an optional
+      <span class="mono">extra</span> slot for the thing you would otherwise have to go
+      and find.
+    </p>
+
+    <div class="caption label">Full &mdash; page level</div>
+    <div class="demo">
+      <div class="empty" style="min-height:300px">
+        <div class="empty-art">
+          <svg viewBox="0 0 200 150" width="180" height="135" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true">
+            <path d="M50 110 L100 137 L100 148 L50 121 Z" fill="var(--color-sheet)"/>
+            <path d="M100 137 L150 110 L150 121 L100 148 Z" fill="var(--color-sheet)"/>
+            <path d="M100 83 L150 110 L100 137 L50 110 Z" fill="var(--color-sheet)"/>
+            <path d="M112 140 L136 128"/>
+            <path d="M50 99 L100 126 L100 137 L50 110 Z" fill="var(--color-sheet)"/>
+            <path d="M100 126 L150 99 L150 110 L100 137 Z" fill="var(--color-sheet)"/>
+            <path d="M100 72 L150 99 L100 126 L50 99 Z" fill="var(--color-sheet)"/>
+            <path d="M112 129 L136 117"/>
+            <path d="M50 66 L50 88" stroke-dasharray="2 3" opacity=".7"/>
+            <path d="M150 66 L150 88" stroke-dasharray="2 3" opacity=".7"/>
+            <path d="M100 93 L100 115" stroke-dasharray="2 3" opacity=".7"/>
+            <path d="M50 55 L100 82 L100 93 L50 66 Z" fill="var(--color-sheet)"/>
+            <path d="M100 82 L150 55 L150 66 L100 93 Z" fill="var(--color-sheet)"/>
+            <path d="M100 28 L150 55 L100 82 L50 55 Z" fill="var(--color-sheet)"/>
+            <path d="M112 85 L136 73"/>
+          </svg>
+        </div>
+        <h2 class="empty-title">No servers yet</h2>
+        <p class="empty-body">
+          cockpit doesn't create machines &mdash; you bring a box you already own. Run one
+          line on it and it enrols itself, with no SSH access handed over.
+        </p>
+        <div class="empty-actions">
+          <button class="btn btn-primary btn-lg">Add server</button>
+          <button class="btn btn-ghost btn-lg">Redeem a claim code</button>
+        </div>
+      </div>
+    </div>
+    <p class="why" style="margin-bottom:var(--s6)">
+      The illustration is drawn in the same hairlines as the rest of the UI. Soft, rounded,
+      tinted spot art is the house style of every SaaS empty state &mdash; here it would be
+      the only rounded, coloured object in the entire product.
+    </p>
+
+    <div class="caption label">With extra &mdash; when the action needs a command</div>
+    <div class="demo">
+      <div class="empty" style="min-height:0">
+        <h2 class="empty-title">Waiting for the daemon</h2>
+        <p class="empty-body">
+          Run this on the box. It hardens the host, installs Docker and
+          <span class="mono">cockpitd</span>, and enrols automatically.
+        </p>
+        <div class="empty-extra">
+          <div class="cmd">
+            <div class="cmd-head">
+              <span class="label">run on the server</span>
+              <span class="spacer"></span>
+              <button class="btn btn-quiet btn-sm">Copy</button>
+            </div>
+            <code class="cmd-body"><span class="prompt">$ </span>curl -fsSL https://cockpit.oflabs.dev/install.sh | sh -s -- --token ck_enrol_8fkq2t</code>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="why" style="margin-bottom:var(--s6)">
+      The <span class="mono">extra</span> slot exists so an empty state can carry the thing
+      you would otherwise navigate away to find. Here the enrolment command is the entire
+      action, so putting it behind a button would be ceremony.
+    </p>
+
+    <div class="caption label">Inline &mdash; an empty region inside a populated screen</div>
+    <div class="demo demo-flush">
+      <div class="empty empty-inline">
+        <h2 class="empty-title">Nothing deployed on this server</h2>
+        <p class="empty-body">Apps, databases, and cron jobs you add will appear here.</p>
+        <div class="empty-actions"><button class="btn btn-ghost btn-sm">Deploy an app</button></div>
+      </div>
+    </div>
+    <p class="why">
+      No illustration and smaller type: it is a gap in a page, not a page. Using the full
+      variant here would make an empty section shout louder than the populated ones
+      around it.
+    </p>
+  </section>
+
   <!-- ================= REJECTED ================= -->
   <section>
     <div class="sec-head"><h2>Considered and rejected</h2><hr class="hr"></div>

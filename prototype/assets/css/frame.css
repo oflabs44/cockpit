@@ -1,0 +1,188 @@
+/* ==========================================================================
+ THE FRAME
+ Two fixed regions and one scrolling one. The rail and the bar never move or
+ scroll; only the content does. That is the whole contract — every screen in
+ cockpit is a content region, and nothing else in the app is allowed to
+ restructure the chrome around it.
+ ========================================================================== */
+
+.frame {
+  flex: 1;
+  display: grid;
+  grid-template-columns: var(--rail, 216px) 1fr;
+  min-height: 0;
+  transition: grid-template-columns 0.16s var(--ease);
+}
+.frame[data-rail='collapsed'] { --rail: 52px; }
+
+/* ---------------------------- rail ---------------------------- */
+.rail {
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--ink-12);
+  min-height: 0; overflow: hidden;
+}
+
+/* Brand doubles as the fleet's health indicator: the mark banks when
+   something is wrong, so the chrome itself tells you before you read a word.
+   It is the one place the logo is allowed to carry colour. */
+.brand {
+  display: flex; align-items: center; gap: 0.44em;
+  height: 56px; padding: 0 var(--s4);
+  border-bottom: 1px solid var(--ink-12);
+  flex: none; text-decoration: none; color: inherit;
+  font-size: 16px;
+}
+.brand svg { width: 1em; height: 1em; flex: none; }
+.brand .word { font-weight: 600; letter-spacing: -0.035em; white-space: nowrap; }
+.brand[data-health='degraded'] svg { color: var(--color-warn); }
+.brand[data-health='unhealthy'] svg { color: var(--color-danger); }
+
+.nav { padding: var(--s4) var(--s2); display: flex; flex-direction: column; gap: 2px; }
+.nav a {
+  display: flex; align-items: center; gap: var(--s3);
+  height: 38px; padding: 0 var(--s3);
+  text-decoration: none; color: var(--ink-40);
+  font-size: var(--t-base); white-space: nowrap;
+  transition: color 0.12s var(--ease);
+}
+.nav a:hover { color: var(--ink-80); }
+/* Active state is contrast alone — no rule, no fill, no pill. Those are the
+   default moves and they add chrome to a system whose whole premise is that
+   emphasis comes from contrast. Inactive sits at ink/40; active is full ink
+   at 500. The gap is large enough to find without decoration. */
+.nav a[aria-current='page'] { color: var(--color-ink); font-weight: 500; }
+.nav a[aria-current='page'] svg { stroke-width: 1.5; }
+
+/* Thin stroke, square caps, miter joins. Rounded caps are the house style of
+   every icon set and they contradict a design with no rounding anywhere. */
+.nav svg {
+  width: 21px; height: 21px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.25;
+  stroke-linecap: butt; stroke-linejoin: miter;
+}
+.nav .count {
+  margin-left: auto; font-family: var(--font-mono); font-size: var(--t-micro);
+  color: var(--ink-40);
+}
+.nav .count[data-attention] { color: var(--color-info); }
+
+/* Dividers run edge to edge, always. The nav has horizontal padding, so the
+   separator is pulled back out to the rail's own edges with negative margin.
+   A rule that stops short of its container reads as decoration; a rule that
+   reaches the edge reads as structure, which is what it is. */
+.nav-sep {
+  height: 1px; background: var(--ink-12);
+  margin: var(--s3) calc(var(--s2) * -1);
+}
+
+.rail-foot { margin-top: auto; border-top: 1px solid var(--ink-12); padding: var(--s2); }
+.who {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s2) var(--s3); width: 100%;
+  background: transparent; border: 0; cursor: pointer;
+  color: inherit; font-family: var(--font-sans); text-align: left;
+}
+.who:hover { background: var(--ink-04); }
+.who .avatar { width: 22px; height: 22px; background: var(--ink-12); flex: none; }
+.who .stack { min-width: 0; }
+.who .name { font-family: var(--font-mono); font-size: var(--t-sm); display: block; }
+
+/* Collapsed rail: labels vanish, hit targets and icons stay put so nothing
+   jumps. Counts move onto the icon as a dot, because a number in 52px lies. */
+[data-rail='collapsed'] .brand .word,
+[data-rail='collapsed'] .nav a span,
+[data-rail='collapsed'] .who .stack { display: none; }
+[data-rail='collapsed'] .brand,
+[data-rail='collapsed'] .nav a,
+[data-rail='collapsed'] .who { justify-content: center; padding: 0; }
+[data-rail='collapsed'] .nav a { position: relative; }
+[data-rail='collapsed'] .nav .count { display: none; }
+[data-rail='collapsed'] .nav a[data-badge]::after {
+  content: ''; position: absolute; top: 6px; right: 10px;
+  width: 5px; height: 5px; background: var(--color-info);
+}
+
+/* ---------------------------- main ---------------------------- */
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+.bar {
+  display: flex; align-items: center; gap: var(--s3);
+  height: 56px; padding: 0 var(--s5);
+  border-bottom: 1px solid var(--ink-12);
+  flex: none;
+}
+.bar .spacer { flex: 1; }
+
+.railtoggle {
+  width: 30px; height: 30px; flex: none;
+  display: grid; place-items: center;
+  background: transparent; border: 0; cursor: pointer; color: var(--ink-40);
+}
+.railtoggle:hover { color: var(--color-ink); background: var(--ink-04); }
+.railtoggle svg { width: 17px; height: 17px; }
+
+.bar-mark { display: none; color: inherit; flex: none; }
+.bar-mark svg { width: 18px; height: 18px; display: block; }
+.bar-mark[data-health='degraded'] { color: var(--color-warn); }
+.bar-mark[data-health='unhealthy'] { color: var(--color-danger); }
+
+/* Breadcrumb is the page title. A separate <h1> plus a crumb trail says the
+   same thing twice, and the last crumb is always the title anyway. */
+.crumbs { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+.crumbs a { color: var(--ink-40); text-decoration: none; font-size: var(--t-base); white-space: nowrap; }
+.crumbs a:hover { color: var(--color-ink); }
+.crumbs .sep { color: var(--ink-20); font-family: var(--font-mono); }
+.crumbs .here {
+  font-size: var(--t-lg); font-weight: 600; letter-spacing: -0.02em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.crumbs .here .dot { margin-right: var(--s2); vertical-align: 1px; }
+
+.search {
+  display: inline-flex; align-items: center; gap: var(--s3);
+  height: 30px; padding: 0 var(--s3); min-width: 210px;
+  border: 1px solid var(--ink-12); background: transparent;
+  color: var(--ink-40); font-family: var(--font-sans); font-size: var(--t-sm);
+  cursor: pointer;
+}
+.search:hover { border-color: var(--ink-40); color: var(--ink-60); }
+.search kbd { margin-left: auto; font-family: var(--font-mono); font-size: 11px; }
+
+.content { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
+.content-inner { padding: var(--s5); flex: 1; display: flex; flex-direction: column; }
+
+/* ---------------------------- mobile ---------------------------- */
+/* The rail becomes a bottom bar rather than a hamburger drawer: four
+   destinations is exactly what a bottom bar is for, and it keeps navigation
+   one thumb-press away instead of two. */
+.mobilebar { display: none; }
+
+.frame[data-view='mobile'] { grid-template-columns: 1fr; }
+.frame[data-view='mobile'] .rail { display: none; }
+.frame[data-view='mobile'] .railtoggle { display: none; }
+.frame[data-view='mobile'] .search { min-width: 0; }
+.frame[data-view='mobile'] .search span { display: none; }
+.frame[data-view='mobile'] .search kbd { display: none; }
+.frame[data-view='mobile'] .mobilebar {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--ink-12); flex: none;
+}
+.frame[data-view='mobile'] .mobilebar a {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: var(--s3) 0; text-decoration: none; color: var(--ink-40);
+  font-size: var(--t-micro);
+}
+.frame[data-view='mobile'] .mobilebar a[aria-current='page'] {
+  color: var(--color-ink);
+}
+.frame[data-view='mobile'] .mobilebar svg {
+  width: 22px; height: 22px;
+  fill: none; stroke: currentColor; stroke-width: 1.25;
+  stroke-linecap: butt; stroke-linejoin: miter;
+}
+.frame[data-view='mobile'] .mobilebar a[aria-current='page'] svg { stroke-width: 1.5; }
+.frame[data-view='mobile'] .bar { padding: 0 var(--s4); }
+.frame[data-view='mobile'] .bar-mark { display: block; }
+.frame[data-view='mobile'] .content-inner { padding: var(--s4); }
+
+.phone { max-width: 420px; margin: 0 auto; border-left: 1px solid var(--ink-12); border-right: 1px solid var(--ink-12); }

@@ -174,12 +174,21 @@ a { color: inherit; }
   border: 1px solid var(--ink-12);
 }
 
+/* --------------------------------------------------------------------------
+   Button — four variants, three sizes.
+
+   Emphasis comes from contrast, not colour: the primary action is solid ink,
+   not a brand colour. Danger is the single exception, and it is reserved for
+   actions that destroy something — it must never be used merely to mean
+   "important", or the one place it matters stops registering.
+   -------------------------------------------------------------------------- */
+
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--s2);
-  height: 44px;
+  height: 36px;
   padding: 0 var(--s4);
   border: 1px solid transparent;
   border-radius: var(--radius);
@@ -187,36 +196,43 @@ a { color: inherit; }
   font-size: var(--t-base);
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.14s var(--ease), border-color 0.14s var(--ease), opacity 0.14s;
   white-space: nowrap;
+  transition: background-color 0.14s var(--ease), border-color 0.14s var(--ease),
+              color 0.14s var(--ease), opacity 0.14s;
 }
 
-.btn:focus-visible {
-  outline: 2px solid var(--color-ink);
-  outline-offset: 2px;
-}
+.btn:focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
+.btn[disabled], .btn[aria-busy='true'] { pointer-events: none; opacity: 0.45; }
 
-.btn[disabled], .btn[aria-busy='true'] {
-  pointer-events: none;
-  opacity: 0.55;
-}
+/* Sizes. sm for table rows and bars, lg for a screen's single decisive action. */
+.btn-sm { height: 28px; padding: 0 var(--s3); font-size: var(--t-sm); }
+.btn-lg { height: 44px; padding: 0 var(--s5); }
 
-/* Solid ink — the single primary action on a screen. Emphasis through
-   contrast, not colour. */
-.btn-primary {
-  background-color: var(--color-ink);
-  color: var(--color-paper);
-}
+/* Solid ink. One per screen — if there are two, one of them is not primary. */
+.btn-primary { background-color: var(--color-ink); color: var(--color-paper); }
 .btn-primary:hover { background-color: color-mix(in oklab, var(--color-ink) 86%, var(--color-paper)); }
 
-.btn-ghost {
-  background-color: transparent;
-  border-color: var(--ink-20);
-  color: var(--color-ink);
-}
+/* Bordered. The default for everything that is not the single primary action. */
+.btn-ghost { background-color: transparent; border-color: var(--ink-20); color: var(--color-ink); }
 .btn-ghost:hover { background-color: var(--ink-04); border-color: var(--ink-40); }
 
+/* Borderless. For dense contexts — table rows, toolbars, repeated actions —
+   where a border on every item would out-weigh the data it sits beside. */
+.btn-quiet { background-color: transparent; border-color: transparent; color: var(--ink-60); }
+.btn-quiet:hover { background-color: var(--ink-08); color: var(--color-ink); }
+
+/* Destructive. Solid, because a destructive action should look as committed as
+   it is; an outlined danger button reads as a warning rather than a decision. */
+.btn-danger { background-color: var(--color-danger); color: #fff; }
+.btn-danger:hover { background-color: color-mix(in oklab, var(--color-danger) 85%, black); }
+
 .btn-block { display: flex; width: 100%; }
+
+/* Icon-only — square, so it aligns to the grid rather than the text metrics. */
+.btn-icon { width: 36px; padding: 0; }
+.btn-icon.btn-sm { width: 28px; }
+.btn-icon.btn-lg { width: 44px; }
+.btn svg { width: 16px; height: 16px; flex: none; }
 
 .btn .spinner {
   width: 14px; height: 14px;
@@ -364,3 +380,82 @@ a { color: inherit; }
    real property, so each element resolves its own hue. */
 .id-fg { color: oklch(var(--id-l) var(--id-c) var(--idhue, 0)); }
 .id-bg { background-color: oklch(var(--id-l) var(--id-c) var(--idhue, 0)); }
+
+/* --------------------------------------------------------------------------
+   Empty state — one component for every "there is nothing here yet" screen:
+   no servers, no plans, no activity, no releases, no logs, a filter that
+   matched nothing.
+
+   Anatomy is fixed so these read as the same object everywhere:
+     art      optional line illustration, ink hairlines only
+     title    what is absent, stated plainly
+     body     one sentence on what to do about it, never more
+     actions  exactly one primary; anything else is ghost or quiet
+     extra    optional slot for the thing you would otherwise have to go
+              find — a command to paste, a docs link, a filter to clear
+
+   The illustration is drawn in the same hairlines as the rest of the UI. Soft,
+   rounded, tinted spot art is the house style of every SaaS empty state, and
+   it would be the only rounded, coloured object in cockpit.
+   -------------------------------------------------------------------------- */
+
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--s7) var(--s5);
+  min-height: 0;
+}
+
+.empty-art { color: var(--ink-40); margin-bottom: var(--s6); }
+.empty-art svg { display: block; }
+
+.empty-title {
+  font-size: var(--t-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--s2);
+}
+
+.empty-body {
+  color: var(--ink-60);
+  font-size: var(--t-base);
+  line-height: 1.55;
+  max-width: 46ch;
+  margin: 0;
+}
+
+.empty-actions { display: flex; gap: var(--s3); margin-top: var(--s5); flex-wrap: wrap; justify-content: center; }
+.empty-extra { margin-top: var(--s6); width: 100%; max-width: 560px; text-align: left; }
+
+/* Inline variant — for an empty region inside a populated screen (a server
+   with no resources, a resource with no releases). No illustration, smaller
+   type: it is a gap in a page, not a page. */
+.empty-inline { padding: var(--s6) var(--s4); }
+.empty-inline .empty-art { display: none; }
+.empty-inline .empty-title { font-size: var(--t-base); }
+.empty-inline .empty-body { font-size: var(--t-sm); }
+.empty-inline .empty-actions { margin-top: var(--s4); }
+
+/* --------------------------------------------------------------------------
+   Command block — a copy-paste shell line. Appears in empty states, enrolment,
+   and anywhere cockpit asks you to run something on a box.
+   -------------------------------------------------------------------------- */
+
+.cmd { border: 1px solid var(--ink-12); background: var(--color-sheet); }
+.cmd-head {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border-bottom: 1px solid var(--ink-12);
+}
+.cmd-head .spacer { flex: 1; }
+.cmd-body {
+  display: block; padding: var(--s3);
+  font-family: var(--font-mono); font-size: var(--t-sm);
+  line-height: 1.6; white-space: pre-wrap; word-break: break-all;
+  color: var(--color-ink);
+}
+.cmd-body .prompt { color: var(--ink-40); user-select: none; }
