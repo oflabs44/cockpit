@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor" role="img" aria-label="cockpit, banked">
+  <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+  <clipPath id="v"><path d="M3.75 3.75h24.5v24.5H3.75z"/></clipPath>
+  <g clip-path="url(#v)"><path d="M-6 23.5 41 12.5V40H-6z"/></g>
+  <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+</svg>

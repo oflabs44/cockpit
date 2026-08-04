@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="currentColor" role="img" aria-label="cockpit">
+  <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+  <path d="M3.75 20h24.5v8.25H3.75z"/>
+  <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+</svg>

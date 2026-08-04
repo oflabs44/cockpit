@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cockpit — visual identity</title>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/img/favicon.ico">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<script src="assets/js/proto.js"></script>
+<link rel="stylesheet" href="assets/css/theme.css">
+<style>
+  .wrap { max-width: 1080px; margin: 0 auto; padding: var(--s8) var(--s5) var(--s8); }
+  .topbar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: var(--s3);
+    padding: var(--s3) var(--s5);
+    background-color: var(--color-paper);
+    border-bottom: 1px solid var(--ink-12);
+  }
+  .topbar .spacer { flex: 1; }
+  h1 { font-size: var(--t-3xl); font-weight: 600; letter-spacing: -0.03em; margin: 0 0 var(--s3); }
+  h2 { font-size: var(--t-lg); font-weight: 600; letter-spacing: -0.01em; margin: 0 0 var(--s2); }
+  .lede { color: var(--ink-60); font-size: var(--t-lg); max-width: 62ch; margin: 0 0 var(--s7); line-height: 1.55; }
+  section { margin-bottom: var(--s8); }
+  .sec-head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s5); }
+  .sec-head .hr { flex: 1; }
+  .grid { display: grid; gap: var(--s4); }
+  .card { padding: var(--s5); }
+  .note { color: var(--ink-60); font-size: var(--t-sm); line-height: 1.55; margin: var(--s2) 0 0; }
+  .swatch { height: 72px; margin-bottom: var(--s2); }
+  .specimen { display: flex; align-items: flex-end; gap: var(--s6); flex-wrap: wrap; }
+  .lockup { display: inline-flex; align-items: center; gap: 0.44em; }
+  .lockup svg { width: 1em; height: 1em; flex: none; }
+  .lockup span { font-weight: 600; letter-spacing: -0.035em; line-height: 1; }
+  table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+  th { text-align: left; padding: 0 0 var(--s2); border-bottom: 1px solid var(--ink-12); }
+  td { padding: var(--s2) 0; border-bottom: 1px solid var(--ink-08); vertical-align: top; }
+  td:first-child { width: 168px; }
+  .chip { display: inline-flex; align-items: center; gap: var(--s2); }
+  .swatch-row { display: flex; align-items: center; gap: var(--s3); }
+  .box { display: flex; align-items: center; justify-content: center; border: 1px solid var(--ink-12); }
+  .dontdo { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); }
+  .verdict { font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: 0.08em; text-transform: uppercase; }
+  .v-yes { color: var(--color-accent); }
+  .v-no { color: var(--color-danger); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="lockup" href="index.html" style="font-size:15px;text-decoration:none">
+    <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg>
+    <span>cockpit</span>
+  </a>
+  <span class="label">visual identity</span>
+  <span class="spacer"></span>
+  <button class="btn btn-ghost" style="height:32px;font-size:12px" onclick="toggleTheme()">
+    view <span data-theme-label>dark</span>
+  </button>
+</div>
+
+<div class="wrap">
+
+  <h1>Visual identity</h1>
+  <p class="lede">
+    cockpit inherits postern's paper-and-ink system: a monochrome canvas with a single
+    ink foreground, right angles throughout, and colour reserved entirely for meaning.
+    An infra dashboard is a dense field of state — when only the failing thing is red,
+    the eye finds it without being taught where to look.
+  </p>
+
+  <!-- ================= MARK ================= -->
+  <section>
+    <div class="sec-head"><h2>The mark</h2><hr class="hr"></div>
+
+    <div class="grid card sheet" style="grid-template-columns: 200px 1fr; align-items:center; gap:var(--s7)">
+      <div style="color:var(--color-ink)">
+        <svg viewBox="0 0 32 32" width="160" height="160" fill="currentColor" aria-label="cockpit mark"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg>
+      </div>
+      <div>
+        <h2 style="margin-bottom:var(--s3)">An attitude indicator</h2>
+        <p class="note" style="font-size:var(--t-base);max-width:56ch">
+          The instrument a pilot reads first: a viewport, a horizon, and the aircraft
+          symbol sitting on it. It answers one question — <em>am I level?</em> — which is
+          exactly the question cockpit answers about a fleet.
+        </p>
+        <p class="note" style="max-width:56ch">
+          Drawn as a square rather than the traditional circle, so it belongs to a system
+          with no rounding anywhere. Built entirely from rectangles on a 32-unit grid:
+          no curves, no gradients, no optical corrections. It is the same object at
+          16&nbsp;px and at 160&nbsp;px.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:var(--s4)">
+      <div class="card sheet">
+        <span class="label">Scale</span>
+        <div class="specimen" style="margin-top:var(--s4);color:var(--color-ink)">
+          <div style="text-align:center"><svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor"><path d="M0 0h32v32H0V0zm3.5 3.5v25h25v-25h-25z"/><path d="M3.5 20h25v8.5h-25z"/><path d="M5.5 13.5h9v4h-9zM17.5 13.5h9v4h-9z"/></svg><div class="label" style="margin-top:var(--s2)">16</div></div>
+          <div style="text-align:center"><svg viewBox="0 0 32 32" width="24" height="24" fill="currentColor"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg><div class="label" style="margin-top:var(--s2)">24</div></div>
+          <div style="text-align:center"><svg viewBox="0 0 32 32" width="32" height="32" fill="currentColor"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg><div class="label" style="margin-top:var(--s2)">32</div></div>
+          <div style="text-align:center"><svg viewBox="0 0 32 32" width="48" height="48" fill="currentColor"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg><div class="label" style="margin-top:var(--s2)">48</div></div>
+        </div>
+        <p class="note">
+          Below 20&nbsp;px the mark switches to a simplified cut: the centre pip is dropped,
+          the bezel thickens, and the bars widen. Same silhouette, fewer parts to mush.
+          That variant is <span class="mono">mark-small.svg</span> and is what the favicon uses.
+        </p>
+      </div>
+
+      <div class="card sheet">
+        <span class="label">Banked — the alert state</span>
+        <div class="specimen" style="margin-top:var(--s4);align-items:center;gap:var(--s5)">
+          <div style="color:var(--color-ink)"><svg viewBox="0 0 32 32" width="48" height="48" fill="currentColor"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg></div>
+          <span class="label" style="font-size:18px">&rarr;</span>
+          <div style="color:var(--color-danger)"><svg viewBox="0 0 32 32" width="48" height="48" fill="currentColor"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><clipPath id="vv"><path d="M3.75 3.75h24.5v24.5H3.75z"/></clipPath><g clip-path="url(#vv)"><path d="M-6 23.5 41 12.5V40H-6z"/></g><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg></div>
+        </div>
+        <p class="note">
+          The horizon banks when the fleet is unhealthy. A real instrument behaviour used
+          as a status channel: the logo in the nav is itself a health indicator, so the
+          product's own chrome tells you something is wrong before you read a word.
+        </p>
+        <p class="note">
+          Used sparingly — banked is <em>only</em> for an active alert, never decoration,
+          and never in marketing or the favicon.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= LOCKUP ================= -->
+  <section>
+    <div class="sec-head"><h2>Lockup</h2><hr class="hr"></div>
+    <div class="card sheet">
+      <div class="specimen">
+        <div class="lockup" style="font-size:40px"><svg viewBox="0 0 32 32" fill="currentColor"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg><span>cockpit</span></div>
+        <div class="lockup" style="font-size:24px"><svg viewBox="0 0 32 32" fill="currentColor"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg><span>cockpit</span></div>
+        <div class="lockup" style="font-size:15px"><svg viewBox="0 0 32 32" fill="currentColor"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg><span>cockpit</span></div>
+      </div>
+      <p class="note">
+        Always lowercase. Schibsted Grotesk 600, tracking &minus;0.035em. The mark is set
+        to <span class="mono">1em</span> and separated by <span class="mono">0.44em</span>,
+        so the lockup scales as one object and never needs re-drawing.
+      </p>
+    </div>
+
+    <div class="dontdo" style="margin-top:var(--s4)">
+      <div class="card sheet">
+        <div class="verdict v-yes">do</div>
+        <ul class="note" style="padding-left:1.1em">
+          <li>Set the mark in <span class="mono">currentColor</span> so it inherits ink.</li>
+          <li>Use the bare mark wherever the word "cockpit" already appears nearby.</li>
+          <li>Give it clear space of at least half the mark's width on every side.</li>
+        </ul>
+      </div>
+      <div class="card sheet">
+        <div class="verdict v-no">don't</div>
+        <ul class="note" style="padding-left:1.1em">
+          <li>Colour the mark with a semantic accent — except banked, in danger.</li>
+          <li>Capitalise, letterspace, or set the wordmark in another face.</li>
+          <li>Round the corners, add a gradient, or place it on a coloured tile.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= COLOUR ================= -->
+  <section>
+    <div class="sec-head"><h2>Colour</h2><hr class="hr"></div>
+
+    <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+      <div>
+        <div class="swatch" style="background:var(--color-paper);border:1px solid var(--ink-12)"></div>
+        <div class="mono" style="font-size:var(--t-sm)">paper</div>
+        <div class="note">The canvas. Everything sits on it.</div>
+      </div>
+      <div>
+        <div class="swatch" style="background:var(--color-sheet);border:1px solid var(--ink-12)"></div>
+        <div class="mono" style="font-size:var(--t-sm)">sheet</div>
+        <div class="note">Raised surfaces — cards, panes, rows.</div>
+      </div>
+      <div>
+        <div class="swatch" style="background:var(--color-ink)"></div>
+        <div class="mono" style="font-size:var(--t-sm)">ink</div>
+        <div class="note">The single foreground, used at alpha for every grey.</div>
+      </div>
+    </div>
+
+    <p class="note" style="margin:var(--s5) 0 var(--s3);font-size:var(--t-base);max-width:64ch">
+      There is no grey palette. Every neutral is ink at an alpha step, so the whole
+      greyscale re-derives itself correctly when the theme flips.
+    </p>
+    <div class="swatch-row">
+      <div class="box" style="width:56px;height:40px;background:var(--ink-04)"></div>
+      <div class="box" style="width:56px;height:40px;background:var(--ink-08)"></div>
+      <div class="box" style="width:56px;height:40px;background:var(--ink-12)"></div>
+      <div class="box" style="width:56px;height:40px;background:var(--ink-20)"></div>
+      <div class="box" style="width:56px;height:40px;background:var(--ink-40)"></div>
+      <div class="box" style="width:56px;height:40px;background:var(--ink-60)"></div>
+      <div class="box" style="width:56px;height:40px;background:var(--ink-80)"></div>
+      <span class="label">04 &middot; 08 &middot; 12 &middot; 20 &middot; 40 &middot; 60 &middot; 80</span>
+    </div>
+
+    <h2 style="margin:var(--s7) 0 var(--s3)">Colour carries meaning, and nothing else</h2>
+    <div class="card sheet">
+      <table>
+        <thead><tr><th>Token</th><th>Means</th><th>Appears as</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="chip"><span class="dot dot-healthy"></span><span class="mono">accent</span></span></td>
+            <td>healthy &middot; running &middot; applied</td>
+            <td class="note" style="margin:0">Status dots, applied plans, passing healthchecks.</td>
+          </tr>
+          <tr>
+            <td><span class="chip"><span class="dot dot-pending"></span><span class="mono">info</span></span></td>
+            <td>pending &middot; planning &middot; neutral action</td>
+            <td class="note" style="margin:0">Plans awaiting approval, in-flight applies.</td>
+          </tr>
+          <tr>
+            <td><span class="chip"><span class="dot dot-degraded"></span><span class="mono">warn</span></span></td>
+            <td>degraded &middot; drifted &middot; attention</td>
+            <td class="note" style="margin:0">Drift, restart loops, disk pressure.</td>
+          </tr>
+          <tr>
+            <td><span class="chip"><span class="dot dot-failed"></span><span class="mono">danger</span></span></td>
+            <td>failed &middot; unhealthy &middot; destructive &middot; firing</td>
+            <td class="note" style="margin:0">Failed plans, dead containers, destructive impact.</td>
+          </tr>
+          <tr>
+            <td><span class="chip"><span class="dot dot-stopped"></span><span class="mono">ink/20</span></span></td>
+            <td>stopped &middot; unknown &middot; disabled</td>
+            <td class="note" style="margin:0">Deliberately absent of colour — nothing to react to.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">
+        Coolify's dashboard colours nearly everything, so nothing stands out. Here, a
+        screen with no colour on it means a fleet with nothing wrong — and that is the
+        most common state, so most of the time cockpit is entirely monochrome.
+      </p>
+    </div>
+
+    <h2 style="margin:var(--s7) 0 var(--s3)">Identity tint</h2>
+    <div class="card sheet">
+      <div class="swatch-row" style="flex-wrap:wrap">
+        <span class="chip mono" style="--idhue:20"><span class="dot id-bg"></span><span class="id-fg">prod-fsn1</span></span>
+        <span class="chip mono" style="--idhue:120"><span class="dot id-bg"></span><span class="id-fg">edge-ash</span></span>
+        <span class="chip mono" style="--idhue:200"><span class="dot id-bg"></span><span class="id-fg">build-hel</span></span>
+        <span class="chip mono" style="--idhue:280"><span class="dot id-bg"></span><span class="id-fg">lab-nbg1</span></span>
+      </div>
+      <p class="note">
+        A stable hue derived from each server's and app's name, used only for
+        <em>identification</em> — never status. It lets a log line or a resource row be
+        placed at a glance without introducing a second colour system. Lightness and
+        chroma come from the theme, so tints stay quiet on paper and lift on graphite.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================= TYPE ================= -->
+  <section>
+    <div class="sec-head"><h2>Type</h2><hr class="hr"></div>
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <div class="card sheet">
+        <span class="label">Schibsted Grotesk &mdash; interface</span>
+        <div style="font-size:var(--t-3xl);font-weight:600;letter-spacing:-0.03em;margin-top:var(--s3)">Fleet</div>
+        <div style="font-size:var(--t-xl);font-weight:500;letter-spacing:-0.015em">Four servers, nothing to review</div>
+        <div style="font-size:var(--t-base);color:var(--ink-60);margin-top:var(--s2)">
+          Everything a person reads as language: headings, labels, prose, buttons.
+        </div>
+      </div>
+      <div class="card sheet">
+        <span class="label">Geist Mono &mdash; machine truth</span>
+        <div class="mono" style="font-size:var(--t-lg);margin-top:var(--s3)">sha256:9f2c1ab&hellip;</div>
+        <div class="mono" style="font-size:var(--t-base);color:var(--ink-60)">jerry.oflabs.dev &middot; 12d 04h &middot; res_8fkq2</div>
+        <div style="font-size:var(--t-base);color:var(--ink-60);margin-top:var(--s2)">
+          Anything the machine produced: ids, digests, domains, durations, env keys,
+          log lines, cron expressions. If you could copy-paste it into a terminal, it is mono.
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:var(--s3);max-width:64ch;font-size:var(--t-base)">
+      The split is a rule, not a preference: mono means "this is a literal value" and sans
+      means "this is language about it." It removes an entire class of ambiguity in a UI
+      that shows both constantly.
+    </p>
+  </section>
+
+  <!-- ================= FAVICON ================= -->
+  <section>
+    <div class="sec-head"><h2>Favicon &amp; app icons</h2><hr class="hr"></div>
+    <div class="grid" style="grid-template-columns:1fr 1fr">
+      <div class="card sheet">
+        <span class="label">Files</span>
+        <table style="margin-top:var(--s3)">
+          <tbody>
+            <tr><td class="mono">favicon.svg</td><td class="note" style="margin:0">Primary. Inverts automatically via <span class="mono">prefers-color-scheme</span>, so it stays legible in a dark browser chrome.</td></tr>
+            <tr><td class="mono">favicon.ico</td><td class="note" style="margin:0">16 + 32 fallback for older browsers and pinned tabs.</td></tr>
+            <tr><td class="mono">apple-touch-icon.png</td><td class="note" style="margin:0">180&times;180, ink field with the mark knocked out — iOS masks corners, so it must not rely on the paper background.</td></tr>
+            <tr><td class="mono">mark.svg</td><td class="note" style="margin:0">In-app, <span class="mono">currentColor</span>.</td></tr>
+            <tr><td class="mono">mark-small.svg</td><td class="note" style="margin:0">The &lt;20&nbsp;px cut.</td></tr>
+            <tr><td class="mono">mark-banked.svg</td><td class="note" style="margin:0">Alert state only.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card sheet">
+        <span class="label">In context</span>
+        <div style="display:flex;gap:var(--s5);align-items:flex-end;margin-top:var(--s4);flex-wrap:wrap">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--ink-08);border:1px solid var(--ink-12);width:210px">
+              <img src="assets/img/favicon-16.png" width="16" height="16" alt="">
+              <span style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">cockpit &mdash; fleet</span>
+            </div>
+            <div class="label" style="margin-top:var(--s2)">browser tab</div>
+          </div>
+          <div>
+            <img src="assets/img/apple-touch-icon.png" width="72" height="72" alt="" style="display:block">
+            <div class="label" style="margin-top:var(--s2)">home screen</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="note" style="text-align:center;margin-top:var(--s8)">
+    Static prototype &mdash; no framework, no build step. This becomes
+    <span class="mono">docs/design.md</span> once refined.
+  </p>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cockpit — sign in</title>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/img/favicon.ico">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<script src="assets/js/proto.js"></script>
+<link rel="stylesheet" href="assets/css/theme.css">
+<style>
+  body { display: flex; flex-direction: column; }
+
+  /* Prototype-only state switcher. Not part of the design. */
+  .protobar {
+    display: flex; align-items: center; gap: var(--s2);
+    padding: var(--s2) var(--s4);
+    border-bottom: 1px solid var(--ink-12);
+    background: var(--color-paper);
+    flex: none;
+  }
+  .protobar .spacer { flex: 1; }
+  .protobar button {
+    height: 26px; padding: 0 10px;
+    background: transparent; color: var(--ink-60);
+    border: 1px solid var(--ink-12);
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+    text-transform: uppercase; cursor: pointer;
+  }
+  .protobar button[aria-current='true'] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+
+  .screen { flex: 1; display: grid; grid-template-columns: 1.15fr 1fr; min-height: 0; }
+
+  /* ---------- left: brand panel ---------- */
+  .brand {
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: var(--s8) var(--s7);
+    border-right: 1px solid var(--ink-12);
+  }
+  /* Ambient horizon — the mark's idea, not the mark itself: a full-bleed hairline
+     with a pitch ladder and the aircraft symbol, sitting in its own band between
+     the pitch and the facts. Repeating the logo as a giant watermark reads as a
+     stray graphic; this reads as instrumentation. */
+  .horizon {
+    position: relative;
+    margin: 0 calc(var(--s7) * -1);
+    color: var(--color-ink);
+  }
+  .horizon .line { height: 1px; background: currentColor; opacity: 0.14; }
+  .horizon .ladder {
+    display: flex; justify-content: space-between;
+    padding: 0 var(--s7);
+    opacity: 0.14;
+  }
+  .horizon .tick { width: 1px; background: currentColor; }
+  .horizon .craft {
+    position: absolute; left: var(--s7); top: 0;
+    display: flex; align-items: center; gap: 7px;
+    transform: translateY(-50%);
+    opacity: 0.32;
+  }
+  .horizon .craft i { display: block; width: 22px; height: 3px; background: currentColor; }
+  .horizon .craft i.pip { width: 3px; }
+  .brand > * { position: relative; }
+  .brand-lockup { display: inline-flex; align-items: center; gap: 0.44em; font-size: 22px; }
+  .brand-lockup svg { width: 1em; height: 1em; }
+  .brand-lockup span { font-weight: 600; letter-spacing: -0.035em; line-height: 1; }
+
+  .pitch { max-width: 30ch; }
+  .pitch h1 {
+    font-size: var(--t-3xl); font-weight: 600; letter-spacing: -0.035em;
+    line-height: 1.08; margin: 0 0 var(--s4);
+  }
+  .pitch p { color: var(--ink-60); font-size: var(--t-lg); line-height: 1.55; margin: 0; }
+
+  .facts { display: flex; flex-direction: column; gap: var(--s2); }
+  .fact { display: flex; align-items: center; gap: var(--s3); font-size: var(--t-sm); color: var(--ink-60); }
+  .fact .dot { background: var(--ink-20); }
+
+  /* ---------- right: auth panel ---------- */
+  .auth {
+    display: flex; align-items: center; justify-content: center;
+    padding: var(--s7) var(--s5);
+    background: var(--color-sheet);
+  }
+  .panel { width: 100%; max-width: 348px; }
+  .panel h2 { font-size: var(--t-2xl); font-weight: 600; letter-spacing: -0.025em; margin: 0 0 var(--s2); }
+  .panel .sub { color: var(--ink-60); font-size: var(--t-base); margin: 0 0 var(--s6); line-height: 1.5; }
+
+  .gh-icon { width: 17px; height: 17px; flex: none; }
+
+  .fineprint { color: var(--ink-40); font-size: var(--t-sm); line-height: 1.5; margin: var(--s5) 0 0; }
+  .fineprint a { color: var(--ink-60); }
+
+  .meta { display: flex; gap: var(--s4); align-items: center; }
+
+  /* Progress: a sweep along a hairline. Movement without a spinner, which suits
+     a system that is waiting on something it does not control. */
+  .sweep { position: relative; height: 1px; background: var(--ink-12); overflow: hidden; }
+  .sweep::after {
+    content: ''; position: absolute; inset: 0 auto 0 0; width: 33%;
+    background: var(--color-ink); animation: ck-sweep 1.15s var(--ease) infinite;
+  }
+
+  .state { display: none; }
+  .state[data-active] { display: block; }
+
+  .avatar { width: 40px; height: 40px; background: var(--ink-12); flex: none; }
+
+  @media (max-width: 860px) {
+    .screen { grid-template-columns: 1fr; }
+    .brand { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- prototype-only -->
+<div class="protobar">
+  <span class="label">auth &mdash; states</span>
+  <button onclick="show('signin')" aria-current="true">sign in</button>
+  <button onclick="show('authorizing')">redirecting</button>
+  <button onclick="show('callback')">callback</button>
+  <button onclick="show('denied')">not permitted</button>
+  <button onclick="show('error')">error</button>
+  <span class="spacer"></span>
+  <button onclick="toggleTheme()">view <span data-theme-label>dark</span></button>
+  <button onclick="location.href='index.html'">index</button>
+</div>
+
+<div class="screen">
+
+  <!-- ================= brand ================= -->
+  <aside class="brand paper-grain">
+    <div class="brand-lockup">
+      <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg>
+      <span>cockpit</span>
+    </div>
+
+    <div class="pitch">
+      <h1>Your servers, level.</h1>
+      <p>Deploy, observe, and operate the boxes you own &mdash; from a browser, a terminal, or an agent, with nothing between them.</p>
+    </div>
+
+
+    <div class="horizon" aria-hidden="true">
+      <div class="line"></div>
+      <div class="ladder"><span class="tick" style="height:7px"></span><span class="tick" style="height:12px"></span><span class="tick" style="height:7px"></span><span class="tick" style="height:12px"></span><span class="tick" style="height:7px"></span><span class="tick" style="height:12px"></span><span class="tick" style="height:7px"></span><span class="tick" style="height:12px"></span><span class="tick" style="height:7px"></span><span class="tick" style="height:12px"></span><span class="tick" style="height:7px"></span><span class="tick" style="height:12px"></span><span class="tick" style="height:7px"></span></div>
+      <div class="craft"><i></i><i class="pip"></i><i></i></div>
+    </div>
+
+    <div class="facts">
+      <div class="fact"><span class="dot"></span> Every change is a plan you approve first</div>
+      <div class="fact"><span class="dot"></span> No SSH keys, anywhere</div>
+      <div class="fact"><span class="dot"></span> The control plane outlives your servers</div>
+    </div>
+  </aside>
+
+  <!-- ================= auth ================= -->
+  <main class="auth">
+    <div class="panel">
+
+      <!-- ---------- default ---------- -->
+      <section class="state animate-rise" data-state="signin" data-active>
+        <h2>Sign in</h2>
+        <p class="sub">cockpit is single-tenant. Only the owner account can sign in.</p>
+
+        <button class="btn btn-primary btn-block" onclick="show('authorizing')">
+          <svg class="gh-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+          Continue with GitHub
+        </button>
+
+        <p class="fineprint">
+          cockpit reads only your GitHub identity to confirm who you are. Repository
+          access is granted separately, per app, when you first deploy from a repo.
+        </p>
+      </section>
+
+      <!-- ---------- redirecting ---------- -->
+      <section class="state animate-fade" data-state="authorizing">
+        <h2>Opening GitHub</h2>
+        <p class="sub">Approve the request in the window that just opened.</p>
+
+        <div class="sweep" style="margin-bottom:var(--s5)"></div>
+
+        <button class="btn btn-ghost btn-block" onclick="show('signin')">Cancel</button>
+
+        <p class="fineprint">
+          Nothing happening? <a href="#" onclick="show('authorizing');return false">Open GitHub again</a>.
+        </p>
+      </section>
+
+      <!-- ---------- callback ---------- -->
+      <section class="state animate-fade" data-state="callback">
+        <h2>Signing you in</h2>
+        <p class="sub">Verifying with GitHub and loading your fleet.</p>
+
+        <div class="sweep" style="margin-bottom:var(--s5)"></div>
+
+        <div class="meta">
+          <div class="avatar"></div>
+          <div>
+            <div class="mono" style="font-size:var(--t-sm)">oflabs44</div>
+            <div class="label">owner</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- not permitted ---------- -->
+      <section class="state animate-rise" data-state="denied">
+        <h2>Not this account</h2>
+        <p class="sub">cockpit is single-tenant and bound to one GitHub account.</p>
+
+        <div class="notice notice-warn" style="margin-bottom:var(--s5)">
+          <span class="dot dot-degraded" style="margin-top:6px"></span>
+          <div>
+            Signed in to GitHub as <span class="mono">someone-else</span>, but this cockpit
+            belongs to <span class="mono">oflabs44</span>.
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="show('signin')">Try another account</button>
+
+        <p class="fineprint">
+          You may need to sign out of GitHub first, or use a private window.
+        </p>
+      </section>
+
+      <!-- ---------- error ---------- -->
+      <section class="state animate-rise" data-state="error">
+        <h2>Sign-in failed</h2>
+        <p class="sub">GitHub did not complete the request.</p>
+
+        <div class="notice notice-danger" style="margin-bottom:var(--s5)">
+          <span class="dot dot-failed" style="margin-top:6px"></span>
+          <div>
+            <div>The authorization was cancelled or expired.</div>
+            <div class="mono" style="margin-top:6px;opacity:0.75;font-size:var(--t-sm)">oauth.access_denied</div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="show('signin')">Try again</button>
+
+        <p class="fineprint">
+          Errors carry their machine code in mono so it can be searched, pasted, or handed
+          to an agent verbatim.
+        </p>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  function show(name) {
+    document.querySelectorAll('.state').forEach(function (s) {
+      if (s.dataset.state === name) s.setAttribute('data-active', '');
+      else s.removeAttribute('data-active');
+    });
+    document.querySelectorAll('.protobar button').forEach(function (b) {
+      b.setAttribute('aria-current', b.getAttribute('onclick') === "show('" + name + "')" ? 'true' : 'false');
+    });
+    // Prototype only: fake the redirect/callback progression.
+    clearTimeout(window._t);
+    if (name === 'authorizing') window._t = setTimeout(function () { show('callback'); }, 2200);
+  }
+</script>
+</body>
+</html>

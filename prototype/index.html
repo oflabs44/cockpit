@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cockpit — prototype</title>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/img/favicon.ico">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<script src="assets/js/proto.js"></script>
+<link rel="stylesheet" href="assets/css/theme.css">
+<style>
+  .wrap { max-width: 720px; margin: 0 auto; padding: var(--s8) var(--s5); }
+  .lockup { display: inline-flex; align-items: center; gap: 0.44em; font-size: 28px; }
+  .lockup svg { width: 1em; height: 1em; }
+  .lockup span { font-weight: 600; letter-spacing: -0.035em; line-height: 1; }
+  .lede { color: var(--ink-60); font-size: var(--t-lg); line-height: 1.55; margin: var(--s5) 0 var(--s7); max-width: 58ch; }
+  .row {
+    display: flex; align-items: center; gap: var(--s4);
+    padding: var(--s4) 0; border-top: 1px solid var(--ink-12);
+    text-decoration: none;
+  }
+  .row:last-of-type { border-bottom: 1px solid var(--ink-12); }
+  .row:hover { background: var(--ink-04); }
+  .row .grow { flex: 1; }
+  .row h2 { font-size: var(--t-base); font-weight: 500; margin: 0; }
+  .row p { font-size: var(--t-sm); color: var(--ink-60); margin: 2px 0 0; }
+  .row[aria-disabled='true'] { pointer-events: none; opacity: 0.45; }
+  .arrow { color: var(--ink-40); font-family: var(--font-mono); }
+  .foot { margin-top: var(--s7); font-size: var(--t-sm); color: var(--ink-40); line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div style="display:flex;align-items:center">
+    <div class="lockup">
+      <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/><path d="M3.75 20h24.5v8.25H3.75z"/><path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/></svg>
+      <span>cockpit</span>
+    </div>
+    <span style="flex:1"></span>
+    <button class="btn btn-ghost" style="height:32px;font-size:12px" onclick="toggleTheme()">view <span data-theme-label>dark</span></button>
+  </div>
+
+  <p class="lede">
+    Static prototype. No framework and no build step &mdash; plain HTML, CSS, and a little
+    JS, refined until it is right. The design document and the implementation are both
+    derived from this, not the other way round.
+  </p>
+
+  <a class="row" href="identity.html">
+    <span class="dot dot-healthy"></span>
+    <span class="grow"><h2>Visual identity</h2><p>Mark, lockup, colour, type, favicons</p></span>
+    <span class="arrow">&rarr;</span>
+  </a>
+
+  <a class="row" href="auth.html">
+    <span class="dot dot-healthy"></span>
+    <span class="grow"><h2>Auth</h2><p>Sign in with GitHub &mdash; five states</p></span>
+    <span class="arrow">&rarr;</span>
+  </a>
+
+  <a class="row" href="#" aria-disabled="true">
+    <span class="dot dot-stopped"></span>
+    <span class="grow"><h2>Fleet</h2><p>Servers and resources at a glance</p></span>
+    <span class="arrow">next</span>
+  </a>
+
+  <a class="row" href="#" aria-disabled="true">
+    <span class="dot dot-stopped"></span>
+    <span class="grow"><h2>Resource detail</h2><p>State, releases, logs, links</p></span>
+    <span class="arrow">&mdash;</span>
+  </a>
+
+  <a class="row" href="#" aria-disabled="true">
+    <span class="dot dot-stopped"></span>
+    <span class="grow"><h2>Plan review</h2><p>The diff, impact, and approval gate</p></span>
+    <span class="arrow">&mdash;</span>
+  </a>
+
+  <p class="foot">
+    Design language inherited from <span class="mono">postern</span>: paper-and-ink,
+    monochrome, right angles, colour only where it carries meaning.
+    Architecture lives in <span class="mono">../CONTEXT.md</span> and
+    <span class="mono">../docs/</span>.
+  </p>
+</div>
+</body>
+</html>
