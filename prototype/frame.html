@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cockpit — app frame</title>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/img/favicon.ico">
+<script src="assets/js/proto.js"></script>
+<link rel="stylesheet" href="assets/css/theme.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* Prototype-only. Not part of the design. */
+  .protobar {
+    display: flex; align-items: center; gap: var(--s2);
+    padding: var(--s2) var(--s4);
+    border-bottom: 1px solid var(--ink-12);
+    flex: none;
+  }
+  .protobar .spacer { flex: 1; }
+  .protobar button {
+    height: 26px; padding: 0 10px;
+    background: transparent; color: var(--ink-60);
+    border: 1px solid var(--ink-12);
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+    text-transform: uppercase; cursor: pointer;
+  }
+  .protobar button[aria-current='true'] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+
+/* ==========================================================================
+   THE FRAME
+   Two fixed regions and one scrolling one. The rail and the bar never move or
+   scroll; only the content does. That is the whole contract — every screen in
+   cockpit is a content region, and nothing else in the app is allowed to
+   restructure the chrome around it.
+   ========================================================================== */
+
+  .frame {
+    flex: 1;
+    display: grid;
+    grid-template-columns: var(--rail, 216px) 1fr;
+    min-height: 0;
+    transition: grid-template-columns 0.16s var(--ease);
+  }
+  .frame[data-rail='collapsed'] { --rail: 52px; }
+
+/* ---------------------------- rail ---------------------------- */
+  .rail {
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--ink-12);
+    min-height: 0; overflow: hidden;
+  }
+
+  /* Brand doubles as the fleet's health indicator: the mark banks when
+     something is wrong, so the chrome itself tells you before you read a word.
+     It is the one place the logo is allowed to carry colour. */
+  .brand {
+    display: flex; align-items: center; gap: 0.44em;
+    height: 56px; padding: 0 var(--s4);
+    border-bottom: 1px solid var(--ink-12);
+    flex: none; text-decoration: none; color: inherit;
+    font-size: 16px;
+  }
+  .brand svg { width: 1em; height: 1em; flex: none; }
+  .brand .word { font-weight: 600; letter-spacing: -0.035em; white-space: nowrap; }
+  .brand[data-health='degraded'] svg { color: var(--color-warn); }
+  .brand[data-health='unhealthy'] svg { color: var(--color-danger); }
+
+  .nav { padding: var(--s4) var(--s2); display: flex; flex-direction: column; gap: 2px; }
+  .nav a {
+    display: flex; align-items: center; gap: var(--s3);
+    height: 38px; padding: 0 var(--s3);
+    text-decoration: none; color: var(--ink-40);
+    font-size: var(--t-base); white-space: nowrap;
+    transition: color 0.12s var(--ease);
+  }
+  .nav a:hover { color: var(--ink-80); }
+  /* Active state is contrast alone — no rule, no fill, no pill. Those are the
+     default moves and they add chrome to a system whose whole premise is that
+     emphasis comes from contrast. Inactive sits at ink/40; active is full ink
+     at 500. The gap is large enough to find without decoration. */
+  .nav a[aria-current='page'] { color: var(--color-ink); font-weight: 500; }
+  .nav a[aria-current='page'] svg { stroke-width: 1.5; }
+
+  /* Thin stroke, square caps, miter joins. Rounded caps are the house style of
+     every icon set and they contradict a design with no rounding anywhere. */
+  .nav svg {
+    width: 21px; height: 21px; flex: none;
+    fill: none; stroke: currentColor; stroke-width: 1.25;
+    stroke-linecap: butt; stroke-linejoin: miter;
+  }
+  .nav .count {
+    margin-left: auto; font-family: var(--font-mono); font-size: var(--t-micro);
+    color: var(--ink-40);
+  }
+  .nav .count[data-attention] { color: var(--color-info); }
+
+  .nav-sep { margin: var(--s3) var(--s3); height: 1px; background: var(--ink-12); }
+
+  .rail-foot { margin-top: auto; border-top: 1px solid var(--ink-12); padding: var(--s2); }
+  .who {
+    display: flex; align-items: center; gap: var(--s3);
+    padding: var(--s2) var(--s3); width: 100%;
+    background: transparent; border: 0; cursor: pointer;
+    color: inherit; font-family: var(--font-sans); text-align: left;
+  }
+  .who:hover { background: var(--ink-04); }
+  .who .avatar { width: 22px; height: 22px; background: var(--ink-12); flex: none; }
+  .who .stack { min-width: 0; }
+  .who .name { font-family: var(--font-mono); font-size: var(--t-sm); display: block; }
+
+  /* Collapsed rail: labels vanish, hit targets and icons stay put so nothing
+     jumps. Counts move onto the icon as a dot, because a number in 52px lies. */
+  [data-rail='collapsed'] .brand .word,
+  [data-rail='collapsed'] .nav a span,
+  [data-rail='collapsed'] .who .stack { display: none; }
+  [data-rail='collapsed'] .brand,
+  [data-rail='collapsed'] .nav a,
+  [data-rail='collapsed'] .who { justify-content: center; padding: 0; }
+  [data-rail='collapsed'] .nav a { position: relative; }
+  [data-rail='collapsed'] .nav .count { display: none; }
+  [data-rail='collapsed'] .nav a[data-badge]::after {
+    content: ''; position: absolute; top: 6px; right: 10px;
+    width: 5px; height: 5px; background: var(--color-info);
+  }
+
+/* ---------------------------- main ---------------------------- */
+  .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+  .bar {
+    display: flex; align-items: center; gap: var(--s3);
+    height: 56px; padding: 0 var(--s5);
+    border-bottom: 1px solid var(--ink-12);
+    flex: none;
+  }
+  .bar .spacer { flex: 1; }
+
+  .railtoggle {
+    width: 30px; height: 30px; flex: none;
+    display: grid; place-items: center;
+    background: transparent; border: 0; cursor: pointer; color: var(--ink-40);
+  }
+  .railtoggle:hover { color: var(--color-ink); background: var(--ink-04); }
+  .railtoggle svg { width: 17px; height: 17px; }
+
+  .bar-mark { display: none; color: inherit; flex: none; }
+  .bar-mark svg { width: 18px; height: 18px; display: block; }
+  .bar-mark[data-health='degraded'] { color: var(--color-warn); }
+  .bar-mark[data-health='unhealthy'] { color: var(--color-danger); }
+
+  /* Breadcrumb is the page title. A separate <h1> plus a crumb trail says the
+     same thing twice, and the last crumb is always the title anyway. */
+  .crumbs { display: flex; align-items: center; gap: var(--s2); min-width: 0; }
+  .crumbs a { color: var(--ink-40); text-decoration: none; font-size: var(--t-base); white-space: nowrap; }
+  .crumbs a:hover { color: var(--color-ink); }
+  .crumbs .sep { color: var(--ink-20); font-family: var(--font-mono); }
+  .crumbs .here {
+    font-size: var(--t-lg); font-weight: 600; letter-spacing: -0.02em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .crumbs .here .dot { margin-right: var(--s2); vertical-align: 1px; }
+
+  .search {
+    display: inline-flex; align-items: center; gap: var(--s3);
+    height: 30px; padding: 0 var(--s3); min-width: 210px;
+    border: 1px solid var(--ink-12); background: transparent;
+    color: var(--ink-40); font-family: var(--font-sans); font-size: var(--t-sm);
+    cursor: pointer;
+  }
+  .search:hover { border-color: var(--ink-40); color: var(--ink-60); }
+  .search kbd { margin-left: auto; font-family: var(--font-mono); font-size: 11px; }
+
+  .content { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
+  .content-inner { padding: var(--s5); flex: 1; display: flex; flex-direction: column; }
+
+  /* Placeholder so the frame can be judged without a screen inside it. */
+  .slot {
+    flex: 1;
+    min-height: 320px;
+    border: 1px dashed var(--ink-20);
+    display: grid; place-items: center;
+    color: var(--ink-40);
+  }
+
+/* ---------------------------- mobile ---------------------------- */
+  /* The rail becomes a bottom bar rather than a hamburger drawer: four
+     destinations is exactly what a bottom bar is for, and it keeps navigation
+     one thumb-press away instead of two. */
+  .mobilebar { display: none; }
+
+  .frame[data-view='mobile'] { grid-template-columns: 1fr; }
+  .frame[data-view='mobile'] .rail { display: none; }
+  .frame[data-view='mobile'] .railtoggle { display: none; }
+  .frame[data-view='mobile'] .search { min-width: 0; }
+  .frame[data-view='mobile'] .search span { display: none; }
+  .frame[data-view='mobile'] .search kbd { display: none; }
+  .frame[data-view='mobile'] .mobilebar {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--ink-12); flex: none;
+  }
+  .frame[data-view='mobile'] .mobilebar a {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: var(--s3) 0; text-decoration: none; color: var(--ink-40);
+    font-size: var(--t-micro);
+  }
+  .frame[data-view='mobile'] .mobilebar a[aria-current='page'] {
+    color: var(--color-ink);
+  }
+  .frame[data-view='mobile'] .mobilebar svg {
+    width: 22px; height: 22px;
+    fill: none; stroke: currentColor; stroke-width: 1.25;
+    stroke-linecap: butt; stroke-linejoin: miter;
+  }
+  .frame[data-view='mobile'] .mobilebar a[aria-current='page'] svg { stroke-width: 1.5; }
+  .frame[data-view='mobile'] .bar { padding: 0 var(--s4); }
+  .frame[data-view='mobile'] .bar-mark { display: block; }
+  .frame[data-view='mobile'] .content-inner { padding: var(--s4); }
+
+  .phone { max-width: 420px; margin: 0 auto; border-left: 1px solid var(--ink-12); border-right: 1px solid var(--ink-12); }
+</style>
+</head>
+<body>
+
+<div class="protobar">
+  <span class="label">frame</span>
+  <button onclick="setPage('servers')" aria-current="true">servers</button>
+  <button onclick="setPage('nested')">nested</button>
+  <button onclick="toggleRail()">rail</button>
+  <button onclick="setView('mobile')">mobile</button>
+  <button onclick="setView('desktop')">desktop</button>
+  <span class="spacer"></span>
+  <button onclick="setHealth('healthy')">healthy</button>
+  <button onclick="setHealth('unhealthy')">unhealthy</button>
+  <button onclick="toggleTheme()">view <span data-theme-label>light</span></button>
+  <button onclick="location.href='index.html'">index</button>
+</div>
+
+<div class="frame" id="frame" data-rail="open" data-view="desktop">
+
+  <!-- ============ rail ============ -->
+  <nav class="rail">
+    <a class="brand" href="#" data-health="healthy" title="cockpit">
+      <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+        <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+        <path d="M3.75 20h24.5v8.25H3.75z" data-ground/>
+        <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+      </svg>
+      <span class="word">cockpit</span>
+    </a>
+
+    <div class="nav">
+      <a href="#" aria-current="page" data-nav="servers" title="Servers">
+        <svg viewBox="0 0 24 24"><path d="M3.5 4.5h17v5h-17zM3.5 14.5h17v5h-17zM6 7h2M6 17h2"/></svg>
+        <span>Servers</span><span class="count">4</span>
+      </a>
+      <a href="#" data-nav="plans" data-badge title="Plans">
+        <svg viewBox="0 0 24 24"><path d="M3.5 5.5h17M3.5 12h10M3.5 18.5h13.5"/></svg>
+        <span>Plans</span><span class="count" data-attention>1</span>
+      </a>
+      <a href="#" data-nav="activity" title="Activity">
+        <svg viewBox="0 0 24 24"><path d="M2.5 12h4l3-7.5 4.5 15 3-7.5h4.5"/></svg>
+        <span>Activity</span>
+      </a>
+
+      <div class="nav-sep"></div>
+
+      <a href="#" data-nav="settings" title="Settings">
+        <svg viewBox="0 0 24 24"><path d="M2.5 8h19M2.5 16h19M8 5.5v5M16 13.5v5"/></svg>
+        <span>Settings</span>
+      </a>
+    </div>
+
+    <div class="rail-foot">
+      <button class="who" title="oflabs44">
+        <span class="avatar"></span>
+        <span class="stack">
+          <span class="name">oflabs44</span>
+          <span class="label">owner</span>
+        </span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ============ main ============ -->
+  <div class="main">
+    <header class="bar">
+      <button class="railtoggle" onclick="toggleRail()" title="Toggle rail">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="butt" stroke-linejoin="miter"><path d="M3.5 4.5h17v15h-17zM9.5 4.5v15"/></svg>
+      </button>
+
+      <!-- Mobile has no rail, so the mark moves into the bar — otherwise the
+           fleet-health signal disappears exactly where you are most likely to
+           be glancing rather than working. -->
+      <a class="bar-mark" href="#" data-health="healthy" title="cockpit">
+        <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+          <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+          <path d="M3.75 20h24.5v8.25H3.75z" data-ground/>
+          <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+        </svg>
+      </a>
+
+      <div class="crumbs" data-crumbs>
+        <span class="here">Servers</span>
+      </div>
+
+      <span class="spacer"></span>
+
+      <button class="search" onclick="alert('palette comes later')">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="currentColor"><path d="M6.5 1a5.5 5.5 0 1 1-3.3 9.9l-2.1 2.1-1-1 2.1-2.1A5.5 5.5 0 0 1 6.5 1zm0 1.6a3.9 3.9 0 1 0 0 7.8 3.9 3.9 0 0 0 0-7.8z"/></svg>
+        <span>Search or run</span>
+        <kbd>&#8984;K</kbd>
+      </button>
+
+      <button class="btn btn-ghost" style="height:30px;font-size:var(--t-sm)" data-primary-action>Add server</button>
+    </header>
+
+    <div class="content">
+      <div class="content-inner">
+        <div class="slot"><span class="label">content region</span></div>
+      </div>
+    </div>
+
+    <nav class="mobilebar">
+      <a href="#" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3.5 4.5h17v5h-17zM3.5 14.5h17v5h-17zM6 7h2M6 17h2"/></svg>Servers</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M3.5 5.5h17M3.5 12h10M3.5 18.5h13.5"/></svg>Plans</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M2.5 12h4l3-7.5 4.5 15 3-7.5h4.5"/></svg>Activity</a>
+      <a href="#"><svg viewBox="0 0 24 24"><path d="M2.5 8h19M2.5 16h19M8 5.5v5M16 13.5v5"/></svg>Settings</a>
+    </nav>
+  </div>
+</div>
+
+<script>
+  var frame = document.getElementById('frame');
+  var LEVEL  = 'M3.75 20h24.5v8.25H3.75z';
+  var BANKED = 'M3.75 22.5 28.25 13v15.25H3.75z';
+
+  function mark(el, name) {
+    document.querySelectorAll('.protobar button').forEach(function (b) {
+      var oc = b.getAttribute('onclick') || '';
+      if (oc.indexOf(el) === 0) b.setAttribute('aria-current', oc.indexOf("'" + name + "'") > -1 ? 'true' : 'false');
+    });
+  }
+
+  function toggleRail() {
+    frame.setAttribute('data-rail', frame.getAttribute('data-rail') === 'open' ? 'collapsed' : 'open');
+  }
+
+  function setView(v) {
+    frame.setAttribute('data-view', v);
+    document.body.classList.toggle('x', false);
+    frame.classList.toggle('phone', v === 'mobile');
+  }
+
+  function setHealth(h) {
+    document.querySelectorAll('.brand, .bar-mark').forEach(function (el) {
+      el.setAttribute('data-health', h === 'healthy' ? 'healthy' : 'unhealthy');
+      el.querySelector('[data-ground]').setAttribute('d', h === 'healthy' ? LEVEL : BANKED);
+    });
+    mark('setHealth', h);
+  }
+
+  function setPage(p) {
+    var c = document.querySelector('[data-crumbs]');
+    if (p === 'nested') {
+      c.innerHTML = '<a href="#">Servers</a><span class="sep">/</span>' +
+        '<a href="#" class="mono">prod-fsn1</a><span class="sep">/</span>' +
+        '<span class="here"><span class="dot dot-healthy"></span>jerry</span>';
+      document.querySelector('[data-primary-action]').textContent = 'Deploy';
+    } else {
+      c.innerHTML = '<span class="here">Servers</span>';
+      document.querySelector('[data-primary-action]').textContent = 'Add server';
+    }
+    mark('setPage', p);
+  }
+</script>
+</body>
+</html>
