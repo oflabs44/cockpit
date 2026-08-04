@@ -36,7 +36,7 @@
      cockpit's state vocabulary maps onto these exactly:
        accent  healthy · running · applied
        info    pending · planning · neutral state action
-       warn    degraded · drifted · attention
+       warn    degraded · nearing a limit · needs attention
        danger  failed · unhealthy · destructive impact · alert firing
      Anything not carrying one of those meanings is ink at reduced alpha. */
   --color-accent: oklch(0.52 0.12 152);

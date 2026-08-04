@@ -76,7 +76,7 @@ Mirrors `postern`'s stack and design language exactly.
 | primitives | Base UI (`@base-ui-components/react`) |
 | styling | Tailwind v4 (`@theme` in CSS, no config file) + `cva` + `clsx` + `tailwind-merge` |
 | command palette | `cmdk` |
-| icons | Tabler |
+| icons | HugeIcons (`@hugeicons/core-free-icons`), geometry only — stroke, width, and caps set in CSS so the rounded caps it ships become square |
 | fonts | Schibsted Grotesk (sans) + Geist Mono (mono), via fontsource |
 
 **Design language — paper-and-ink, inherited from `postern`.** `paper` is the canvas,
@@ -88,17 +88,20 @@ Colour carries meaning only, and cockpit's states map onto the existing vocabula
 | token | meaning in cockpit |
 |---|---|
 | `accent` (green) | healthy, running, applied |
-| `info` (blue) | pending, planning, neutral state action |
+| `info` (blue) | pending, planning, enrolling, neutral state action |
+| `warn` (amber) | degraded, nearing a limit, needs attention |
 | `danger` (red) | failed, unhealthy, destructive impact, alert firing |
-| `ink` at reduced alpha | stopped, unknown, disabled, drifted |
+| `ink` at reduced alpha | stopped, unknown, disabled |
 
 This is a better fit for cockpit than for mail: an infra dashboard is a dense table of
 state, and monochrome-with-three-accents means a failing container is the only red thing
 on screen. Coolify's UX problem is partly that everything is coloured, so nothing is.
 
-`postern`'s `--idhue` identity-tint mechanism generalises to a **stable per-server and
-per-app hue**, so a log line or a resource row is identifiable at a glance without
-introducing a colour system.
+`postern`'s `--idhue` identity-tint mechanism is available for a **stable per-subject
+hue**, but never on anything that also carries state. An early pass tinted server names
+this way and produced red, green, and blue names — the exact hues that mean failing,
+healthy, and pending — so a healthy box read as an alert. Reserved for subjects with no
+status of their own: avatars, log-line gutters, graph series.
 
 Components: local `components/ui/*` in postern's style (`Button`, `Input`, `IconButton`,
 `Avatar`), plus cockpit-specific — `StatusDot`, `ResourceRow`, `PlanDiff`, `LogPane`,
@@ -300,6 +303,13 @@ a server unilaterally, by construction (#3, ADR-0003).
 ## 5. Known open questions
 
 Deliberately unresolved; each will get its own ADR when forced.
+
+0. **Drift, in the UI.** The plane detects drift for free — plans are computed against
+   observed state (#7), so a plan containing changes nobody requested *is* drift. It is
+   deliberately **not surfaced in v1's interface**: it needs a third status colour and a
+   distinction ("running fine, but the record is no longer true") that is hard to explain
+   before an operator has hit it. The capability stays; the presentation is deferred until
+   there is evidence of how often it actually happens.
 
 1. **Backups and tested restore** for stateful resources. The largest gap inherited from
    the `/devops` playbooks — `deploy-database` creates data that nothing protects. Needs a
