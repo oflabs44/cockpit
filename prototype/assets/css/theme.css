@@ -253,18 +253,104 @@ a { color: inherit; }
 
 .hr { height: 1px; background-color: var(--ink-12); border: 0; margin: 0; }
 
+/* --------------------------------------------------------------------------
+   Notice — the system's one message component. Used for sign-in errors,
+   destructive plan warnings, drift, failed applies, and daemon disconnects.
+
+   Shape is a printed ledger entry, not a card: the machine's classification
+   and error code sit in a mono gutter on the left, the human sentence in sans
+   on the right. That split is already the system's signature (mono = a literal
+   value, sans = language about it), and it makes the error code a permanent
+   structural element rather than an optional afterthought — which matters when
+   the next move is pasting it to an agent.
+
+   Deliberately not: a bordered box with a colour stripe and a coloured dot.
+   That is the default shape every UI arrives at, so it reads as generic, and
+   it spreads colour across three elements instead of concentrating it.
+   -------------------------------------------------------------------------- */
+
+.notice-group { border-bottom: 1px solid var(--ink-12); }
+
 .notice {
-  display: flex;
-  gap: var(--s3);
-  padding: var(--s3) var(--s4);
-  border: 1px solid var(--ink-12);
-  border-left-width: 2px;
-  font-size: var(--t-sm);
-  line-height: 1.45;
+  display: grid;
+  grid-template-columns: 168px 1fr;
+  gap: var(--s5);
+  padding: var(--s4) 0;
+  border-top: 1px solid var(--ink-12);
 }
-.notice-danger { border-left-color: var(--color-danger); color: var(--color-danger); }
-.notice-info   { border-left-color: var(--color-info); }
-.notice-warn   { border-left-color: var(--color-warn); }
+
+.notice-meta {
+  border-left: 2px solid var(--ink-20);
+  padding-left: var(--s3);
+  min-width: 0;
+}
+
+.notice-tag {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-60);
+}
+
+.notice-code {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  color: var(--ink-40);
+}
+
+.notice-body { font-size: var(--t-base); line-height: 1.5; min-width: 0; }
+.notice-body p { margin: 0; }
+.notice-detail { margin-top: var(--s2); font-size: var(--t-sm); color: var(--ink-60); }
+.notice-actions { margin-top: var(--s3); display: flex; gap: var(--s2); }
+.notice-actions .btn { height: 30px; padding: 0 var(--s3); font-size: var(--t-sm); }
+
+/* Severity tints exactly two things: the rule and the tag. Nothing else. */
+.notice[data-severity='danger'] .notice-meta { border-left-color: var(--color-danger); }
+.notice[data-severity='danger'] .notice-tag  { color: var(--color-danger); }
+.notice[data-severity='warn']   .notice-meta { border-left-color: var(--color-warn); }
+.notice[data-severity='warn']   .notice-tag  { color: var(--color-warn); }
+.notice[data-severity='info']   .notice-meta { border-left-color: var(--color-info); }
+.notice[data-severity='info']   .notice-tag  { color: var(--color-info); }
+
+/* Narrow containers — auth panels, side rails, drawers — collapse the gutter
+   above the message rather than squeezing it. The rule and tag survive, so the
+   component still reads as the same object. In the implementation this should
+   be a container query rather than a modifier class. */
+.notice-stacked { grid-template-columns: 1fr; gap: var(--s3); }
+
+/* --------------------------------------------------------------------------
+   Stamp — a solid, high-contrast classification chip. Not a notice: a stamp
+   labels a *thing*, a notice says a *sentence*.
+
+   Its intended home is Plan `impact` (none / reload / restart / replace /
+   destructive), where the whole point is that severity is a typed field the
+   system cannot forget to show. Solid fill means it survives being one small
+   element in a dense diff, and concentrates colour in a single block rather
+   than tinting a whole row.
+   -------------------------------------------------------------------------- */
+
+.stamp {
+  display: inline-block;
+  padding: 3px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+/* Only the two impacts that can hurt you take colour. The rest stay ink, so a
+   plan full of harmless changes carries no colour at all. */
+.stamp[data-impact='destructive'] { background: var(--color-danger); color: #fff; }
+.stamp[data-impact='replace']     { background: var(--color-warn); color: #1b1c22; }
+.stamp[data-impact='none'],
+.stamp[data-impact='reload'] { background: transparent; color: var(--ink-60); box-shadow: inset 0 0 0 1px var(--ink-20); }
 
 /* Identity tint — composes the per-element --idhue with the themed l/c in the
    real property, so each element resolves its own hue. */

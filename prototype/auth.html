@@ -213,11 +213,16 @@
         <h2>Not this account</h2>
         <p class="sub">cockpit is single-tenant and bound to one GitHub account.</p>
 
-        <div class="notice notice-warn" style="margin-bottom:var(--s5)">
-          <span class="dot dot-degraded" style="margin-top:6px"></span>
-          <div>
-            Signed in to GitHub as <span class="mono">someone-else</span>, but this cockpit
-            belongs to <span class="mono">oflabs44</span>.
+        <div class="notice-group" style="margin-bottom:var(--s5)">
+          <div class="notice notice-stacked" data-severity="warn">
+            <div class="notice-meta">
+              <span class="notice-tag">not permitted</span>
+              <span class="notice-code">auth.wrong_account</span>
+            </div>
+            <div class="notice-body">
+              Signed in to GitHub as <span class="mono">someone-else</span>, but this cockpit
+              belongs to <span class="mono">oflabs44</span>.
+            </div>
           </div>
         </div>
 
@@ -233,11 +238,15 @@
         <h2>Sign-in failed</h2>
         <p class="sub">GitHub did not complete the request.</p>
 
-        <div class="notice notice-danger" style="margin-bottom:var(--s5)">
-          <span class="dot dot-failed" style="margin-top:6px"></span>
-          <div>
-            <div>The authorization was cancelled or expired.</div>
-            <div class="mono" style="margin-top:6px;opacity:0.75;font-size:var(--t-sm)">oauth.access_denied</div>
+        <div class="notice-group" style="margin-bottom:var(--s5)">
+          <div class="notice notice-stacked" data-severity="danger">
+            <div class="notice-meta">
+              <span class="notice-tag">failed</span>
+              <span class="notice-code">oauth.access_denied</span>
+            </div>
+            <div class="notice-body">
+              The authorization was cancelled or expired.
+            </div>
           </div>
         </div>
 

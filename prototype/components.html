@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cockpit — components</title>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/img/favicon.ico">
+<script src="assets/js/proto.js"></script>
+<link rel="stylesheet" href="assets/css/theme.css">
+<style>
+  .wrap { max-width: 980px; margin: 0 auto; padding: var(--s6) var(--s5) var(--s8); }
+  .head { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s6); }
+  .head .spacer { flex: 1; }
+  h1 { font-size: var(--t-2xl); font-weight: 600; letter-spacing: -0.025em; margin: 0; }
+  section { margin-bottom: var(--s8); }
+  .sec-head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s4); }
+  .sec-head h2 { font-size: var(--t-lg); font-weight: 600; margin: 0; }
+  .sec-head .hr { flex: 1; }
+  .why { color: var(--ink-60); font-size: var(--t-sm); line-height: 1.6; max-width: 70ch; }
+  .demo { background: var(--color-sheet); border: 1px solid var(--ink-12); padding: var(--s5); margin-bottom: var(--s4); }
+  .narrow { max-width: 348px; }
+  .caption { margin-bottom: var(--s3); }
+  .row { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <h1>Components</h1>
+    <span class="spacer"></span>
+    <button class="btn btn-ghost" style="height:30px;font-size:12px" onclick="toggleTheme()">view <span data-theme-label>light</span></button>
+    <button class="btn btn-ghost" style="height:30px;font-size:12px" onclick="location.href='index.html'">index</button>
+  </div>
+
+  <!-- ================= NOTICE ================= -->
+  <section>
+    <div class="sec-head"><h2>Notice</h2><hr class="hr"></div>
+    <p class="why" style="margin:0 0 var(--s5)">
+      The system's one message component &mdash; sign-in errors, destructive plan
+      warnings, drift, failed applies, daemon disconnects. Shaped as a printed ledger
+      entry rather than a card: the machine's classification and error code sit in a mono
+      gutter, the human sentence in sans beside it. That is the system's existing rule
+      made structural &mdash; mono is a literal value, sans is language about it &mdash;
+      and it means the error code is always present rather than an optional afterthought,
+      which matters when the next move is pasting it to an agent.
+    </p>
+
+    <div class="caption label">Severities &mdash; stacked as a group</div>
+    <div class="demo">
+      <div class="notice-group">
+        <div class="notice" data-severity="danger">
+          <div class="notice-meta">
+            <span class="notice-tag">failed</span>
+            <span class="notice-code">apply.step_failed</span>
+          </div>
+          <div class="notice-body">
+            Applying <span class="mono">pln_8fkq2</span> stopped at step 3 of 6 &mdash;
+            <span class="mono">jerry</span> never became healthy.
+            <div class="notice-detail">Three changes were applied before the failure and can be reverted.</div>
+            <div class="notice-actions">
+              <button class="btn btn-primary">Revert applied steps</button>
+              <button class="btn btn-ghost">Retry from step 3</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="notice" data-severity="warn">
+          <div class="notice-meta">
+            <span class="notice-tag">drifted</span>
+            <span class="notice-code">resource.drift</span>
+          </div>
+          <div class="notice-body">
+            2 labels on <span class="mono">caddy-edge</span> changed outside cockpit.
+          </div>
+        </div>
+
+        <div class="notice" data-severity="info">
+          <div class="notice-meta">
+            <span class="notice-tag">pending</span>
+            <span class="notice-code">plan.awaiting_approval</span>
+          </div>
+          <div class="notice-body">
+            <span class="mono">claude-code</span> proposed a plan updating 3 resources on
+            <span class="mono">prod-fsn1</span>.
+          </div>
+        </div>
+
+        <div class="notice">
+          <div class="notice-meta">
+            <span class="notice-tag">disconnected</span>
+            <span class="notice-code">daemon.no_contact</span>
+          </div>
+          <div class="notice-body">
+            No contact from <span class="mono">lab-nbg1</span> for 3 days.
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="why" style="margin-bottom:var(--s6)">
+      Severity tints exactly two things: the rule and the tag. Never the body, never a
+      background. A neutral notice takes no colour at all.
+    </p>
+
+    <div class="caption label">Narrow containers &mdash; stacked variant</div>
+    <div class="demo narrow">
+      <div class="notice-group">
+        <div class="notice notice-stacked" data-severity="danger">
+          <div class="notice-meta">
+            <span class="notice-tag">failed</span>
+            <span class="notice-code">oauth.access_denied</span>
+          </div>
+          <div class="notice-body">The authorization was cancelled or expired.</div>
+        </div>
+      </div>
+    </div>
+    <p class="why">
+      Auth panels, side rails, and drawers collapse the gutter above the message rather
+      than squeezing it. The rule and tag survive, so it still reads as the same object.
+      In the implementation this should be a container query, not a modifier class &mdash;
+      the component should adapt to its container without the caller knowing.
+    </p>
+  </section>
+
+  <!-- ================= STAMP ================= -->
+  <section>
+    <div class="sec-head"><h2>Stamp</h2><hr class="hr"></div>
+    <p class="why" style="margin:0 0 var(--s5)">
+      A solid classification chip. Not a notice &mdash; a stamp labels a <em>thing</em>,
+      a notice says a <em>sentence</em>. Its home is Plan <span class="mono">impact</span>,
+      where the entire point is that severity is a typed field the system cannot forget to
+      show. Solid fill lets it survive being one small element in a dense diff.
+    </p>
+
+    <div class="caption label">Plan impact</div>
+    <div class="demo">
+      <div class="row">
+        <span class="stamp" data-impact="none">none</span>
+        <span class="stamp" data-impact="reload">reload</span>
+        <span class="stamp">restart</span>
+        <span class="stamp" data-impact="replace">replace</span>
+        <span class="stamp" data-impact="destructive">destructive</span>
+      </div>
+    </div>
+    <p class="why" style="margin-bottom:var(--s6)">
+      Only the two impacts that can hurt you take colour. <span class="mono">none</span>
+      and <span class="mono">reload</span> are outlined, <span class="mono">restart</span>
+      is solid ink &mdash; so a plan full of harmless changes carries no colour at all,
+      and one destructive change is unmissable.
+    </p>
+
+    <div class="caption label">In a plan diff</div>
+    <div class="demo">
+      <div class="notice-group">
+        <div class="notice">
+          <div class="notice-meta">
+            <span class="notice-tag">resource.update</span>
+            <span class="notice-code">res_jerry</span>
+          </div>
+          <div class="notice-body">
+            <div class="row" style="margin-bottom:var(--s2)">
+              <span class="stamp">restart</span>
+              <span>Set <span class="mono">LOG_LEVEL</span> to <span class="mono">debug</span></span>
+            </div>
+            <div class="mono" style="font-size:var(--t-sm);color:var(--ink-40)">info &rarr; debug</div>
+          </div>
+        </div>
+        <div class="notice">
+          <div class="notice-meta">
+            <span class="notice-tag">resource.delete</span>
+            <span class="notice-code">res_old_cache</span>
+          </div>
+          <div class="notice-body">
+            <div class="row" style="margin-bottom:var(--s2)">
+              <span class="stamp" data-impact="destructive">destructive</span>
+              <span>Remove <span class="mono">redis-cache</span> and its volume</span>
+            </div>
+            <div class="mono" style="font-size:var(--t-sm);color:var(--ink-40)">irreversible &mdash; 2.1 GB of data is lost</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= REJECTED ================= -->
+  <section>
+    <div class="sec-head"><h2>Considered and rejected</h2><hr class="hr"></div>
+    <p class="why">
+      The first attempt was a bordered box with a coloured left stripe and a coloured dot.
+      That is the shape every UI converges on by default, so it reads as generic, and it
+      spreads colour across three elements instead of concentrating it.
+    </p>
+    <p class="why" style="margin-top:var(--s3)">
+      Two alternatives were built and dropped. <strong style="font-weight:500">Tape</strong>
+      &mdash; hairlines top and bottom, no sides &mdash; read as a clean instrument
+      readout but was too quiet to carry a failed deploy.
+      <strong style="font-weight:500">Hatch</strong> replaced the solid stripe with hazard
+      tape; it was the most physical of the options, but hatching is a strong mannerism
+      that would appear on every screen and tire quickly.
+      <strong style="font-weight:500">Stamp</strong> was not rejected &mdash; it was
+      promoted to its own component above, where a compact solid chip is the right answer.
+    </p>
+  </section>
+
+</div>
+</body>
+</html>
