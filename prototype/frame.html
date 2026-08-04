@@ -43,6 +43,8 @@
 </head>
 <body>
 
+<div hidden data-sprite></div>
+
 <div class="protobar">
   <span class="label">frame</span>
   <button onclick="setPage('servers')" aria-current="true">servers</button>
@@ -71,23 +73,43 @@
     </a>
 
     <div class="nav">
-      <a href="#" aria-current="page" data-nav="servers" title="Servers">
-        <svg viewBox="0 0 24 24"><path d="M3.5 4.5h17v5h-17zM3.5 14.5h17v5h-17zM6 7h2M6 17h2"/></svg>
+      <a href="#" aria-current="page" title="Servers">
+        <svg class="icon icon-lg"><use href="#server"/></svg>
         <span>Servers</span><span class="count">4</span>
       </a>
-      <a href="#" data-nav="plans" data-badge title="Plans">
-        <svg viewBox="0 0 24 24"><path d="M3.5 5.5h17M3.5 12h10M3.5 18.5h13.5"/></svg>
+      <a href="#" data-badge title="Plans">
+        <svg class="icon icon-lg"><use href="#layers"/></svg>
         <span>Plans</span><span class="count" data-attention>1</span>
       </a>
-      <a href="#" data-nav="activity" title="Activity">
-        <svg viewBox="0 0 24 24"><path d="M2.5 12h4l3-7.5 4.5 15 3-7.5h4.5"/></svg>
+      <a href="#" title="Activity">
+        <svg class="icon icon-lg"><use href="#activity"/></svg>
         <span>Activity</span>
       </a>
 
       <div class="nav-sep"></div>
 
-      <a href="#" data-nav="settings" title="Settings">
-        <svg viewBox="0 0 24 24"><path d="M2.5 8h19M2.5 16h19M8 5.5v5M16 13.5v5"/></svg>
+      <!-- Account-scoped (#11, ADR-0007). These have no server: a domain points
+           at an app rather than living on a box, a source is used by every app
+           on every box, and secrets are one namespace. Kept out of Settings
+           because domains are operational — touched on most deploys — and
+           burying routing in configuration would misrepresent that. -->
+      <a href="#" title="Domains">
+        <svg class="icon icon-lg"><use href="#globe"/></svg>
+        <span>Domains</span>
+      </a>
+      <a href="#" title="Sources">
+        <svg class="icon icon-lg"><use href="#package"/></svg>
+        <span>Sources</span>
+      </a>
+      <a href="#" title="Secrets">
+        <svg class="icon icon-lg"><use href="#database"/></svg>
+        <span>Secrets</span>
+      </a>
+
+      <div class="nav-sep"></div>
+
+      <a href="#" title="Settings">
+        <svg class="icon icon-lg"><use href="#settings"/></svg>
         <span>Settings</span>
       </a>
     </div>
@@ -194,6 +216,10 @@
     }
     mark('setPage', p);
   }
+</script>
+<script>
+  fetch('assets/img/icons.svg').then(function (r) { return r.text(); })
+    .then(function (t) { document.querySelector('[data-sprite]').innerHTML = t; });
 </script>
 </body>
 </html>

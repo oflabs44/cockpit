@@ -101,35 +101,44 @@ Numbered so other docs can reference them as `(#n)`.
     API surface, or new UI page. Coolify's type-per-thing model is what makes it
     rigid. See ADR-0006.
 
-11. **`Link` is a first-class entity.**
+11. **Every kind declares a scope: server or account.**
+    Anything the daemon can see is contained by its server — `app`, `database`,
+    `volume`, `network`, `cron`, `daemon`, `firewall_rule`, `proxy`. Things with
+    no box are account-scoped and `server_id` is null — `domain`, `dns_record`,
+    `source`, `secret`, `backup_destination`. A domain does not live *on* a
+    server; it *points at* an app that does. An app belongs to exactly one
+    server and cannot span servers, and there is no project or grouping level
+    above the server. See ADR-0007.
+
+12. **`Link` is a first-class entity.**
     Relationships between resources (`uses`, `exposed_at`, `backs_up`,
     `depends_on`) are stored, not implied by which form the operator was on.
     This is what enables dependency-ordered deploys, blast-radius answers, the
     fleet graph, and an agent that can diagnose an outage in one call.
 
-12. **The daemon is stateless.**
+13. **The daemon is stateless.**
     The box is the truth — yoke's principle, preserved. `cockpitd` holds no
     database and no desired state. It observes, reports, and executes
     idempotent ops. A task re-sent after a reconnect is safe to re-run.
 
-13. **All operations are ensure-semantics and idempotent**, returning
+14. **All operations are ensure-semantics and idempotent**, returning
     `create | in_place | replace | no_op`. Inherited directly from yoke. No
     "skip if exists" wrappers anywhere.
 
-14. **Secrets are references, never values.**
+15. **Secrets are references, never values.**
     Env values are stored as vault refs (`op://...`) and resolved at execution
     time. No secret value is persisted in D1, in a git snapshot, in a log line,
     or in an API response. Inherited from the `/devops` skill's Rule #2, now
     enforced by types rather than by prose.
 
-15. **`impact` is data, not documentation.**
+16. **`impact` is data, not documentation.**
     Each change carries `none | reload | restart | replace | destructive`. The
     UI renders by it, the approval gate branches on it, and the MCP server
     surfaces it. This is the `/devops` skill's action card (its Rule #3),
     promoted from a prose instruction an agent might forget into a field the
     system cannot skip.
 
-16. **Builds run on the target server, for now.**
+17. **Builds run on the target server, for now.**
     v1 clones and builds on the box the app will run on — no registry
     round-trip, image never leaves the host. Accepted cost: builds consume
     production CPU, RAM, and disk. Therefore build resource limits and a layer
@@ -137,12 +146,12 @@ Numbered so other docs can reference them as `(#n)`.
     builds to a dedicated builder or back to laptop-buildx-plus-registry is a
     later optimisation, not a prerequisite.
 
-17. **Traefik stays the proxy, driven by Docker labels.**
+18. **Traefik stays the proxy, driven by Docker labels.**
     The daemon sets container labels; Traefik reconfigures itself. cockpit owns
     no proxy configuration file and therefore has no proxy config state to
     manage or drift from.
 
-18. **Single-tenant now, clean seams for later.**
+19. **Single-tenant now, clean seams for later.**
     No teams, no billing, no user management. Multi-server from day one;
     multi-*user* deferred. Every entity that would need an owner gets one field,
     unused, rather than a retrofit later.

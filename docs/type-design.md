@@ -86,13 +86,24 @@ codes are additionally rate-limited by IP and globally, being short enough to gu
 One polymorphic entity for everything managed on a server (ADR-0006).
 
 ```ts
-type Kind =
+type Scope = 'server' | 'account'
+
+/** Server-scoped: exists on a box, dies with it, reported by the daemon. */
+type ServerKind =
   | 'app' | 'database' | 'proxy' | 'volume' | 'network'
-  | 'cron' | 'daemon' | 'firewall_rule' | 'dns_record'
+  | 'cron' | 'daemon' | 'firewall_rule'
+
+/** Account-scoped: outlives any box, linked to the spine rather than inside it. */
+type AccountKind =
+  | 'domain' | 'dns_record' | 'source' | 'secret' | 'backup_destination'
+
+type Kind = ServerKind | AccountKind
 
 interface Resource {
   id: Id<'res'>
-  server_id: Id<'srv'>
+  /** Null for account-scoped kinds — domain, dns_record, source, secret,
+   *  backup_destination. Those have no box (#11, ADR-0007). */
+  server_id: Id<'srv'> | null
   kind: Kind
   name: string                       // unique per (server_id, kind)
   spec: Spec                         // desired state, validated by the kind's schema
