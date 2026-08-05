@@ -132,6 +132,9 @@
         <span>Search or run</span>
         <kbd>&#8984;K</kbd>
       </button>
+      <button class="bell" data-unread title="2 notifications" onclick="alert('Notifications view comes next')">
+        <svg class="icon icon-sm"><use href="#bell"/></svg>
+      </button>
       <button class="btn btn-primary btn-sm" data-deploy>Deploy</button>
     </header>
 
@@ -144,59 +147,27 @@
     </nav>
 
     <!-- ============ vitals ============ -->
+    <!-- Live state only. Provider, IP, size, arch, and OS moved to Settings:
+         they never change, and a permanent strip of them spends the top of
+         every page on facts you look up once. -->
     <div class="vitals" data-vitals>
-      <div class="facts">
-        <span>hetzner</span><span class="sep">&middot;</span>
-        <span>95.216.44.12</span><span class="sep">&middot;</span>
-        <span>cpx31</span><span class="sep">&middot;</span>
-        <span>arm64</span><span class="sep">&middot;</span>
-        <span>ubuntu 24.04</span><span class="sep">&middot;</span>
-        <span>up 84d</span>
-      </div>
-      <span class="spacer"></span>
       <div class="metrics" data-metrics>
         <span class="metric"><svg class="icon icon-sm"><use href="#cpu"/></svg><span class="v">38%</span></span>
         <span class="metric"><svg class="icon icon-sm"><use href="#memory"/></svg><span class="v">71%</span></span>
         <span class="metric"><svg class="icon icon-sm"><use href="#disk"/></svg><span class="v">52%</span></span>
       </div>
-      <span class="label" data-agent>cockpitd 0.4.1</span>
+      <span class="spacer"></span>
+      <div class="facts" data-conn>
+        <span class="dot dot-healthy"></span><span>connected</span>
+        <span class="sep">&middot;</span><span>up 84d</span>
+        <span class="sep">&middot;</span><span>cockpitd 0.4.1</span>
+      </div>
     </div>
 
     <div class="content">
 
       <!-- ========================= populated ========================= -->
       <div class="view" data-view-name="populated" data-active>
-
-        <!-- Notices sit above the list and only when something needs a human.
-             On a healthy server this whole block is absent. -->
-        <div class="notice-group" style="--notice-inset: var(--s5)">
-          <div class="notice" data-severity="danger">
-            <div class="notice-meta">
-              <span class="notice-tag">restarting</span>
-              <span class="notice-code">container.restart_loop</span>
-            </div>
-            <div class="notice-body">
-              <span class="mono">jerry</span> has exited 8 times in 12 minutes, last with
-              code 137.
-              <div class="notice-actions">
-                <button class="btn btn-ghost btn-sm">View logs</button>
-                <button class="btn btn-ghost btn-sm">Roll back to r47</button>
-              </div>
-            </div>
-          </div>
-          <div class="notice" data-severity="info">
-            <div class="notice-meta">
-              <span class="notice-tag">pending</span>
-              <span class="notice-code">plan.awaiting_approval</span>
-            </div>
-            <div class="notice-body">
-              <span class="mono">claude-code</span> proposed a plan updating 3 resources here.
-              <div class="notice-actions">
-                <button class="btn btn-primary btn-sm">Review plan</button>
-              </div>
-            </div>
-          </div>
-        </div>
 
         <div class="sec"><span class="label">Resources</span><hr class="hr"></div>
 
@@ -290,6 +261,9 @@
 
       <!-- ========================= disconnected ========================= -->
       <div class="view" data-view-name="disconnected">
+        <!-- Kept inline, unlike notifications: this explains why everything
+             below is stale. It is the state of the page you are on, not an
+             event that happened to arrive. -->
         <div class="notice-group" style="--notice-inset: var(--s5)">
           <div class="notice" data-severity="warn">
             <div class="notice-meta">
@@ -378,11 +352,11 @@
 
   var NAMES = { populated: 'prod-fsn1', empty: 'build-hel', disconnected: 'lab-nbg1', enrolling: 'store-hel' };
   var DOTS  = { populated: 'dot-failed', empty: 'dot-healthy', disconnected: 'dot-stopped', enrolling: '' };
-  var FACTS = {
-    populated:   ['hetzner', '95.216.44.12', 'cpx31', 'arm64', 'ubuntu 24.04', 'up 84d'],
-    empty:       ['hetzner', '65.108.13.204', 'ccx13', 'amd64', 'ubuntu 24.04', 'up 12d'],
-    disconnected:['hetzner', '159.69.120.33', 'cx22', 'amd64', 'ubuntu 24.04', 'last seen 3d ago'],
-    enrolling:   ['hetzner', 'awaiting first contact']
+  var CONN = {
+    populated:   '<span class="dot dot-healthy"></span><span>connected</span><span class="sep">&middot;</span><span>up 84d</span><span class="sep">&middot;</span><span>cockpitd 0.4.1</span>',
+    empty:       '<span class="dot dot-healthy"></span><span>connected</span><span class="sep">&middot;</span><span>up 12d</span><span class="sep">&middot;</span><span>cockpitd 0.4.1</span>',
+    disconnected:'<span class="dot dot-stopped"></span><span>no contact</span><span class="sep">&middot;</span><span>last seen 3d ago</span>',
+    enrolling:   '<span>awaiting first contact</span>'
   };
 
   function show(name) {
@@ -394,15 +368,12 @@
     var crumb = document.querySelector('.crumbs .here');
     crumb.innerHTML = (DOTS[name] ? '<span class="dot ' + DOTS[name] + '"></span>' : '') + NAMES[name];
 
-    document.querySelector('[data-vitals] .facts').innerHTML =
-      FACTS[name].map(function (f) { return '<span>' + f + '</span>'; }).join('<span class="sep">&middot;</span>');
+    document.querySelector('[data-conn]').innerHTML = CONN[name];
 
     // No metrics and no agent version until the daemon has actually reported.
     // Showing stale bars would be inventing data.
     var live = name === 'populated' || name === 'empty';
     document.querySelector('[data-metrics]').style.display = live ? '' : 'none';
-    document.querySelector('[data-agent]').textContent =
-      name === 'enrolling' ? 'not enrolled' : (live ? 'cockpitd 0.4.1' : 'cockpitd 0.4.1 · stale');
 
     // Nothing can be applied to a box cockpit cannot reach.
     var deploy = document.querySelector('[data-deploy]');

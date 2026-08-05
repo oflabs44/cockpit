@@ -148,6 +148,25 @@
 .search:hover { border-color: var(--ink-40); color: var(--ink-60); }
 .search kbd { margin-left: auto; font-family: var(--font-mono); font-size: 11px; }
 
+/* Notification bell. Anything that needs a human is collected here rather
+   than injected into whatever page you happen to be on — a page should show
+   the state of the thing it is about, not carry a noticeboard. */
+.bell {
+  position: relative;
+  width: 30px; height: 30px; flex: none;
+  display: grid; place-items: center;
+  background: transparent; border: 0; cursor: pointer;
+  color: var(--ink-40);
+}
+.bell:hover { color: var(--color-ink); background: var(--ink-04); }
+.bell[data-unread]::after {
+  content: '';
+  position: absolute; top: 5px; right: 5px;
+  width: 6px; height: 6px;
+  background: var(--color-danger);
+  outline: 2px solid var(--color-paper);
+}
+
 .content { flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; }
 .content-inner { padding: var(--s5); flex: 1; display: flex; flex-direction: column; }
 
@@ -224,12 +243,13 @@
 }
 
 /* --------------------------------------------------------------------------
-   Vitals — a compact strip of host facts and load, sitting under the tabs.
+   Vitals — a slim readout of what is LIVE about a server: load, and whether
+   the daemon is talking.
 
-   Deliberately a strip and not a right-hand rail. The shell already has one
-   sidebar, and a second column of chrome at every depth is how these tools end
-   up with three nested navigations. A strip is also denser, which suits a
-   readout of mostly-inert facts you glance at rather than read.
+   Static facts — provider, IP, size, arch, OS, created — are deliberately not
+   here. They never change, so putting them in a permanent strip spends the top
+   of every page on things you look up once and then stop seeing. They live on
+   Settings, where you go when you actually want them.
    -------------------------------------------------------------------------- */
 
 .vitals {
