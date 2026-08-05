@@ -415,6 +415,87 @@
     </p>
   </section>
 
+
+  <!-- ================= KEY/VALUE ================= -->
+  <section>
+    <div class="sec-head"><h2>Key / value</h2><hr class="hr"></div>
+    <p class="why" style="margin:0 0 var(--s5)">
+      The facts at the head of an object's page. Reference material you scan for one
+      value, not a dashboard you read &mdash; so no rules, no boxes, and no headline
+      figures competing with the table below.
+    </p>
+
+    <div class="caption label">A &mdash; stacked, no icons</div>
+    <div class="demo">
+      <div class="kv ">
+        <div class="kv-item"><div class="kv-k">status</div><div class="kv-v"><span class="dot dot-healthy"></span>connected</div></div>
+        <div class="kv-item"><div class="kv-k">provider</div><div class="kv-v">hetzner</div></div>
+        <div class="kv-item"><div class="kv-k">ip</div><div class="kv-v">95.216.44.12</div></div>
+        <div class="kv-item"><div class="kv-k">size</div><div class="kv-v">cpx31</div></div>
+        <div class="kv-item"><div class="kv-k">arch</div><div class="kv-v">arm64</div></div>
+        <div class="kv-item"><div class="kv-k">os</div><div class="kv-v">ubuntu 24.04</div></div>
+        <div class="kv-item"><div class="kv-k">cpu</div><div class="kv-v">38%</div></div>
+        <div class="kv-item"><div class="kv-k">memory</div><div class="kv-v">71%</div></div>
+        <div class="kv-item"><div class="kv-k">disk</div><div class="kv-v">52%</div></div>
+        <div class="kv-item"><div class="kv-k">uptime</div><div class="kv-v">84d</div></div>
+        <div class="kv-item"><div class="kv-k">daemon</div><div class="kv-v">cockpitd 0.4.1</div></div>
+        <div class="kv-item"><div class="kv-k">resources</div><div class="kv-v">6</div></div>
+      </div>
+    </div>
+    <p class="why" style="margin-bottom:var(--s6)">
+      Values sit on a shared baseline across each row, so the eye can run along them.
+      Labels are small and quiet; the values are the content.
+    </p>
+
+    <div class="caption label">B &mdash; stacked, with icons</div>
+    <div class="demo">
+      <div class="kv kv-icon">
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#server"/></svg>status</div><div class="kv-v"><span class="dot dot-healthy"></span>connected</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#globe"/></svg>provider</div><div class="kv-v">hetzner</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#globe"/></svg>ip</div><div class="kv-v">95.216.44.12</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#cpu"/></svg>size</div><div class="kv-v">cpx31</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#memory"/></svg>arch</div><div class="kv-v">arm64</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#package"/></svg>os</div><div class="kv-v">ubuntu 24.04</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#cpu"/></svg>cpu</div><div class="kv-v">38%</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#memory"/></svg>memory</div><div class="kv-v">71%</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#disk"/></svg>disk</div><div class="kv-v">52%</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#clock"/></svg>uptime</div><div class="kv-v">84d</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#terminal"/></svg>daemon</div><div class="kv-v">cockpitd 0.4.1</div></div>
+        <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#layers"/></svg>resources</div><div class="kv-v">6</div></div>
+      </div>
+    </div>
+    <p class="why" style="margin-bottom:var(--s6)">
+      Twelve glyphs for twelve already-labelled fields. Several have no honest icon
+      &mdash; arch, size, and os all end up borrowing one &mdash; and elsewhere in cockpit
+      an icon means a resource kind or a destination, so spending them as decoration here
+      weakens that.
+    </p>
+
+    <div class="caption label">C &mdash; inline, label left</div>
+    <div class="demo">
+      <div class="kv kv-inline">
+        <div class="kv-item"><div class="kv-k">status</div><div class="kv-v"><span class="dot dot-healthy"></span>connected</div></div>
+        <div class="kv-item"><div class="kv-k">provider</div><div class="kv-v">hetzner</div></div>
+        <div class="kv-item"><div class="kv-k">ip</div><div class="kv-v">95.216.44.12</div></div>
+        <div class="kv-item"><div class="kv-k">size</div><div class="kv-v">cpx31</div></div>
+        <div class="kv-item"><div class="kv-k">arch</div><div class="kv-v">arm64</div></div>
+        <div class="kv-item"><div class="kv-k">os</div><div class="kv-v">ubuntu 24.04</div></div>
+        <div class="kv-item"><div class="kv-k">cpu</div><div class="kv-v">38%</div></div>
+        <div class="kv-item"><div class="kv-k">memory</div><div class="kv-v">71%</div></div>
+        <div class="kv-item"><div class="kv-k">disk</div><div class="kv-v">52%</div></div>
+        <div class="kv-item"><div class="kv-k">uptime</div><div class="kv-v">84d</div></div>
+        <div class="kv-item"><div class="kv-k">daemon</div><div class="kv-v">cockpitd 0.4.1</div></div>
+        <div class="kv-item"><div class="kv-k">resources</div><div class="kv-v">6</div></div>
+      </div>
+    </div>
+    <p class="why">
+      Denser vertically and reads like a spec sheet. The cost is that values no longer
+      line up into a scannable column: each one starts wherever its fixed-width label
+      ends, and with only two columns across the page the head grows taller than the
+      thing it heads.
+    </p>
+  </section>
+
   <!-- ================= REJECTED ================= -->
   <section>
     <div class="sec-head"><h2>Considered and rejected</h2><hr class="hr"></div>

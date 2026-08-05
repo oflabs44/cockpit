@@ -687,3 +687,15 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 }
 .kv-v[data-hot] { color: var(--color-warn); }
 .kv-v[data-none] { color: var(--ink-20); }
+
+/* Inline variant — label and value on one line, in a narrow column. Works in a
+   sidebar or a two-column spec sheet; in a wide grid it stops the values
+   aligning into a column you can scan down. */
+.kv-inline { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--s3) var(--s7); }
+.kv-inline .kv-item { display: flex; align-items: baseline; gap: var(--s4); }
+.kv-inline .kv-k { flex: none; width: 88px; }
+.kv-inline .kv-v { margin-top: 0; }
+
+/* Icon variant. */
+.kv-icon .kv-k { display: flex; align-items: center; gap: 6px; }
+.kv-icon .kv-k .icon { width: 13px; height: 13px; color: var(--ink-40); }
