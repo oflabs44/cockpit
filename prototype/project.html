@@ -132,7 +132,7 @@
       </div>
       <span class="spacer"></span>
 
-      <button class="search">
+      <button class="search" onclick="openPalette('command')">
         <svg class="icon icon-sm"><use href="#search"/></svg>
         <span>Search or run</span>
         <kbd>&#8984;K</kbd>
@@ -158,7 +158,7 @@
       <div class="content-inner" style="padding:0">
       <div class="canvas">
         <div class="canvas-tools">
-          <button class="btn btn-ghost btn-sm">+ Add component</button>
+          <button class="btn btn-ghost btn-sm" onclick="openPalette('add')">+ Add component</button>
           <button class="btn btn-ghost btn-sm">Fit</button>
         </div>
         <svg class="canvas-edges" width="1240" height="700" aria-hidden="true">
@@ -222,6 +222,53 @@
 <script>
   fetch('assets/img/icons.svg').then(function (r) { return r.text(); })
     .then(function (t) { document.querySelector('[data-sprite]').innerHTML = t; });
+</script>
+<script>
+  window.PALETTES = {
+    /* Add component — the picker behind the canvas toolbar. Grouped by what
+       the thing IS, since that is how you arrive: "I need a database." */
+    add: {
+      placeholder: 'Add a component\u2026',
+      groups: [
+        { label: 'Apps', items: [
+          { icon: 'package',  name: 'From a Git repo',   hint: 'build on the server' },
+          { icon: 'package',  name: 'From a Docker image', hint: 'pull and run' }
+        ]},
+        { label: 'Databases', items: [
+          { icon: 'database', name: 'PostgreSQL 16', hint: 'private' },
+          { icon: 'database', name: 'Redis 7',       hint: 'private' }
+        ]},
+        { label: 'Jobs', items: [
+          { icon: 'clock',    name: 'Cron job', hint: 'schedule' }
+        ]},
+        { label: 'Storage and networking', items: [
+          { icon: 'disk',     name: 'Volume', hint: 'persistent' },
+          { icon: 'globe',    name: 'Domain', hint: 'account-scoped' }
+        ]}
+      ],
+      onPick: function (i) { alert('Would add: ' + i.name + '\n\nAdding is a change, so it lands as a draft on the canvas and you review the plan before it is applied.'); }
+    },
+
+    /* Global \u2318K. Actions first: you open it to DO something far more often
+       than to navigate. */
+    command: {
+      placeholder: 'Search or run\u2026',
+      groups: [
+        { label: 'Actions', items: [
+          { icon: 'layers',   name: 'Review pending plan', hint: '1 waiting' },
+          { icon: 'package',  name: 'Deploy\u2026',           hint: 'app' },
+          { icon: 'terminal', name: 'Tail logs\u2026',        hint: 'resource' },
+          { icon: 'server',   name: 'Add server',          hint: 'enrol' }
+        ]},
+        { label: 'Go to', items: [
+          { icon: 'server',   name: 'prod-fsn1',  hint: 'server' },
+          { icon: 'server',   name: 'edge-ash',   hint: 'server' },
+          { icon: 'package',  name: 'jerry',      hint: 'prod-fsn1 / app' },
+          { icon: 'database', name: 'db-jerry',   hint: 'prod-fsn1 / database' }
+        ]}
+      ]
+    }
+  };
 </script>
 </body>
 </html>

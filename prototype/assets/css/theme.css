@@ -852,3 +852,119 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
   flex: none;
 }
 .canvas-draft .spacer { flex: 1; }
+
+/* --------------------------------------------------------------------------
+   Palette — one component for two jobs: the global ⌘K, and any "pick a thing"
+   modal such as Add component.
+
+   They are the same object because they are the same interaction: type to
+   narrow, arrow to choose, enter to commit. Building a separate dropdown for
+   pickers would mean two keyboard models and two things to keep consistent,
+   and the picker is the one a terminal-first operator will reach for most.
+   -------------------------------------------------------------------------- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: none;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh var(--s5) var(--s5);
+  background: color-mix(in oklab, var(--color-ink) 28%, transparent);
+}
+.scrim[data-open] { display: flex; }
+
+.palette {
+  width: min(560px, 100%);
+  max-height: 68vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-sheet);
+  border: 1px solid var(--ink-20);
+}
+
+.palette-input {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 0 var(--s4);
+  border-bottom: 1px solid var(--ink-12);
+  flex: none;
+}
+.palette-input .icon { color: var(--ink-40); }
+.palette-input input {
+  flex: 1;
+  height: 52px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--t-lg);
+  outline: none;
+  min-width: 0;
+}
+.palette-input input::placeholder { color: var(--ink-40); }
+
+.palette-list { overflow-y: auto; padding: var(--s2) 0; }
+
+.palette-group {
+  padding: var(--s3) var(--s4) var(--s2);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font-family: var(--font-sans);
+  font-size: var(--t-base);
+}
+/* Selection is a fill, not an outline: the row is being pointed at, and an
+   outline inside a bordered panel would read as a second box. */
+.palette-item[data-sel] { background: var(--ink-08); }
+.palette-item .icon { color: var(--ink-40); flex: none; }
+.palette-item[data-sel] .icon { color: var(--color-ink); }
+.palette-item .p-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-item .p-hint {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  color: var(--ink-40);
+  white-space: nowrap;
+}
+
+.palette-empty { padding: var(--s5) var(--s4); color: var(--ink-40); font-size: var(--t-sm); }
+
+/* The footer is the whole reason this beats a dropdown: it teaches the
+   keyboard route while you use the mouse one. */
+.palette-foot {
+  display: flex;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--ink-12);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  flex: none;
+}
+.palette-foot span { display: flex; align-items: center; gap: 6px; }
+.palette-foot kbd {
+  font-family: var(--font-mono);
+  border: 1px solid var(--ink-20);
+  padding: 0 4px;
+  font-size: 10px;
+}

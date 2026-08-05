@@ -29,6 +29,8 @@
 </style>
 </head>
 <body>
+
+<div hidden data-sprite></div>
 <div class="wrap">
 
   <div class="head">
@@ -497,6 +499,34 @@
     </p>
   </section>
 
+
+  <!-- ================= PALETTE ================= -->
+  <section>
+    <div class="sec-head"><h2>Palette</h2><hr class="hr"></div>
+    <p class="why" style="margin:0 0 var(--s5)">
+      One component for two jobs: the global <span class="mono">&#8984;K</span>, and every
+      "pick a thing" modal &mdash; Add component, choose a source, pick a server. They are
+      the same object because they are the same interaction: type to narrow, arrow to
+      choose, enter to commit. A separate dropdown for pickers would mean two keyboard
+      models to learn and two to keep working, and the picker is the one a terminal-first
+      operator reaches for most.
+    </p>
+
+    <div class="demo">
+      <div class="row">
+        <button class="btn btn-ghost" onclick="openPalette('command')">Open &#8984;K</button>
+        <button class="btn btn-ghost" onclick="openPalette('add')">Open Add component</button>
+      </div>
+    </div>
+    <p class="why">
+      Items group by what the thing <em>is</em>, because that is how you arrive &mdash; "I
+      need a database", not "I need to run a container". Selection is a fill rather than an
+      outline: the row is being pointed at, and an outline inside a bordered panel reads as
+      a second box. The footer is the whole reason this beats a dropdown &mdash; it teaches
+      the keyboard route while you are still using the mouse one.
+    </p>
+  </section>
+
   <!-- ================= REJECTED ================= -->
   <section>
     <div class="sec-head"><h2>Considered and rejected</h2><hr class="hr"></div>
@@ -518,5 +548,56 @@
   </section>
 
 </div>
+<script>
+  window.PALETTES = {
+    /* Add component — the picker behind the canvas toolbar. Grouped by what
+       the thing IS, since that is how you arrive: "I need a database." */
+    add: {
+      placeholder: 'Add a component\u2026',
+      groups: [
+        { label: 'Apps', items: [
+          { icon: 'package',  name: 'From a Git repo',   hint: 'build on the server' },
+          { icon: 'package',  name: 'From a Docker image', hint: 'pull and run' }
+        ]},
+        { label: 'Databases', items: [
+          { icon: 'database', name: 'PostgreSQL 16', hint: 'private' },
+          { icon: 'database', name: 'Redis 7',       hint: 'private' }
+        ]},
+        { label: 'Jobs', items: [
+          { icon: 'clock',    name: 'Cron job', hint: 'schedule' }
+        ]},
+        { label: 'Storage and networking', items: [
+          { icon: 'disk',     name: 'Volume', hint: 'persistent' },
+          { icon: 'globe',    name: 'Domain', hint: 'account-scoped' }
+        ]}
+      ],
+      onPick: function (i) { alert('Would add: ' + i.name + '\n\nAdding is a change, so it lands as a draft on the canvas and you review the plan before it is applied.'); }
+    },
+
+    /* Global \u2318K. Actions first: you open it to DO something far more often
+       than to navigate. */
+    command: {
+      placeholder: 'Search or run\u2026',
+      groups: [
+        { label: 'Actions', items: [
+          { icon: 'layers',   name: 'Review pending plan', hint: '1 waiting' },
+          { icon: 'package',  name: 'Deploy\u2026',           hint: 'app' },
+          { icon: 'terminal', name: 'Tail logs\u2026',        hint: 'resource' },
+          { icon: 'server',   name: 'Add server',          hint: 'enrol' }
+        ]},
+        { label: 'Go to', items: [
+          { icon: 'server',   name: 'prod-fsn1',  hint: 'server' },
+          { icon: 'server',   name: 'edge-ash',   hint: 'server' },
+          { icon: 'package',  name: 'jerry',      hint: 'prod-fsn1 / app' },
+          { icon: 'database', name: 'db-jerry',   hint: 'prod-fsn1 / database' }
+        ]}
+      ]
+    }
+  };
+</script>
+<script>
+  fetch('assets/img/icons.svg').then(function (r) { return r.text(); })
+    .then(function (t) { document.querySelector('[data-sprite]').innerHTML = t; });
+</script>
 </body>
 </html>
