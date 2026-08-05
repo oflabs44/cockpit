@@ -17,25 +17,26 @@ capability parity across the web UI and MCP. We're starting the build. The desig
 is locked — do NOT re-litigate it; if you hit a real gap, surface it before deviating.
 
 READ FIRST (in this order), then confirm you've internalized them:
-- CONTEXT.md              — 18 locked decisions + glossary + conventions (this wins)
+- CONTEXT.md              — 19 locked decisions + glossary + conventions (this wins)
 - docs/architecture.md    — topology, stack, flows, security model, open questions
 - docs/type-design.md     — the buildable spec: entities, specs per kind, Plan/Change,
                             daemon protocol, API surface, invariants to test
-- docs/adr/0001..0006     — rationale for the load-bearing decisions
+- docs/adr/0001..0008     — rationale for the load-bearing decisions
 
 THE FOUR RULES THAT MATTER MOST (violating these is a design bug, not a style nit):
 1. One API, two clients, zero capability gap. No business logic above the API. (#1, #2)
 2. Every mutation is a Plan. No endpoint mutates a server directly. (#6, ADR-0003)
 3. Plans diff against OBSERVED state reported by the daemon, never last-known. (#7)
-4. Secrets are vault refs (op://...), never values, anywhere. (#14)
+4. Secrets are refs (op://...), never values, and are resolved by the DAEMON on
+   the box -- never by the plane. (#15, ADR-0008)
 
 SCOPE FOR THIS SESSION — the spine only. No deploys, no builds, no UI polish:
 
 1. Scaffold a pnpm-workspace monorepo with a Makefile task runner (never npm; never
    run package.json scripts directly). TypeScript strict. Vitest. Layout per
-   docs/architecture.md §2.6. WAIT FOR MY OK before scaffolding.
+   docs/architecture.md §2.5. WAIT FOR MY OK before scaffolding.
 
-2. packages/schema — the spine. Zod 4 schemas for: primitives (Id, Actor, VaultRef,
+2. packages/schema — the spine. Zod 4 schemas for: primitives (Id, Actor, SecretRef,
    Health, Changed), Server, Enrolment, Resource, Observed, Plan/Change/Op/Impact,
    Release, Link, Event. AppSpec and DatabaseSpec only; the other kinds are stubs
    registered in the kind registry but not implemented. Types inferred, never

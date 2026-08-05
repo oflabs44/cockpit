@@ -40,7 +40,7 @@ be on the critical path or a source of consistency bugs.
 - **Git is not an input.** Editing the mirror repo does nothing. This must be documented
   in the repo itself (a generated header in every snapshot file) or it will eventually be
   edited by someone expecting GitOps semantics.
-- **Secrets never reach the mirror.** Only vault refs are stored anywhere (CONTEXT #14),
+- **Secrets never reach the mirror.** Only secret refs are stored anywhere (CONTEXT #15),
   so this follows automatically — but snapshot serialisation must be tested for it, since
   the mirror is the most likely place for a leak to become permanent and public.
 - **D1 needs its own backup discipline** independent of the mirror, since the mirror holds

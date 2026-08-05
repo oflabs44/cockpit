@@ -22,7 +22,15 @@ type Actor =
   | { kind: 'agent';  id: string }             // e.g. 'claude-code'
   | { kind: 'system'; id: string }             // e.g. 'drift-sweep', 'health-monitor'
 
-type VaultRef = `op://${string}`               // never a value (#14)
+/** A pointer to a secret, never the secret. The scheme names the provider and
+ *  is resolved by the daemon on the box, immediately before use (ADR-0008).
+ *  v1 ships `op://` only; the others are reserved so adding one is a resolver
+ *  plus a schema, not a migration. */
+type SecretRef =
+  | `op://${string}`      // 1Password — the only provider in v1
+  | `aws://${string}`     // AWS Secrets Manager
+  | `vault://${string}`   // HashiCorp Vault
+  | `ck://${string}`      // cockpit-held, encrypted — possible, not planned
 
 type Health = 'healthy' | 'degraded' | 'unhealthy' | 'stopped' | 'unknown'
 
@@ -95,7 +103,8 @@ type ServerKind =
 
 /** Account-scoped: outlives any box, linked to the spine rather than inside it. */
 type AccountKind =
-  | 'domain' | 'dns_record' | 'source' | 'secret' | 'backup_destination'
+  | 'domain' | 'dns_record' | 'source' | 'secret' | 'secret_provider'
+  | 'backup_destination'
 
 type Kind = ServerKind | AccountKind
 
@@ -146,7 +155,7 @@ interface AppSpec {
   }
   domains: string[]                             // Traefik labels derive from these (#17)
   ports: { container: number; protocol: 'tcp' | 'udp' }[]
-  env: Record<string, string | VaultRef>        // secrets are refs only (#14)
+  env: Record<string, string | SecretRef>        // refs only (#15, ADR-0008)
   replicas: number
   healthcheck?: { path: string; interval_s: number; timeout_s: number; retries: number }
   limits: { cpu: string; memory: string }
@@ -157,7 +166,7 @@ interface DatabaseSpec {
   engine: 'postgres' | 'redis'
   version: string
   volume: string                                // Link to a volume resource
-  credentials: VaultRef                         // generated into the vault, never stored
+  credentials: SecretRef                         // generated into the vault, never stored
   network: string                               // private `db-<name>` network by default
   expose: 'private' | 'host' | 'public'         // default 'private'
   backup?: { schedule: string; retain: number; destination: 'r2' }
@@ -167,7 +176,7 @@ interface CronSpec {
   schedule: string                              // cron expression
   timezone: string
   command: string
-  env: Record<string, string | VaultRef>
+  env: Record<string, string | SecretRef>
   on_failure: 'ignore' | 'alert'
 }
 
@@ -443,8 +452,10 @@ have a test that fails loudly if it erodes.
 5. **Idempotence.** Re-sending a task after reconnect produces `no_op`, not a duplicate
    resource.
 6. **No secret values anywhere.** Assert that no `Spec`, `Release.spec_snapshot`, `Event`
-   payload, git snapshot, or API response contains anything but `VaultRef` in a secret
-   position.
+   payload, git snapshot, or API response contains anything but `SecretRef` in a secret
+   position — and that the plane has no code path that dereferences one (ADR-0008). The
+   second half matters more: the first is a data check, the second is what stops the
+   easy-but-wrong implementation.
 7. **Client parity.** For every write operation in `packages/schema`, assert that a REST
    route and an MCP tool exist and are generated from the same definition. With no CLI,
    this test is the *only* mechanical guard on ADR-0005, so it is not optional.

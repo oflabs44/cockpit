@@ -42,6 +42,7 @@ capability from both.
 | [ADR-0005](./docs/adr/0005-strict-client-parity.md) | Strict client parity: every client over one API |
 | [ADR-0006](./docs/adr/0006-polymorphic-resource-model.md) | One polymorphic Resource entity, with Links as first-class relationships |
 | [ADR-0007](./docs/adr/0007-resource-scope-server-or-account.md) | Every kind declares its scope: server or account |
+| [ADR-0008](./docs/adr/0008-secrets-resolved-on-the-box.md) | Secrets are resolved on the box, by the daemon |
 
 ## Lineage
 

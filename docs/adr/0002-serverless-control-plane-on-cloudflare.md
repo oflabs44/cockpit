@@ -48,7 +48,7 @@ without a VPN or a tunnel into a private box.
   logic here worth a seam. Workflows and Durable Objects have no neutral equivalent and
   pretending otherwise would buy an abstraction validated by one implementation.
 - **State lives with a third party.** Fleet configuration — not secrets, which remain
-  vault refs (CONTEXT #14) — sits in D1. The git mirror (ADR-0004) is the mitigation:
+  secret refs (CONTEXT #15) — sits in D1. The git mirror (ADR-0004) is the mitigation:
   a full config history the operator holds independently.
 - **Request-scoped runtime discipline.** No in-memory caches or singletons that assume a
   long-lived process. Anything long-lived is a Durable Object or a Workflow, explicitly.

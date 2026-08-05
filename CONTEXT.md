@@ -129,11 +129,15 @@ Numbered so other docs can reference them as `(#n)`.
     `create | in_place | replace | no_op`. Inherited directly from yoke. No
     "skip if exists" wrappers anywhere.
 
-15. **Secrets are references, never values.**
-    Env values are stored as vault refs (`op://...`) and resolved at execution
-    time. No secret value is persisted in D1, in a git snapshot, in a log line,
-    or in an API response. Inherited from the `/devops` skill's Rule #2, now
-    enforced by types rather than by prose.
+15. **Secrets are references, never values — resolved on the box.**
+    Env values are stored as provider-scheme refs (`op://…`, and later
+    `aws://…`, `vault://…`) and resolved by the **daemon**, immediately before
+    use, never persisted. Not by the plane: handing the control plane plaintext
+    would restore exactly the blast radius that holding no SSH keys removes.
+    Not by the browser: that would make every apply need a human, killing
+    agent-initiated and scheduled deploys. cockpit can never display a secret's
+    value because it never has one. Inherited from the `/devops` skill's Rule
+    #2, now enforced by types. See ADR-0008.
 
 16. **`impact` is data, not documentation.**
     Each change carries `none | reload | restart | replace | destructive`. The
@@ -227,7 +231,8 @@ and the activity feed are both views over this.
 **Actor** — who caused something: `{ kind: "human" | "agent" | "system", id }`.
 Every plan and event carries one.
 
-**Vault ref** — an `op://...` string standing in for a secret (#14).
+**Secret ref** — a provider-scheme string standing in for a secret (`op://…`),
+resolved by the daemon on the box and never held by the plane (#15, ADR-0008).
 
 ---
 

@@ -336,10 +336,11 @@ a server unilaterally, by construction (#3, ADR-0003).
   URL and an enrolment token.
 - **Daemon authority is scoped to its own server.** It cannot read or act on another
   server's resources.
-- **Secrets are references, never values** (#14). Env values are `op://` refs resolved at
-  execution time on the box. No secret value is persisted in D1, in a git snapshot, in a
-  log line, or in an API response. This is the `/devops` skill's Rule #2, now enforced by
-  types rather than prose.
+- **Secrets are references, never values, resolved on the box** (#15, ADR-0008). Env
+  values are provider-scheme refs (`op://…`) dereferenced by the **daemon** immediately
+  before use. The plane never holds a value — giving it one would restore the blast radius
+  that holding no SSH keys removes. The cost, accepted knowingly: a scoped provider
+  credential lives on each server.
 - **Every mutation is attributable.** Plans and events carry an `Actor`
   (`human | agent | system`).
 - **Destructive changes are typed as such** (#15), so the gate cannot be forgotten.
@@ -388,6 +389,10 @@ Deliberately unresolved; each will get its own ADR when forced.
    notifications rather than log entries. The UI already draws an unread badge over
    nothing.
 9. **Canvas layout persistence.** Node positions need a home in the schema.
+
+10. **Secret providers beyond 1Password**, and how each one's credential reaches and
+    rotates on a server. The resolution seam is settled (ADR-0008); the provider set is
+    not. Also open: whether builds need secrets, and per-project shared secrets.
 
 See also `docs/prototype-reality-check.md`, which traces every value the prototype renders
 to the frame, query, or probe that would produce it, and lists the ones nothing does.
