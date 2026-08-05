@@ -48,7 +48,7 @@
 
 <div class="protobar">
   <span class="label">server</span>
-  <button aria-current="true">canvas</button>
+  <button aria-current="true">overview</button>
   <span class="spacer"></span>
   <button onclick="toggleTheme()">view <span data-theme-label>light</span></button>
   <button onclick="location.href='server.html'">server</button>
@@ -148,80 +148,50 @@
     <!-- The server's strip is REPLACED, not stacked. One sidebar, one strip,
          always belonging to the deepest thing in the breadcrumb. -->
     <nav class="tabs">
-      <a href="#" aria-current="page">Canvas</a>
-      <a href="#">Releases</a>
+      <a href="#" aria-current="page">Overview</a>
+      <a href="#">Deployments</a>
       <a href="#">Variables</a>
       <a href="#">Settings</a>
     </nav>
 
     <div class="content">
       <div class="content-inner" style="padding:0">
-      <div class="canvas" style="min-width:1060px;min-height:440px">
-        <svg class="canvas-edges" width="1060" height="440" aria-hidden="true">
-        <path d="M220 210.0 H256.0 V190.0 H292" class=""/><rect class="edge-cap" x="289.5" y="187.5" width="5" height="5"/>
-        <path d="M488 190.0 H524.0 V98.0 H560" class=""/><rect class="edge-cap" x="557.5" y="95.5" width="5" height="5"/>
-        <path d="M756 98.0 H828" class=""/><rect class="edge-cap" x="825.5" y="95.5" width="5" height="5"/>
-        <path d="M658 268 V145" class="is-quiet"/><rect class="edge-cap" x="655.5" y="137.5" width="5" height="5"/>
-        <path d="M390.0 320 H390.0 V232 H390.0" class=""/><rect class="edge-cap" x="387.5" y="229.5" width="5" height="5"/>
+      <div class="canvas">
+        <svg class="canvas-edges" width="1140" height="620" aria-hidden="true">
+          <path d="M296 300.0 H400" class=""/><rect class="edge-cap" x="397.5" y="297.5" width="5" height="5"/>
+          <path d="M636 300.0 H698.0 V206.5 H760" class=""/><rect class="edge-cap" x="757.5" y="204.0" width="5" height="5"/>
+          <path d="M878.0 430 V273" class="is-quiet"/><rect class="edge-cap" x="875.5" y="270.5" width="5" height="5"/>
+          <path d="M518.0 440 V346" class=""/><rect class="edge-cap" x="515.5" y="343.5" width="5" height="5"/>
         </svg>
-      <a class="node" href="#" style="left:24px;top:168px" data-shared>
-        <div class="node-head">
-          <svg class="icon"><use href="#globe"/></svg>
-          <span class="node-kind">domain</span>
-        </div>
+      <a class="node" href="#" style="left:60px;top:254px" data-shared>
         <div class="node-body">
-          <div class="node-name"><span class="dot dot-healthy"></span>jerry.oflabs.dev</div>
-          <div class="node-meta">cloudflare / A</div>
+          <div class="node-name"><svg class="icon"><use href="#globe"/></svg>jerry.oflabs.dev</div>
+          <div class="node-state"><span class="dot dot-healthy"></span>routing to jerry<span class="node-kind">domain</span></div>
         </div>
       </a>
-      <a class="node" href="#" style="left:292px;top:148px">
-        <div class="node-head">
-          <svg class="icon"><use href="#package"/></svg>
-          <span class="node-kind">app</span>
-        </div>
+      <a class="node" href="#" style="left:400px;top:254px">
         <div class="node-body">
-          <div class="node-name"><span class="dot dot-failed"></span>jerry</div>
-          <div class="node-meta">r48 / restarting</div>
+          <div class="node-name"><svg class="icon"><use href="#package"/></svg>jerry</div>
+          <div class="node-state"><span class="dot dot-failed"></span>restarting / r48<span class="node-kind">app</span></div>
         </div>
       </a>
-      <a class="node" href="#" style="left:560px;top:56px">
-        <div class="node-head">
-          <svg class="icon"><use href="#database"/></svg>
-          <span class="node-kind">database</span>
-        </div>
+      <a class="node" href="#" style="left:760px;top:140px">
         <div class="node-body">
-          <div class="node-name"><span class="dot dot-healthy"></span>db-jerry</div>
-          <div class="node-meta">postgres 16</div>
+          <div class="node-name"><svg class="icon"><use href="#database"/></svg>db-jerry</div>
+          <div class="node-state"><span class="dot dot-healthy"></span>postgres 16<span class="node-kind">database</span></div>
+        </div>
+        <div class="node-attached"><svg class="icon"><use href="#disk"/></svg><span>db-jerry-data</span><span style="margin-left:auto">2.1 GB</span></div>
+      </a>
+      <a class="node" href="#" style="left:760px;top:430px">
+        <div class="node-body">
+          <div class="node-name"><svg class="icon"><use href="#clock"/></svg>nightly-backup</div>
+          <div class="node-state"><span class="dot dot-healthy"></span>ran 6h ago<span class="node-kind">cron</span></div>
         </div>
       </a>
-      <a class="node" href="#" style="left:828px;top:56px">
-        <div class="node-head">
-          <svg class="icon"><use href="#disk"/></svg>
-          <span class="node-kind">volume</span>
-        </div>
+      <a class="node" href="#" style="left:400px;top:440px" data-shared>
         <div class="node-body">
-          <div class="node-name"><span class="dot dot-healthy"></span>db-jerry-data</div>
-          <div class="node-meta">2.1 GB</div>
-        </div>
-      </a>
-      <a class="node" href="#" style="left:560px;top:268px">
-        <div class="node-head">
-          <svg class="icon"><use href="#clock"/></svg>
-          <span class="node-kind">cron</span>
-        </div>
-        <div class="node-body">
-          <div class="node-name"><span class="dot dot-healthy"></span>nightly-backup</div>
-          <div class="node-meta">03:00 Europe/Berlin</div>
-        </div>
-      </a>
-      <a class="node" href="#" style="left:292px;top:320px" data-shared>
-        <div class="node-head">
-          <svg class="icon"><use href="#globe"/></svg>
-          <span class="node-kind">proxy</span>
-        </div>
-        <div class="node-body">
-          <div class="node-name"><span class="dot dot-healthy"></span>traefik</div>
-          <div class="node-meta">:80 :443</div>
+          <div class="node-name"><svg class="icon"><use href="#globe"/></svg>traefik</div>
+          <div class="node-state"><span class="dot dot-healthy"></span>:80 :443<span class="node-kind">proxy</span></div>
         </div>
       </a>
       </div>

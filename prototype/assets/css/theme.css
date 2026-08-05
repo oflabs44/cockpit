@@ -709,35 +709,37 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 
    Not a visualisation bolted onto a list: Link is a first-class entity in the
    model, so this is a direct rendering of stored data. What connects to what
-   is the thing you actually need to know when a deploy breaks, and it is the
-   one view a table cannot give you.
+   is the thing you need when a deploy breaks, and it is the one view a table
+   cannot give.
 
-   Edges are orthogonal, never curved. Right angles are the system's whole
-   grammar, and in a dense graph an axis-aligned path is easier to trace than a
-   bezier — you follow it by eye without losing which end you started from.
+   Edges are orthogonal, never curved. Right angles are the system's grammar,
+   and in a dense graph an axis-aligned path is easier to trace by eye than a
+   bezier — you follow it without losing which end you started from.
    -------------------------------------------------------------------------- */
 
 .canvas {
   position: relative;
-  min-height: 460px;
+  flex: 1;
+  min-height: 520px;
   overflow: auto;
-  /* A faint grid, so nodes read as placed rather than floating. */
-  background-image:
-    linear-gradient(var(--ink-04) 1px, transparent 1px),
-    linear-gradient(90deg, var(--ink-04) 1px, transparent 1px);
-  background-size: 24px 24px;
+  /* Dots, not a ruled grid. A grid of lines reads as a table underlay and
+     competes with the edges; dots register as surface texture and let the
+     connections stay the only lines on screen. */
+  background-image: radial-gradient(var(--ink-12) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
 }
 
 .canvas-edges { position: absolute; inset: 0; pointer-events: none; }
 .canvas-edges path { fill: none; stroke: var(--ink-20); stroke-width: 1; }
 .canvas-edges .edge-cap { fill: var(--ink-40); }
-/* A dashed edge is a relationship that does not carry traffic — a backup
-   writing to a volume, a cron touching a database. */
-.canvas-edges .is-quiet { stroke-dasharray: 3 3; }
+/* A dashed edge is a relationship that carries no traffic — a backup writing
+   to a volume, a cron touching a database. */
+.canvas-edges .is-quiet { stroke-dasharray: 3 4; }
 
 .node {
   position: absolute;
-  width: 196px;
+  width: 236px;
   background: var(--color-sheet);
   border: 1px solid var(--ink-12);
   text-decoration: none;
@@ -747,28 +749,37 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 }
 .node:hover { border-color: var(--ink-40); }
 
-.node-head {
-  display: flex; align-items: center; gap: var(--s2);
-  padding: var(--s2) var(--s3);
-  border-bottom: 1px solid var(--ink-12);
+.node-body { padding: var(--s4); }
+.node-name {
+  display: flex; align-items: center; gap: var(--s3);
+  font-weight: 500; font-size: var(--t-lg); letter-spacing: -0.015em;
 }
-.node-head .icon { width: 14px; height: 14px; color: var(--ink-40); }
+.node-name .icon { width: 17px; height: 17px; color: var(--ink-40); }
+.node-state {
+  display: flex; align-items: center; gap: var(--s2);
+  margin-top: var(--s4);
+  font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-60);
+}
 .node-kind {
+  margin-left: auto;
   font-family: var(--font-mono); font-size: var(--t-micro);
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-40);
 }
-.node-body { padding: var(--s3); }
-.node-name { display: flex; align-items: center; gap: var(--s2); font-weight: 500; font-size: var(--t-base); }
-.node-meta {
-  margin-top: 4px; font-family: var(--font-mono);
-  font-size: var(--t-sm); color: var(--ink-40);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 
-/* Resources that live outside the project — shared by the whole server —
-   are drawn with a dashed outline so ownership is visible at a glance. */
+/* A volume is mounted by exactly one thing, so it rides inside its mount
+   rather than becoming a node of its own — fewer boxes, and the ownership is
+   unambiguous without an edge to explain it. */
+.node-attached {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--ink-12);
+  font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-40);
+}
+.node-attached .icon { width: 15px; height: 15px; }
+
+/* Resources shared with the whole server rather than owned by the project. */
 .node[data-shared] { border-style: dashed; }
-.node[data-shared] .node-head { border-bottom-style: dashed; }
+.node[data-shared] .node-attached { border-top-style: dashed; }
 
 .canvas-legend {
   display: flex; gap: var(--s5); flex-wrap: wrap;
@@ -776,6 +787,7 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
   border-top: 1px solid var(--ink-12);
   font-family: var(--font-mono); font-size: var(--t-micro);
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-40);
+  flex: none;
 }
 .canvas-legend span { display: flex; align-items: center; gap: var(--s2); }
 .canvas-legend i { display: block; width: 20px; height: 1px; background: var(--ink-20); }
