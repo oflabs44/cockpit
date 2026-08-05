@@ -369,6 +369,12 @@ type Down =
   | { type: 'probe';  probe_id: string; kind: 'host' | 'resource'; target?: Id<'res'> }
   | { type: 'exec';   exec_id: string; resource_id: Id<'res'>; command: string[] }
   | { type: 'ping' }
+  /** The mandatory first frame answering a `hello`. `credential` is present only
+   *  when the hello carried an enrolment secret (or a claim code was redeemed):
+   *  the long-lived per-server credential the daemon must persist before sending
+   *  anything else. Added 2026-08-05 — the original spec defined no down-frame
+   *  acknowledging `hello` or delivering the credential §3.3 promises. */
+  | { type: 'welcome'; server_id: Id<'srv'>; credential?: string }
 ```
 
 ### 3.3 Rules
@@ -385,6 +391,13 @@ type Down =
 - `hello.auth` with `kind: 'enrolment'` is exchanged once for a long-lived per-server
   credential; the enrolment secret is burned on first use and cannot be replayed. Until
   that exchange succeeds the connection is untrusted and may do nothing but enrol.
+- Every handshake is answered by a `welcome` before any other down-frame. In the
+  claim-code flow the daemon sends `hello` (with no usable auth) plus `awaiting_claim`,
+  and the `welcome` carrying the credential arrives only after the operator redeems the
+  code in a client.
+- `state.rev` is scoped to one daemon process: it restarts at 1 after a daemon restart.
+  The plane reconciles per snapshot and keeps its own monotonic `observed_rev`; it must
+  never compare `rev` across connections.
 - Reconnect uses exponential backoff. On reconnect the daemon sends a full `state`, and
   the plane reconciles rather than assuming continuity.
 - Ops execute with ensure-semantics and report `Changed` (#13). No "skip if exists"
