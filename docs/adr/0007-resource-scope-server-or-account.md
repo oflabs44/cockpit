@@ -1,6 +1,6 @@
 # Every kind declares its scope: server or account
 
-Status: accepted
+Status: accepted (amended — projects added inside a server)
 
 `Resource` stays one polymorphic table (ADR-0006), but each `kind` now declares a
 **scope**. Server-scoped kinds have a `server_id`; account-scoped kinds do not, and
@@ -11,8 +11,12 @@ Status: accepted
 - **Account-scoped** — `domain`, `dns_record`, `source`, `secret`, `backup_destination`.
   Things that have no box.
 
-An app belongs to exactly one server and cannot span servers. There is no project or
-grouping level above the server.
+An app belongs to exactly one server and cannot span servers.
+
+**Projects group resources inside a server.** A project is a named grouping of the
+resources on one box — an app plus the database, volume, and cron that serve it. It is a
+label on resources, not a level above them, and a resource may belong to at most one
+project. Resources on a server that belong to no project are shared with the whole server.
 
 ## Why
 
@@ -41,9 +45,20 @@ daemon. Multi-server apps would require placement, cross-host networking, and a 
 — which is the point at which this stops being a personal platform and becomes Nomad.
 Scaling here means a bigger box or more replicas on the same box.
 
-**No projects.** Coolify has Projects because an app can deploy across servers and
-destinations, so it needs a grouping that is not the server. With one app on one server
-the server *is* the grouping, and adding a level above it would organise four things.
+**No project level *above* the server.** Coolify and Railway have Projects because an app
+can deploy across servers and destinations, so they need a grouping that is not the
+server — Railway has no server at all, which is why Project is its isolation boundary.
+Here the box already is one.
+
+**But a project *inside* a server earns its place.** Once a server holds a dozen
+resources, a flat list stops answering the question you actually arrive with: which of
+these belong together? A project answers it, and it is cheap — a nullable `project_id` on
+`Resource`, no new scope, no new isolation boundary, no change to the daemon protocol. It
+groups; it does not contain.
+
+The distinction matters because the two are easy to confuse and only one is safe. A
+project above the server would need placement, cross-host networking, and a scheduler. A
+project inside one needs a column.
 
 ## Consequences
 

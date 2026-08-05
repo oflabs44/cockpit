@@ -64,6 +64,27 @@ everything else depends on them:
 The web app and the plane deploy as **one Worker** via `@cloudflare/vite-plugin` — UI
 assets, REST API, MCP endpoint, and the daemon WebSocket endpoint on one origin.
 
+**Why Durable Objects are load-bearing, not incidental.** A Worker is request-scoped and
+stateless, but a daemon holds one long-lived WebSocket that needs somewhere with identity
+and continuity to land. `ServerDO` — one per server, addressed by name — is that place,
+and four things fall out of it at once:
+
+- **Presence is a local question.** `prod-fsn1`'s socket lives in exactly one object, so
+  "is this server connected" has a definite answer rather than needing a presence table.
+- **Writes to a server serialise for free.** Two applies targeting the same box cannot
+  race, because both pass through one object. That is otherwise a hard problem.
+- **Observed state sits next to the connection that produced it.**
+- **Fan-out has a home** — log and metric frames push to whoever is subscribed.
+
+WebSocket hibernation is what makes it affordable: an idle server's DO evicts from memory
+while keeping the socket open, so quiet boxes cost nothing.
+
+`ServerDO` is not the only one — `StreamDO` is per log/metric stream and the MCP server is
+DO-backed. The pattern is one DO per thing needing identity and continuity. Note what a DO
+is **not**: truth. D1 holds servers, resources, plans, releases, and events (ADR-0004); the
+DO holds the connection and the latest snapshot. Putting the audit trail inside a
+per-server object would make it unqueryable across the fleet.
+
 ### 2.2 Web — `apps/web`
 
 Mirrors `postern`'s stack and design language exactly.
@@ -75,7 +96,7 @@ Mirrors `postern`'s stack and design language exactly.
 | build | Vite + `@cloudflare/vite-plugin` |
 | primitives | Base UI (`@base-ui-components/react`) |
 | styling | Tailwind v4 (`@theme` in CSS, no config file) + `cva` + `clsx` + `tailwind-merge` |
-| command palette | `cmdk` |
+| command palette | hand-built | ~80 lines, specified in `docs/design.md`. `cmdk` was considered and dropped: it brings its own DOM structure for behaviour already pinned down, and the palette doubles as every picker |
 | icons | HugeIcons (`@hugeicons/core-free-icons`), geometry only — stroke, width, and caps set in CSS so the rounded caps it ships become square |
 | fonts | Schibsted Grotesk (sans) + Geist Mono (mono), via fontsource |
 
@@ -170,6 +191,18 @@ to Coolify's UX.
 
 ---
 
+### 2.7 Projects
+
+A **project** groups resources inside one server — an app plus the database, volume, and
+cron that serve it. It is a nullable `project_id` on `Resource`, not a level above the
+server and not a scope of its own (ADR-0007). A resource in no project is shared with the
+whole server, and *shared* is derived rather than declared: anything two projects use, or
+none do, is shared by definition.
+
+The project's own view is its **dependency graph**, rendered from `Link` — see §3.6.
+
+---
+
 ## 3. Flows
 
 ### 3.1 Onboard a server
@@ -234,7 +267,25 @@ and re-enrols. That is the trade for holding no standing fleet-wide credential a
 
 Rollback is applying release *N-1*: a plan whose changes are the recorded inverses (#8).
 
-### 3.3 Log streaming
+### 3.3 Direct operations
+
+Not every mutation is a plan (ADR-0003). Restart, stop, start, exec, and terminal leave the
+spec identical, so they execute immediately:
+
+```
+  client ──▶ POST /resources/:id/restart
+         ──▶ plane records an Event with the actor
+         ──▶ ServerDO sends an `op` frame to the daemon
+         ──▶ daemon executes, reports, and re-syncs observed state
+```
+
+The daemon accepts exactly two kinds of write frame: `task`, bound to a plan in
+`applying`, and `op`, bound to a recorded event. An `op` may never carry a spec change —
+that is what keeps the carve-out from becoming a loophole. Every operation forces a state
+re-sync on completion, because an exec or a terminal session can leave the box diverged
+from its spec.
+
+### 3.4 Log streaming
 
 ```
 docker logs -f ──▶ cockpitd ──WSS──▶ ServerDO ──▶ StreamDO ──WS──▶ browser
@@ -245,14 +296,23 @@ Recent lines live in the `StreamDO`; older lines archive to R2 on a rolling wind
 path, all clients (#1). The `/devops` observability playbook deliberately punted logs;
 cockpit cannot.
 
-### 3.4 Observation and drift
+### 3.5 Observation and drift
 
 The daemon sends a full `state` message on connect and on an interval, plus `event`
 messages in real time (container died, health changed, disk pressure). The plane stores
 observed state per resource. A scheduled sweep plans every resource against its observed
 state; any plan with changes nobody requested is surfaced as **drift** (#7).
 
-### 3.5 An agent operating cockpit
+### 3.6 The project canvas
+
+A project renders as its dependency graph, drawn directly from `Link` rows — not a
+visualisation layer over a list. It authors **composition** (add, remove, arrange) but not
+connections: a link is created where it is configured, and the edge appears as a
+consequence. This is Railway's split too, where connections come from reference variables
+rather than a gesture. Node positions are persisted per project, since they are the
+operator's mental map and cannot be recomputed on load.
+
+### 3.7 An agent operating cockpit
 
 Read side: one call returns a resource with its logs, metrics, recent events, recent
 plans, and links — enough to diagnose an outage without fifteen round-trips (ADR-0005).
@@ -315,3 +375,19 @@ Deliberately unresolved; each will get its own ADR when forced.
    span servers, are out of scope for v1.
 6. **Build placement.** Building on the target server is v1 (#16). Moving to a dedicated
    builder or laptop-buildx-plus-registry is a later optimisation.
+7. **Interactive terminals.** The transport already supports it — the daemon dials out, so
+   a PTY works behind NAT with no inbound port, which is better than SSH-based platforms
+   manage. What is missing is `pty_open`/`pty_data`/`pty_resize`/`pty_close` frames, a PTY
+   on the box, a brokering DO, and xterm.js. Two positions to take deliberately when it
+   ships: **container exec only, not a host shell** (the operator's own SSH stays theirs,
+   so cockpit need not duplicate it and hold the risk), and **agents get one-shot `exec`,
+   never an interactive PTY** — a live shell is unreviewable by construction. Sessions must
+   be recorded as events with an archived transcript, since "what happened to prod at 3am"
+   has to stay answerable.
+8. **Notification read state.** `Event` has no `read_at`, and no notion of which events are
+   notifications rather than log entries. The UI already draws an unread badge over
+   nothing.
+9. **Canvas layout persistence.** Node positions need a home in the schema.
+
+See also `docs/prototype-reality-check.md`, which traces every value the prototype renders
+to the frame, query, or probe that would produce it, and lists the ones nothing does.

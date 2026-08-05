@@ -12,9 +12,10 @@ capability from both.
   survives their failure.
 - **`cockpitd`**, a Go daemon on each server, dialling **out** over WSS. cockpit never
   uses SSH: onboarding is a one-line install script you run on the box.
-- **Every mutation is a `Plan`** — typed, diffable, with a declared inverse and an impact
-  level. Propose, review, apply. Rollback, audit, drift detection, and agent safety all
-  fall out of that one object.
+- **Changes to desired state are `Plan`s** — typed, diffable, with a declared inverse and
+  an impact level. Propose, review, apply. Rollback, audit, drift detection, and agent
+  safety all fall out of that one object. Operations that leave the spec identical —
+  restart, exec, logs — are direct and recorded as events.
 - **AI-first means peer access**, not a chat box: an agent over MCP and a human in the UI
   are peers on the same API, and every agent action lands in the UI attributed to it.
 
@@ -25,6 +26,8 @@ capability from both.
 | [`CONTEXT.md`](./CONTEXT.md) | Glossary and the numbered decision log. **Wins on meaning.** |
 | [`docs/architecture.md`](./docs/architecture.md) | Topology, stack, flows, security model, open questions |
 | [`docs/type-design.md`](./docs/type-design.md) | The buildable spec: entities, protocol, API, invariants |
+| [`docs/design.md`](./docs/design.md) | The design system, derived from the prototype |
+| [`docs/prototype-reality-check.md`](./docs/prototype-reality-check.md) | Every rendered value traced to what produces it |
 | [`docs/adr/`](./docs/adr/) | Rationale for the load-bearing decisions |
 | [`docs/kickoff-foundation.md`](./docs/kickoff-foundation.md) | Prompt to start the first build session |
 
@@ -38,6 +41,7 @@ capability from both.
 | [ADR-0004](./docs/adr/0004-d1-as-truth-git-as-mirror.md) | D1 is the truth; git is an export mirror |
 | [ADR-0005](./docs/adr/0005-strict-client-parity.md) | Strict client parity: every client over one API |
 | [ADR-0006](./docs/adr/0006-polymorphic-resource-model.md) | One polymorphic Resource entity, with Links as first-class relationships |
+| [ADR-0007](./docs/adr/0007-resource-scope-server-or-account.md) | Every kind declares its scope: server or account |
 
 ## Lineage
 
