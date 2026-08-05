@@ -186,3 +186,63 @@
 .frame[data-view='mobile'] .content-inner { padding: var(--s4); }
 
 .phone { max-width: 420px; margin: 0 auto; border-left: 1px solid var(--ink-12); border-right: 1px solid var(--ink-12); }
+
+/* --------------------------------------------------------------------------
+   Tab strip — sub-navigation for the object you are currently on.
+
+   Exactly one strip is ever visible, and it always belongs to the deepest
+   thing in the breadcrumb. Going from a server into an app REPLACES this
+   strip rather than stacking a second one, which is what keeps the shell to
+   one sidebar and one strip at any depth.
+   -------------------------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: var(--s5);
+  padding: 0 var(--s5);
+  border-bottom: 1px solid var(--ink-12);
+  flex: none;
+}
+.tabs a {
+  position: relative;
+  padding: var(--s3) 0;
+  text-decoration: none;
+  color: var(--ink-40);
+  font-size: var(--t-base);
+  white-space: nowrap;
+  transition: color 0.12s var(--ease);
+}
+.tabs a:hover { color: var(--ink-80); }
+/* The active tab interrupts the strip's own baseline. Unlike the rail, the
+   rule here is structural rather than decorative — it says which section the
+   content below belongs to. */
+.tabs a[aria-current='page'] { color: var(--color-ink); font-weight: 500; }
+.tabs a[aria-current='page']::after {
+  content: '';
+  position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; background: var(--color-ink);
+}
+
+/* --------------------------------------------------------------------------
+   Vitals — a compact strip of host facts and load, sitting under the tabs.
+
+   Deliberately a strip and not a right-hand rail. The shell already has one
+   sidebar, and a second column of chrome at every depth is how these tools end
+   up with three nested navigations. A strip is also denser, which suits a
+   readout of mostly-inert facts you glance at rather than read.
+   -------------------------------------------------------------------------- */
+
+.vitals {
+  display: flex; align-items: center; gap: var(--s5);
+  padding: var(--s3) var(--s5);
+  border-bottom: 1px solid var(--ink-12);
+  flex-wrap: wrap;
+  flex: none;
+}
+.vitals .facts {
+  display: flex; align-items: center; gap: var(--s3);
+  font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-40);
+  flex-wrap: wrap;
+}
+.vitals .facts .sep { opacity: .45; }
+.vitals .spacer { flex: 1; }

@@ -616,3 +616,36 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 }
 .icon-sm { width: 15px; height: 15px; }
 .icon-lg { width: 21px; height: 21px; }
+
+/* --------------------------------------------------------------------------
+   Definition list — label/value pairs in a detail rail. Mono values, because
+   almost everything here is a literal the machine produced.
+   -------------------------------------------------------------------------- */
+
+.dl { display: flex; flex-direction: column; gap: var(--s3); }
+.dl-row { display: flex; align-items: baseline; gap: var(--s3); font-size: var(--t-sm); }
+.dl-row dt { color: var(--ink-40); flex: none; width: 84px; }
+.dl-row dd { margin: 0; font-family: var(--font-mono); color: var(--ink-80); min-width: 0; word-break: break-word; }
+
+/* --------------------------------------------------------------------------
+   Data table — divided rows. The table goes flush and each cell carries the
+   inset, so every rule reaches both edges.
+   -------------------------------------------------------------------------- */
+
+.table { width: 100%; border-collapse: collapse; }
+.table th {
+  text-align: left;
+  padding: var(--s2) var(--s5);
+  border-bottom: 1px solid var(--ink-12);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  font-weight: 400;
+}
+.table td { padding: var(--s3) var(--s5); border-bottom: 1px solid var(--ink-08); font-size: var(--t-base); }
+.table tbody tr:hover { background: var(--ink-04); cursor: pointer; }
+.table .cell { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
+.table .kindicon { color: var(--ink-40); }
+.table .muted { color: var(--ink-40); font-family: var(--font-mono); font-size: var(--t-sm); }

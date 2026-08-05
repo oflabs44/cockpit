@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cockpit — server</title>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/img/favicon.ico">
+<script src="assets/js/proto.js"></script>
+<link rel="stylesheet" href="assets/css/theme.css">
+<link rel="stylesheet" href="assets/css/frame.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .protobar {
+    display: flex; align-items: center; gap: var(--s2);
+    padding: var(--s2) var(--s4); border-bottom: 1px solid var(--ink-12); flex: none;
+  }
+  .protobar .spacer { flex: 1; }
+  .protobar button {
+    height: 26px; padding: 0 10px; background: transparent; color: var(--ink-60);
+    border: 1px solid var(--ink-12); font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer;
+  }
+  .protobar button[aria-current='true'] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+
+  .metric { display: flex; align-items: center; gap: 7px; }
+  .metric .icon { color: var(--ink-40); }
+  .metric .v { font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-60); }
+  .metric[data-hot] .icon, .metric[data-hot] .v { color: var(--color-warn); }
+  .metrics { display: flex; gap: var(--s4); }
+
+  .sec { padding: var(--s5) var(--s5) var(--s3); display: flex; align-items: baseline; gap: var(--s3); }
+  .sec .hr { flex: 1; }
+  .view { display: none; }
+  .view[data-active] { display: block; }
+  .view.is-flex[data-active] { display: flex; flex-direction: column; flex: 1; }
+</style>
+</head>
+<body>
+
+<div hidden data-sprite></div>
+
+<div class="protobar">
+  <span class="label">server</span>
+  <button onclick="show('populated')" aria-current="true">populated</button>
+  <button onclick="show('empty')">no resources</button>
+  <button onclick="show('disconnected')">disconnected</button>
+  <button onclick="show('enrolling')">enrolling</button>
+  <span class="spacer"></span>
+  <button onclick="toggleTheme()">view <span data-theme-label>light</span></button>
+  <button onclick="location.href='servers.html'">servers</button>
+</div>
+
+<div class="frame" data-rail="open" data-view="desktop">
+
+  <nav class="rail">
+    <a class="brand" href="#" data-health="healthy" title="cockpit">
+      <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+        <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+        <path d="M3.75 20h24.5v8.25H3.75z" data-ground/>
+        <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+      </svg>
+      <span class="word">cockpit</span>
+    </a>
+
+    <div class="nav">
+      <a href="servers.html" aria-current="page" title="Servers">
+        <svg class="icon icon-lg"><use href="#server"/></svg>
+        <span>Servers</span><span class="count">4</span>
+      </a>
+      <a href="#" data-badge title="Plans">
+        <svg class="icon icon-lg"><use href="#layers"/></svg>
+        <span>Plans</span><span class="count" data-attention>1</span>
+      </a>
+      <a href="#" title="Activity">
+        <svg class="icon icon-lg"><use href="#activity"/></svg>
+        <span>Activity</span>
+      </a>
+      <div class="nav-sep"></div>
+      <a href="#" title="Domains">
+        <svg class="icon icon-lg"><use href="#globe"/></svg>
+        <span>Domains</span>
+      </a>
+      <a href="#" title="Sources">
+        <svg class="icon icon-lg"><use href="#package"/></svg>
+        <span>Sources</span>
+      </a>
+      <a href="#" title="Secrets">
+        <svg class="icon icon-lg"><use href="#database"/></svg>
+        <span>Secrets</span>
+      </a>
+      <div class="nav-sep"></div>
+      <a href="#" title="Settings">
+        <svg class="icon icon-lg"><use href="#settings"/></svg>
+        <span>Settings</span>
+      </a>
+    </div>
+
+    <div class="rail-foot">
+      <button class="who" title="oflabs44">
+        <span class="avatar"></span>
+        <span class="stack">
+          <span class="name">oflabs44</span>
+          <span class="label">owner</span>
+        </span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="bar">
+      <button class="railtoggle" title="Toggle rail">
+        <svg class="icon icon-sm"><use href="#sidebar"/></svg>
+      </button>
+      <a class="bar-mark" href="#" data-health="healthy" title="cockpit">
+        <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+          <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+          <path d="M3.75 20h24.5v8.25H3.75z" data-ground/>
+          <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+        </svg>
+      </a>
+
+      <div class="crumbs">
+        <a href="servers.html">Servers</a>
+        <span class="sep">/</span>
+        <span class="here"><span class="dot dot-failed" data-srv-dot></span>prod-fsn1</span>
+      </div>
+      <span class="spacer"></span>
+
+      <button class="search">
+        <svg class="icon icon-sm"><use href="#search"/></svg>
+        <span>Search or run</span>
+        <kbd>&#8984;K</kbd>
+      </button>
+      <button class="btn btn-primary btn-sm" data-deploy>Deploy</button>
+    </header>
+
+    <!-- The strip belongs to the deepest object in the breadcrumb. Entering an
+         app replaces it; it never stacks. -->
+    <nav class="tabs">
+      <a href="#" aria-current="page">Overview</a>
+      <a href="#">Firewall</a>
+      <a href="#">Settings</a>
+    </nav>
+
+    <!-- ============ vitals ============ -->
+    <div class="vitals" data-vitals>
+      <div class="facts">
+        <span>hetzner</span><span class="sep">&middot;</span>
+        <span>95.216.44.12</span><span class="sep">&middot;</span>
+        <span>cpx31</span><span class="sep">&middot;</span>
+        <span>arm64</span><span class="sep">&middot;</span>
+        <span>ubuntu 24.04</span><span class="sep">&middot;</span>
+        <span>up 84d</span>
+      </div>
+      <span class="spacer"></span>
+      <div class="metrics" data-metrics>
+        <span class="metric"><svg class="icon icon-sm"><use href="#cpu"/></svg><span class="v">38%</span></span>
+        <span class="metric"><svg class="icon icon-sm"><use href="#memory"/></svg><span class="v">71%</span></span>
+        <span class="metric"><svg class="icon icon-sm"><use href="#disk"/></svg><span class="v">52%</span></span>
+      </div>
+      <span class="label" data-agent>cockpitd 0.4.1</span>
+    </div>
+
+    <div class="content">
+
+      <!-- ========================= populated ========================= -->
+      <div class="view" data-view-name="populated" data-active>
+
+        <!-- Notices sit above the list and only when something needs a human.
+             On a healthy server this whole block is absent. -->
+        <div class="notice-group" style="--notice-inset: var(--s5)">
+          <div class="notice" data-severity="danger">
+            <div class="notice-meta">
+              <span class="notice-tag">restarting</span>
+              <span class="notice-code">container.restart_loop</span>
+            </div>
+            <div class="notice-body">
+              <span class="mono">jerry</span> has exited 8 times in 12 minutes, last with
+              code 137.
+              <div class="notice-actions">
+                <button class="btn btn-ghost btn-sm">View logs</button>
+                <button class="btn btn-ghost btn-sm">Roll back to r47</button>
+              </div>
+            </div>
+          </div>
+          <div class="notice" data-severity="info">
+            <div class="notice-meta">
+              <span class="notice-tag">pending</span>
+              <span class="notice-code">plan.awaiting_approval</span>
+            </div>
+            <div class="notice-body">
+              <span class="mono">claude-code</span> proposed a plan updating 3 resources here.
+              <div class="notice-actions">
+                <button class="btn btn-primary btn-sm">Review plan</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec"><span class="label">Resources</span><hr class="hr"></div>
+
+        <!-- One table, not a section per type. Resources are one polymorphic
+             kind, so a new kind never adds a section (ADR-0006). -->
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:130px">kind</th>
+              <th>name</th>
+              <th>exposed at</th>
+              <th style="width:96px">release</th>
+              <th style="width:88px">age</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="cell"><svg class="icon icon-sm kindicon"><use href="#package"/></svg><span class="muted">app</span></span></td>
+              <td><span class="cell"><span class="dot dot-failed"></span>jerry</span></td>
+              <td class="muted">jerry.oflabs.dev</td>
+              <td class="muted">r48</td>
+              <td class="muted">12m</td>
+            </tr>
+            <tr>
+              <td><span class="cell"><svg class="icon icon-sm kindicon"><use href="#package"/></svg><span class="muted">app</span></span></td>
+              <td><span class="cell"><span class="dot dot-healthy"></span>hola-ui</span></td>
+              <td class="muted">ui.oflabs.dev</td>
+              <td class="muted">r12</td>
+              <td class="muted">6d</td>
+            </tr>
+            <tr>
+              <td><span class="cell"><svg class="icon icon-sm kindicon"><use href="#database"/></svg><span class="muted">database</span></span></td>
+              <td><span class="cell"><span class="dot dot-healthy"></span>db-jerry</span></td>
+              <td class="muted">private</td>
+              <td class="muted">r3</td>
+              <td class="muted">84d</td>
+            </tr>
+            <tr>
+              <td><span class="cell"><svg class="icon icon-sm kindicon"><use href="#globe"/></svg><span class="muted">proxy</span></span></td>
+              <td><span class="cell"><span class="dot dot-healthy"></span>traefik</span></td>
+              <td class="muted">:80 :443</td>
+              <td class="muted">r2</td>
+              <td class="muted">84d</td>
+            </tr>
+            <tr>
+              <td><span class="cell"><svg class="icon icon-sm kindicon"><use href="#clock"/></svg><span class="muted">cron</span></span></td>
+              <td><span class="cell"><span class="dot dot-healthy"></span>nightly-backup</span></td>
+              <td class="muted">03:00 Europe/Berlin</td>
+              <td class="muted">r1</td>
+              <td class="muted">31d</td>
+            </tr>
+            <tr>
+              <td><span class="cell"><svg class="icon icon-sm kindicon"><use href="#disk"/></svg><span class="muted">volume</span></span></td>
+              <td><span class="cell"><span class="dot dot-healthy"></span>db-jerry-data</span></td>
+              <td class="muted">2.1 GB</td>
+              <td class="muted">r1</td>
+              <td class="muted">84d</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ========================= no resources ========================= -->
+      <div class="view is-flex" data-view-name="empty">
+        <div class="empty">
+          <div class="empty-art">
+            <!-- Solid = what exists (the box). Dashed = what is absent. -->
+            <svg viewBox="0 0 180 140" width="190" height="148" fill="none"
+                 stroke="currentColor" stroke-width="1" stroke-linecap="butt"
+                 stroke-linejoin="miter" aria-hidden="true">
+              <path d="M18 96h144v28H18z"/>
+              <path d="M26 104h5M36 104h5"/>
+              <path d="M150 104h5"/>
+              <g stroke-dasharray="4 4" opacity=".8">
+                <path d="M18 60h144v28H18z"/>
+                <path d="M18 24h144v28H18z"/>
+              </g>
+            </svg>
+          </div>
+          <h2 class="empty-title">Nothing deployed here yet</h2>
+          <p class="empty-body">
+            <span class="mono">prod-fsn1</span> is connected and healthy. Deploy an app from
+            a repo, or add a database for one to talk to.
+          </p>
+          <div class="empty-actions">
+            <button class="btn btn-primary btn-lg">Deploy an app</button>
+            <button class="btn btn-ghost btn-lg">Add a database</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================= disconnected ========================= -->
+      <div class="view" data-view-name="disconnected">
+        <div class="notice-group" style="--notice-inset: var(--s5)">
+          <div class="notice" data-severity="warn">
+            <div class="notice-meta">
+              <span class="notice-tag">disconnected</span>
+              <span class="notice-code">daemon.no_contact</span>
+            </div>
+            <div class="notice-body">
+              No contact from <span class="mono">cockpitd</span> for 3 days. Everything below
+              is the last state cockpit was told about &mdash; it is not being refreshed, and
+              nothing can be applied here until the daemon reconnects.
+              <div class="notice-actions">
+                <button class="btn btn-ghost btn-sm">Reinstall the daemon</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <span class="label">Resources</span>
+          <span class="label" style="color:var(--ink-40)">last known &mdash; 3d ago</span>
+          <hr class="hr">
+        </div>
+
+        <!-- Rows keep their last-known state but lose their status dots: cockpit
+             has not heard from the box, so claiming any of these is healthy
+             would be inventing data. -->
+        <table class="table" style="opacity:.6">
+          <thead>
+            <tr><th style="width:130px">kind</th><th>name</th><th>exposed at</th><th style="width:96px">release</th><th style="width:88px">age</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="cell"><svg class="icon icon-sm kindicon"><use href="#package"/></svg><span class="muted">app</span></span></td>
+              <td><span class="cell"><span class="dot dot-stopped"></span>getu-site</span></td>
+              <td class="muted">getu-prospects.de</td>
+              <td class="muted">r22</td>
+              <td class="muted">9d</td>
+            </tr>
+            <tr>
+              <td><span class="cell"><svg class="icon icon-sm kindicon"><use href="#globe"/></svg><span class="muted">proxy</span></span></td>
+              <td><span class="cell"><span class="dot dot-stopped"></span>traefik</span></td>
+              <td class="muted">:80 :443</td>
+              <td class="muted">r7</td>
+              <td class="muted">61d</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ========================= enrolling ========================= -->
+      <div class="view is-flex" data-view-name="enrolling">
+        <div class="empty">
+          <h2 class="empty-title">Waiting for the daemon</h2>
+          <p class="empty-body">
+            Run this on the box. It hardens the host, installs Docker and
+            <span class="mono">cockpitd</span>, then enrols automatically &mdash; this page
+            fills in the moment it connects.
+          </p>
+          <div class="empty-extra">
+            <div class="term">
+              <div class="term-head">
+                <svg class="icon icon-sm"><use href="#terminal"/></svg>
+                <span class="term-title">run on the server</span>
+                <span class="spacer"></span>
+                <button class="btn btn-quiet btn-icon btn-sm term-copy" onclick="copyTerm(this)" title="Copy">
+                  <svg class="icon icon-sm"><use href="#copy"/></svg>
+                </button>
+              </div>
+              <code class="term-body"><span class="t-prompt">$ </span><span class="t-cmd">curl</span> <span class="t-flag">-fsSL</span> <span class="t-url">https://cockpit.oflabs.dev/install.sh</span> <span class="t-op">|</span> <span class="t-cmd">sh</span> <span class="t-flag">-s</span> <span class="t-op">--</span> <span class="t-flag">--token</span> <span class="t-slot">ck_enrol_8fkq2t</span></code>
+            </div>
+            <div style="margin-top:var(--s4)"><div class="sweep"></div></div>
+            <p class="label" style="margin-top:var(--s3);text-align:center">
+              token expires in 9 minutes
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  fetch('assets/img/icons.svg').then(function (r) { return r.text(); })
+    .then(function (t) { document.querySelector('[data-sprite]').innerHTML = t; });
+
+  var NAMES = { populated: 'prod-fsn1', empty: 'build-hel', disconnected: 'lab-nbg1', enrolling: 'store-hel' };
+  var DOTS  = { populated: 'dot-failed', empty: 'dot-healthy', disconnected: 'dot-stopped', enrolling: '' };
+  var FACTS = {
+    populated:   ['hetzner', '95.216.44.12', 'cpx31', 'arm64', 'ubuntu 24.04', 'up 84d'],
+    empty:       ['hetzner', '65.108.13.204', 'ccx13', 'amd64', 'ubuntu 24.04', 'up 12d'],
+    disconnected:['hetzner', '159.69.120.33', 'cx22', 'amd64', 'ubuntu 24.04', 'last seen 3d ago'],
+    enrolling:   ['hetzner', 'awaiting first contact']
+  };
+
+  function show(name) {
+    document.querySelectorAll('.view').forEach(function (v) {
+      if (v.dataset.viewName === name) v.setAttribute('data-active', '');
+      else v.removeAttribute('data-active');
+    });
+
+    var crumb = document.querySelector('.crumbs .here');
+    crumb.innerHTML = (DOTS[name] ? '<span class="dot ' + DOTS[name] + '"></span>' : '') + NAMES[name];
+
+    document.querySelector('[data-vitals] .facts').innerHTML =
+      FACTS[name].map(function (f) { return '<span>' + f + '</span>'; }).join('<span class="sep">&middot;</span>');
+
+    // No metrics and no agent version until the daemon has actually reported.
+    // Showing stale bars would be inventing data.
+    var live = name === 'populated' || name === 'empty';
+    document.querySelector('[data-metrics]').style.display = live ? '' : 'none';
+    document.querySelector('[data-agent]').textContent =
+      name === 'enrolling' ? 'not enrolled' : (live ? 'cockpitd 0.4.1' : 'cockpitd 0.4.1 · stale');
+
+    // Nothing can be applied to a box cockpit cannot reach.
+    var deploy = document.querySelector('[data-deploy]');
+    deploy.disabled = !live;
+    deploy.title = live ? '' : 'The daemon is not connected';
+
+    document.querySelectorAll('.protobar button').forEach(function (b) {
+      var oc = b.getAttribute('onclick') || '';
+      if (oc.indexOf('show(') === 0) b.setAttribute('aria-current', oc.indexOf("'" + name + "'") > -1 ? 'true' : 'false');
+    });
+  }
+</script>
+</body>
+</html>
