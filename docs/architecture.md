@@ -167,11 +167,42 @@ Coolify.
 Go. Static single binary, cross-compiled for `linux/amd64` and `linux/arm64`, installable
 with one `curl`. No runtime dependency on the box beyond Docker.
 
-- WebSocket client dialling out to `ServerDO`, with reconnect and backoff.
-- Executes ops against Docker, UFW, systemd, and cron — a port of `yoke`'s command
-  knowledge, transport swapped (ADR-0001).
-- Streams container logs and metrics up the existing connection.
-- Stateless (#12): holds no database and no desired state.
+**It has no listening port.** No HTTP, no gRPC, nothing to firewall. Its entire interface
+is the outbound WebSocket, which is what makes it NAT-safe and why the plane holds no
+credentials.
+
+Four jobs, and only four:
+
+1. **Observe** — enumerate containers, volumes, networks, UFW rules, systemd units, and
+   cron entries, and report them as a `state` snapshot.
+2. **Execute** — apply `task` frames (plan-bound) and `op` frames (event-bound) with
+   ensure-semantics, reporting `create | in_place | replace | no_op`.
+3. **Stream** — pump logs, build output, and metrics up the connection it already holds.
+4. **Enrol** — once, at the start.
+
+Everything it knows *how* to do is `yoke`'s command knowledge ported over: the exact
+`docker run` invocations, UFW and cloud-firewall mediation, the healthcheck poll, typed
+errors. That knowledge is the asset and it is transport-independent; only the transport is
+new (ADR-0001).
+
+**It holds no desired state and no database** (#13). The box is the truth. That is what
+makes a task re-sent after a reconnect safe — every op is idempotent, so re-running yields
+`no_op` rather than a duplicate.
+
+```
+dial ──▶ hello/auth ──▶ full state snapshot ──▶ serve
+                                                  │
+   ┌──────────────────────────────────────────────┤
+   │  task  → run changes in order, task_progress per change
+   │  op    → run one operation, emit Event, re-sync state
+   │  stream→ start/stop a tail, pump stream_data
+   │  probe → sample host or resource, reply
+   └──▶ on disconnect: exponential backoff, redial, resend full state
+```
+
+**Executors sit behind interfaces** — `Docker`, `Firewall`, `Systemd`, `Cron` — so handler
+logic runs against fakes with no box at all. Without that seam every test needs a VPS, and
+tests that need a VPS stop being written. See `docs/development.md`.
 
 ### 2.4 Install script — `daemon/install.sh`
 

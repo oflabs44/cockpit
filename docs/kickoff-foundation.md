@@ -21,6 +21,7 @@ READ FIRST (in this order), then confirm you've internalized them:
 - docs/architecture.md    — topology, stack, flows, security model, open questions
 - docs/type-design.md     — the buildable spec: entities, specs per kind, Plan/Change,
                             daemon protocol, API surface, invariants to test
+- docs/development.md     — the dogfooding loop: two planes, three tiers, daemon flags
 - docs/adr/0001..0008     — rationale for the load-bearing decisions
 
 THE FOUR RULES THAT MATTER MOST (violating these is a design bug, not a style nit):
@@ -58,8 +59,11 @@ SCOPE FOR THIS SESSION — the spine only. No deploys, no builds, no UI polish:
 
 6. daemon/ — Go: dial out over WSS, hello/auth, send a `state` snapshot of observed
    Docker containers, reconnect with backoff. Executes NOTHING yet — observation and
-   handshake only. Plus install.sh doing: detect distro/arch, harden, install Docker,
-   install cockpitd + systemd unit, enrol. Idempotent and re-runnable.
+   handshake only. Executors (Docker/Firewall/Systemd/Cron) behind interfaces from the
+   start, with fakes, so handler logic is testable without a VPS. Support
+   --foreground / --plane / --token for the dev loop. Plus install.sh as a STATIC
+   script (not a plane route): detect distro/arch, harden, install Docker, install
+   cockpitd + systemd unit, enrol from --token or print a claim code. Idempotent.
 
 7. The planner core: given desired specs + observed state, produce a Plan with
    per-change before/after/inverse/impact and a `basis` of observed revisions. Apply

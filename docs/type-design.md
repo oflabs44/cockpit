@@ -356,7 +356,14 @@ interface ObservedResource { kind: Kind; name: string; observed: Observed }
 
 ```ts
 type Down =
+  /** Bound to a plan in `applying`. Changes desired state. */
   | { type: 'task';   task_id: string; plan_id: Id<'pln'>; changes: Change[] }
+  /** Bound to a recorded Event. A direct operation — restart, stop, start —
+   *  that leaves the spec identical (ADR-0003). May NEVER carry a spec change;
+   *  that restriction is what keeps the carve-out from being a loophole. */
+  | { type: 'op';     op_id: string; event_id: Id<'evt'>
+                      action: 'restart' | 'stop' | 'start'
+                      resource_id: Id<'res'> }
   | { type: 'stream'; stream_id: string; action: 'start' | 'stop'
                       resource_id: Id<'res'>; source: 'logs' | 'stats' | 'build' }
   | { type: 'probe';  probe_id: string; kind: 'host' | 'resource'; target?: Id<'res'> }
@@ -366,9 +373,13 @@ type Down =
 
 ### 3.3 Rules
 
-- The daemon accepts `task` frames **only** for changes belonging to a plan in `applying`
-  status. This is the enforcement point for "no side doors" (ADR-0003) and must be
+- The daemon accepts exactly two write frames and nothing else: `task`, only for changes
+  belonging to a plan in `applying`, and `op`, only bound to a recorded `Event`. This is
+  the enforcement point for "nothing mutates unattributably" (ADR-0003) and must be
   covered by tests.
+- An `op` completing triggers a fresh `state` snapshot. A restart is harmless, but `exec`
+  and terminals can leave the box diverged from its spec, so the divergence is detected
+  immediately rather than at the next planner run.
 - The daemon's authority is scoped to its own server; it can neither read nor act on
   another server's resources.
 - `hello.auth` with `kind: 'enrolment'` is exchanged once for a long-lived per-server

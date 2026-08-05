@@ -27,6 +27,7 @@ capability from both.
 | [`docs/architecture.md`](./docs/architecture.md) | Topology, stack, flows, security model, open questions |
 | [`docs/type-design.md`](./docs/type-design.md) | The buildable spec: entities, protocol, API, invariants |
 | [`docs/design.md`](./docs/design.md) | The design system, derived from the prototype |
+| [`docs/development.md`](./docs/development.md) | Dogfooding on a real box: two planes, three tiers, the loop |
 | [`docs/prototype-reality-check.md`](./docs/prototype-reality-check.md) | Every rendered value traced to what produces it |
 | [`docs/adr/`](./docs/adr/) | Rationale for the load-bearing decisions |
 | [`docs/kickoff-foundation.md`](./docs/kickoff-foundation.md) | Prompt to start the first build session |
