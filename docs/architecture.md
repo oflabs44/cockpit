@@ -29,8 +29,10 @@ live in [`CONTEXT.md`](../CONTEXT.md). Decision references like `(#7)` point at
          │   docker · ufw · systemd · cron    │
          └────────────────────────────────────┘
 
-   onboarding — operator runs this on the box, once:
-         curl -fsSL <plane>/install.sh | sh -s -- --token <enrolment-token>
+   onboarding — operator runs this on the box, once. A static script, not
+   a plane endpoint; the token is an argument, so the file never varies:
+     curl -fsSL https://get.cockpit.oflabs.dev/install.sh \
+       | sh -s -- --plane <plane-url> --token <enrolment-token>
 ```
 
 Every arrow points **away from** the servers. Four properties fall out of that, and
@@ -51,7 +53,7 @@ everything else depends on them:
 | concern | choice | notes |
 |---|---|---|
 | runtime | Cloudflare Workers, TypeScript | request-scoped; no module-level mutable state |
-| HTTP | Hono | routing, middleware, typed handlers |
+| HTTP | Hono + `@hono/zod-openapi` | one `createRoute` definition per endpoint yields request validation, the OpenAPI document, and RPC types together |
 | relational state | D1 + Drizzle | servers, resources, plans, releases, events, links |
 | long-running work | Workflows | one instance per apply; one durable step per change |
 | fan-out / scheduled | Queues + Cron Triggers | health sweeps, backups, notification dispatch |
@@ -63,6 +65,34 @@ everything else depends on them:
 
 The web app and the plane deploy as **one Worker** via `@cloudflare/vite-plugin` — UI
 assets, REST API, MCP endpoint, and the daemon WebSocket endpoint on one origin.
+
+**One route definition, three consumers.** `@hono/zod-openapi` takes a `createRoute`
+carrying Zod request and response schemas, and from that single definition produces
+validation at the boundary, an entry in the OpenAPI document at `/doc`, and the types the
+RPC client infers. That is the mechanism behind ADR-0005 rather than a convention anyone
+has to maintain:
+
+- **Web app** — Hono RPC (`hc<AppType>`). Types flow from the route definitions with no
+  codegen, so there is no generation step and no window in which a stale SDK disagrees with
+  the server. This is `packages/client`.
+- **MCP** — tools generated from the same route registry, since those definitions already
+  carry both schemas. Going via the emitted OpenAPI JSON would be a lossy round-trip
+  through a format that loses TypeScript types.
+- **Anything external, later** — the OpenAPI document.
+
+Middleware is deliberately short: `requestId` (to correlate a request with the `Event` it
+produced), `secureHeaders`, `csrf` on mutating routes since Access is a cookie session,
+`bodyLimit`, and `etag` for polled reads. **No `cors`** — everything is same-origin by
+construction, and adding it would quietly permit the cross-origin calls that the
+single-Worker deploy exists to make unnecessary.
+
+Auth is two custom middlewares: Cloudflare Access JWT verification for UI routes, and
+`workers-oauth-provider` for `/mcp`.
+
+> **Caveat worth knowing early.** Hono's RPC type inference degrades IDE performance past a
+> few dozen routes; the documented fix is to compile the types rather than infer them live.
+> `packages/client` is a built package, so this is already the shape — but it constrains how
+> the route surface is assembled.
 
 **Why Durable Objects are load-bearing, not incidental.** A Worker is request-scoped and
 stateless, but a daemon holds one long-lived WebSocket that needs somewhere with identity
@@ -145,23 +175,42 @@ with one `curl`. No runtime dependency on the box beyond Docker.
 
 ### 2.4 Install script — `daemon/install.sh`
 
-Served by the plane at `/install.sh`, versioned alongside the daemon, and the only thing
-that ever runs directly on a box outside `cockpitd` itself. It is idempotent and safe to
-re-run.
+A **static bash script**, published as a release artifact and fetched over HTTPS. It is
+not a Worker route and the plane does not generate it.
+
+```
+curl -fsSL https://get.cockpit.oflabs.dev/install.sh \
+  | sh -s -- --plane https://cockpit.oflabs.dev --token ck_enrol_8fkq2t
+```
+
+It is idempotent and safe to re-run:
 
 1. Detects distro and architecture.
 2. Hardens the host — sshd, users, UFW baseline.
 3. Installs Docker.
 4. Installs the matching `cockpitd` binary and its systemd unit.
-5. Enrols: with an embedded token if given one, otherwise prints a claim code.
+5. Enrols with the token if given one, otherwise prints a claim code.
 
-This replaces the `/devops` `bootstrap-server` playbook. That playbook was prose an agent
-interpreted, so three runs produced three subtly different boxes; a versioned script is
-identical on every host and can be tested (ADR-0001).
+**Why it is static, and not served by the plane.** The enrolment token is a command-line
+*argument*, never templated into the file — so every server fetches byte-identical bytes,
+and nothing about the script needs a running Worker. Three things follow:
 
-Because it is fetched over HTTPS and piped to a root shell, it is a security-critical
-artifact: integrity-verifiable, reproducible from the repo, and templated with nothing but
-the plane URL and an enrolment token.
+- **The plane never generates shell.** A templated installer is a code-injection surface
+  that has to be reasoned about on every change; a static file is not. Given this script
+  is piped to a root shell, that difference is worth more than the convenience.
+- **It becomes checksummable.** A fixed artifact can be published with a SHA-256 and
+  verified in a two-step install for anyone who does not want `curl | sh`. A per-request
+  script cannot be.
+- **Onboarding survives the plane being down.** You can install the daemon on a fresh box
+  while the control plane is unreachable; it enrols when the plane returns.
+
+The cost is that **the script and the daemon version must be kept in step deliberately**,
+since the plane is no longer in a position to serve the matching pair. The script resolves
+the daemon version from the same release channel it was published in.
+
+It replaces the `/devops` `bootstrap-server` playbook — prose an agent interpreted, so
+three runs produced three subtly different boxes. A versioned script is identical on every
+host and can be tested.
 
 ### 2.5 Repo layout
 
@@ -216,7 +265,8 @@ No SSH, and no client on the critical path (ADR-0001). Two directions, same endp
                                    → server row (status: enrolling)
                                    + short-lived single-use enrolment token
                                    + a copy-paste one-liner
-  2. operator, on the box:         curl -fsSL <plane>/install.sh | sh -s -- --token <tok>
+  2. operator, on the box:         curl -fsSL <get>/install.sh
+                                     | sh -s -- --plane <url> --token <tok>
                                    → harden, install Docker, install cockpitd
   3. daemon dials plane, presents the token
                                    → exchanged for a long-lived per-server
@@ -227,7 +277,7 @@ No SSH, and no client on the critical path (ADR-0001). Two directions, same endp
 **Claim code — for boxes that predate cockpit.**
 
 ```
-  1. operator, on the box:  curl -fsSL <plane>/install.sh | sh
+  1. operator, on the box:  curl -fsSL <get>/install.sh | sh -s -- --plane <url>
                             → daemon starts unbound, prints a short claim code
   2. daemon dials plane and waits, identified only by that code
   3. operator, in UI or over MCP:  redeem the code

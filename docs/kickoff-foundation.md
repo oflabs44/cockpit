@@ -48,7 +48,7 @@ SCOPE FOR THIS SESSION — the spine only. No deploys, no builds, no UI polish:
 
 4. apps/plane — Worker skeleton: Hono, Drizzle + D1 migrations for every entity,
    ServerDO holding the daemon WebSocket, and these routes only:
-   GET /install.sh, POST /servers, GET /servers, GET /servers/:id,
+   POST /servers, GET /servers, GET /servers/:id,
    GET /enrolments, POST /enrolments/:code/redeem, WS /daemon.
    Clock and id generation injected — no Date.now(), no Math.random().
 

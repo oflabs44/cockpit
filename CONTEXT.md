@@ -175,10 +175,12 @@ WebSocket endpoint.
 **Daemon / `cockpitd`** — the Go binary on each managed server. Dials out to the
 plane, reports observed state, executes tasks, streams logs and metrics.
 
-**Install script** — the versioned shell script served by the plane
-(`curl -fsSL <plane>/install.sh | sh`). Hardens the host, installs Docker and
-`cockpitd`, and enrols the server. The only thing that ever runs directly on a
-box outside the daemon.
+**Install script** — a static, versioned shell script fetched from a release
+host and run on the box: `curl -fsSL <get>/install.sh | sh -s -- --plane <url>
+--token <tok>`. Hardens the host, installs Docker and `cockpitd`, and enrols.
+Not a plane route: the token is an argument rather than templated in, so the
+file never varies and the plane never generates shell. The only thing that ever
+runs directly on a box outside the daemon.
 
 **Enrolment token** — a short-lived, single-use secret embedded in the install
 one-liner, produced when a server is created in a client. Exchanged by the daemon

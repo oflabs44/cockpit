@@ -387,23 +387,30 @@ REST over Hono. Every route derives its validation from `packages/schema`, and e
 tool derives from the same definitions (ADR-0005). Listed by shape, not exhaustively.
 
 ```
-  GET    /install.sh                     the versioned install script (unauthenticated)
-
+  POST   /servers                        direct  → row + enrolment token
   GET    /servers                        list, with connection + health rollup
-  POST   /servers                        create row + enrolment token + install one-liner
   GET    /servers/:id                    detail, observed state, resources
+  PATCH  /servers/:id                    direct  — name, labels; no box change
+  POST   /servers/:id/drain              plan
+  DELETE /servers/:id                    plan    — destructive
   GET    /enrolments                     pending, incl. claim codes awaiting redemption
-  POST   /enrolments/:code/redeem        bind a claim-code daemon to a Server
-  POST   /servers/:id/drain              → plan
-  DELETE /servers/:id                    → plan (destructive)
+  POST   /enrolments/:code/redeem        direct  — bind a claim-code daemon to a Server
 
-  GET    /resources                      filter by server, kind, health, drifted
+  GET    /resources                      ?server= &kind= &project= &health=
   GET    /resources/:id                  detail + links + current release
-  GET    /resources/:id/releases
+  GET    /resources/:id/deployments
+  GET    /resources/:id/links
   GET    /resources/:id/logs             SSE/WS stream, or historical from R2
   GET    /resources/:id/metrics
-  POST   /resources/:id/exec             one-off command; an event, not a plan
-  POST   /resources/:id/restart          direct operation; an event, not a plan
+  POST   /resources/:id/restart          op      → Event
+  POST   /resources/:id/stop             op      → Event
+  POST   /resources/:id/start            op      → Event
+  POST   /resources/:id/exec             op      → Event
+
+  GET    /projects                       ?server=
+  GET    /projects/:id
+  POST   /projects                       direct  — grouping metadata only
+  PATCH  /projects/:id/layout            direct  — canvas node positions
 
   POST   /plans                          propose: desired specs → Plan (never applies)
   GET    /plans                          filter by status, actor, server
@@ -412,17 +419,37 @@ tool derives from the same definitions (ADR-0005). Listed by shape, not exhausti
   POST   /plans/:id/apply                starts the Workflow
   POST   /plans/:id/revert               → a new plan of inverses
 
-  GET    /links                          the fleet graph
+  GET    /deployments/:id
+  GET    /deployments/:id/logs           live while applying, archived after
+
+  GET    /domains  /sources  /secrets  /secret-providers
+  POST   /domains  /sources  /secrets  /secret-providers    direct — account-scoped
+
   GET    /events                         the audit log / activity feed
+  GET    /notifications                  the subset needing a human
+  POST   /notifications/:id/read
 
   WS     /daemon                         cockpitd endpoint → ServerDO
   ALL    /mcp                            MCP server
+  GET    /doc                            OpenAPI document
 ```
 
-Note the asymmetry, which is the design (ADR-0003): **all writes go through
-`POST /plans`.** There is no `PATCH /resources/:id`. The only mutating endpoints that are
-not plans are those that mutate nothing cockpit models — `exec`, log reads, metric reads
-— and those are recorded as events.
+`install.sh` is deliberately **not** here. It is a static artifact fetched from a release
+host, not a plane route — the enrolment token is an argument rather than something
+templated in, so the file never varies and the plane never generates shell (§2.4).
+
+Each endpoint is one `createRoute` from `@hono/zod-openapi`, carrying Zod request and
+response schemas. That single definition produces the validation, the OpenAPI entry, and
+the RPC types the web client infers — which is what makes ADR-0005 mechanical rather than
+a convention.
+
+Note the asymmetry, which is the design (ADR-0003): **there is no
+`PATCH /resources/:id`.** Every change to a resource's spec goes through `POST /plans`.
+That absence is the architecture.
+
+The direct endpoints — `restart`, `stop`, `start`, `exec` — are the carve-out: they leave
+the spec identical, so they execute immediately and are recorded as `Event`s. Anything that
+would change what a resource *is* has no direct path at all.
 
 ### MCP tools
 

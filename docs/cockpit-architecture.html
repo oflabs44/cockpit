@@ -838,8 +838,9 @@ pre[data-lang]::before {
    │  └───────────────────────────┘                                  │
    └─────────────────────────────────────────────────────────────────┘
 
-   onboarding, once per box — no SSH anywhere in the system:
-     curl -fsSL &lt;plane&gt;/install.sh | sh -s -- --token &lt;enrolment-token&gt;</code></pre>
+   onboarding, once per box — no SSH anywhere in the system. A static
+   script from a release host, not a plane route:
+     curl -fsSL &lt;get&gt;/install.sh | sh -s -- --plane &lt;url&gt; --token &lt;tok&gt;</code></pre>
 
       <p>Four properties fall out of that direction, and everything else depends on them: cockpit <strong>never uses SSH</strong>, the plane holds <strong>no key material</strong>, servers need <strong>no inbound ports</strong> and may sit behind NAT, and the plane runs on <strong>none of the servers it manages</strong> — so it survives their failure, which is precisely when it is needed.</p>
     </div>
