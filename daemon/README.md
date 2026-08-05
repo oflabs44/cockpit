@@ -71,6 +71,19 @@ internal/executor     Docker, Firewall, Systemd, Cron interfaces
 internal/config       the plane URL, server id, and credential; nothing about the box
 ```
 
+The dial carries `Authorization: Bearer <secret>` — the credential, the
+enrolment token, or the claim code, whichever applies — because the plane
+resolves which daemon this is from the upgrade request before choosing a
+Durable Object. The same secret still goes in `hello.auth`; the plane checks
+both. Prefixes (`ck_cred_`, `ck_enrol_`) come from the plane and the operator
+and are passed through untouched; an unprefixed secret is read as a claim code,
+which is what a generated `XXXX-XXXX` already is.
+
+Plane refusals are logged by name rather than as a bare dial failure: HTTP 429
+(rate limited) and 409 (another socket already holds this claim, so the code is
+*kept*) back off and retry; close 4006 (lost a token race) retries with the same
+token; close 4007 (claim no longer pending) regenerates and reprints the code.
+
 Two thresholds are hardcoded rather than configurable: a claim code lives 10
 minutes from generation (wall clock, not per connection), and three consecutive
 failed snapshots end the session, so a box the daemon can no longer observe

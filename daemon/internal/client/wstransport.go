@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 
@@ -30,15 +31,39 @@ func (t *wsTransport) Close() error {
 	return t.conn.Close(websocket.StatusNormalClosure, "")
 }
 
-// WSDialer dials the plane's /daemon endpoint over WSS.
-func WSDialer(ctx context.Context, plane string) (Transport, error) {
+// StatusError carries the HTTP status of a rejected upgrade, so the reconnect
+// loop can say why rather than logging a bare dial failure.
+type StatusError struct {
+	Status int
+	Err    error
+}
+
+func (e *StatusError) Error() string { return e.Err.Error() }
+func (e *StatusError) Unwrap() error { return e.Err }
+
+// CloseCode is the WebSocket close code behind err, or -1.
+func CloseCode(err error) int {
+	return int(websocket.CloseStatus(err))
+}
+
+// WSDialer dials the plane's /daemon endpoint over WSS, presenting the secret
+// in the upgrade request: the plane resolves which server (or claim) this is
+// before it picks a Durable Object.
+func WSDialer(ctx context.Context, plane, secret string) (Transport, error) {
 	endpoint, err := DaemonURL(plane)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, _, err := websocket.Dial(ctx, endpoint, nil)
+	conn, resp, err := websocket.Dial(ctx, endpoint, &websocket.DialOptions{
+		HTTPHeader: http.Header{"Authorization": []string{"Bearer " + secret}},
+	})
+
 	if err != nil {
+		if resp != nil {
+			return nil, &StatusError{Status: resp.StatusCode, Err: err}
+		}
+
 		return nil, err
 	}
 

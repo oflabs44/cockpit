@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/oflabs44/cockpit/daemon/internal/observer"
@@ -24,8 +25,9 @@ type Transport interface {
 	Close() error
 }
 
-// Dialer opens a Transport to the plane's /daemon endpoint.
-type Dialer func(ctx context.Context, url string) (Transport, error)
+// Dialer opens a Transport to the plane's /daemon endpoint, presenting secret
+// in the upgrade request.
+type Dialer func(ctx context.Context, url, secret string) (Transport, error)
 
 // Identity is what the daemon reports about itself in hello.
 type Identity struct {
@@ -43,6 +45,12 @@ var ErrUnauthenticated = errors.New("plane did not complete the handshake")
 // redeemed it. The daemon prints a fresh one and waits again; it is the normal
 // course of a box left sitting after install, not a failure.
 var ErrClaimExpired = errors.New("claim code expired before it was redeemed")
+
+// Plane close codes (apps/plane/src/durable-objects/server-do.ts).
+const (
+	closeTokenRace    = 4006 // another connection claimed this token first
+	closeClaimExpired = 4007 // this claim code is no longer pending
+)
 
 // Client runs the connection lifecycle.
 type Client struct {
@@ -128,8 +136,18 @@ func (c *Client) session(ctx context.Context) error {
 
 	c.persistIdentity()
 
-	tr, err := c.Dial(ctx, c.PlaneURL)
+	// The same secret goes in the upgrade header and in hello: the plane
+	// resolves the daemon from the header before choosing a Durable Object,
+	// then validates the two against each other.
+	secret, err := c.secret()
 	if err != nil {
+		return err
+	}
+
+	tr, err := c.Dial(ctx, c.PlaneURL, secret)
+	if err != nil {
+		c.logDialReject(err)
+
 		return fmt.Errorf("dial: %w", err)
 	}
 
@@ -157,24 +175,53 @@ func (c *Client) claiming() bool {
 	return c.Credential == "" && c.EnrolmentSecret == ""
 }
 
+// secret is what this daemon presents, in the upgrade header and in hello.
+func (c *Client) secret() (string, error) {
+	if c.Credential != "" {
+		return c.Credential, nil
+	}
+
+	if c.EnrolmentSecret != "" {
+		return c.EnrolmentSecret, nil
+	}
+
+	return c.ensureClaimCode()
+}
+
+// logDialReject names the plane's refusals, which otherwise read as identical
+// dial failures. None of them invalidates the secret: a 409 in particular
+// means another socket already holds this claim code, so reprinting a new one
+// would send the operator chasing a code the plane is not waiting on.
+func (c *Client) logDialReject(err error) {
+	var se *StatusError
+
+	if !errors.As(err, &se) {
+		return
+	}
+
+	switch se.Status {
+	case http.StatusTooManyRequests:
+		c.log().Warn("plane rate limited this connection, backing off")
+	case http.StatusConflict:
+		c.log().Warn("another connection is already pending on this claim code, backing off",
+			"claim_code", c.claimCode)
+	}
+}
+
 // handshake sends hello and waits for the plane's welcome, persisting a
 // credential if this was an enrolment or a claim.
 func (c *Client) handshake(ctx context.Context, tr Transport) error {
-	auth := protocol.Auth{Kind: protocol.AuthCredential, Secret: c.Credential}
+	// The same secret the upgrade header carried. Prefixes (ck_cred_, ck_enrol_)
+	// are the plane's and the operator's; the daemon passes them through
+	// untouched, and an unprefixed secret is its own claim code.
+	secret, err := c.secret()
+	if err != nil {
+		return err
+	}
 
-	switch {
-	case c.claiming():
-		code, err := c.ensureClaimCode()
-		if err != nil {
-			return err
-		}
-
-		// The claim code is the secret this daemon presents. Both directions
-		// converge on the same exchange (type-design section 2.1.1); the
-		// awaiting_claim frame below carries the code the operator sees.
-		auth = protocol.Auth{Kind: protocol.AuthEnrolment, Secret: code}
-	case c.Credential == "":
-		auth = protocol.Auth{Kind: protocol.AuthEnrolment, Secret: c.EnrolmentSecret}
+	auth := protocol.Auth{Kind: protocol.AuthEnrolment, Secret: secret}
+	if c.Credential != "" {
+		auth.Kind = protocol.AuthCredential
 	}
 
 	hello := protocol.Hello{
@@ -210,6 +257,20 @@ func (c *Client) handshake(ctx context.Context, tr Transport) error {
 
 	b, err := tr.Recv(waitCtx)
 	if err != nil {
+		switch CloseCode(err) {
+		case closeTokenRace:
+			// Another connection presented the same token first. The plane
+			// resolves the winner; this daemon simply retries.
+			c.log().Warn("lost a race for this enrolment token to another connection")
+
+			return fmt.Errorf("await welcome: %w", err)
+		case closeClaimExpired:
+			c.log().Warn("claim code expired between connect and hello, generating a new one")
+			c.expireClaim()
+
+			return ErrClaimExpired
+		}
+
 		// Only the code's own deadline expires it. A connection that merely
 		// dropped keeps the code the operator is looking at.
 		if c.claiming() && waitCtx.Err() != nil && ctx.Err() == nil {

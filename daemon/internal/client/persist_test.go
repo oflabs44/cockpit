@@ -32,7 +32,7 @@ func TestFailedPersistIsRetriedNextSession(t *testing.T) {
 	c := newClient(t, nil)
 	c.EnrolmentSecret = "ck_enrol_once"
 	c.Backoff = client.Backoff{Base: time.Millisecond, Max: time.Second, Factor: 2}
-	c.Dial = func(context.Context, string) (client.Transport, error) {
+	c.Dial = func(context.Context, string, string) (client.Transport, error) {
 		i := dialed
 		dialed++
 

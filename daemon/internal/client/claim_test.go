@@ -32,7 +32,7 @@ func TestUnclaimedHandshakePresentsCodeAndSendsNothingElse(t *testing.T) {
 	out := &bytes.Buffer{}
 
 	c := newClient(t, nil)
-	c.Dial = func(context.Context, string) (client.Transport, error) { return tr, nil }
+	c.Dial = func(context.Context, string, string) (client.Transport, error) { return tr, nil }
 	c.NewClaimCode = func() (string, error) { return "4F2K-9TQX", nil }
 	c.ClaimTTL = 20 * time.Millisecond
 	c.Out = out
@@ -141,7 +141,7 @@ func TestClaimCodeIsRegeneratedOnExpiryAndReprinted(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	c.Dial = func(context.Context, string) (client.Transport, error) {
+	c.Dial = func(context.Context, string, string) (client.Transport, error) {
 		conns++
 
 		return &blockingTransport{}, nil
@@ -195,7 +195,7 @@ func TestClaimCodeExpiresOnWallClockNotPerSession(t *testing.T) {
 
 	// Connections drop instantly, so no session ever reaches its own deadline.
 	// Wall-clock time still passes between them.
-	c.Dial = func(context.Context, string) (client.Transport, error) {
+	c.Dial = func(context.Context, string, string) (client.Transport, error) {
 		dialed++
 
 		return &fakeTransport{}, nil
@@ -244,7 +244,7 @@ func TestClaimCodeIsDroppedWhenThePlaneAnswersWithoutBinding(t *testing.T) {
 	defer cancel()
 
 	// Each connection answers the claim with something that is not a welcome.
-	c.Dial = func(context.Context, string) (client.Transport, error) {
+	c.Dial = func(context.Context, string, string) (client.Transport, error) {
 		dialed++
 
 		return &fakeTransport{inbox: [][]byte{mustJSON(t, map[string]any{"type": "ping"})}}, nil
@@ -293,7 +293,7 @@ func TestDroppedConnectionKeepsTheSameClaimCode(t *testing.T) {
 	defer cancel()
 
 	// Each connection dies immediately (EOF), as if the plane restarted.
-	c.Dial = func(context.Context, string) (client.Transport, error) {
+	c.Dial = func(context.Context, string, string) (client.Transport, error) {
 		dialed++
 
 		return &fakeTransport{}, nil

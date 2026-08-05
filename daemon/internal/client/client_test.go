@@ -95,7 +95,7 @@ func newClient(t *testing.T, tr *fakeTransport) *client.Client {
 		PlaneURL: "https://plane.test",
 		Identity: client.Identity{AgentVersion: "test", Arch: "arm64", Hostname: "lab-nbg1"},
 		Observer: observer.New(set, func() time.Time { return time.Unix(42, 0) }),
-		Dial: func(context.Context, string) (client.Transport, error) {
+		Dial: func(context.Context, string, string) (client.Transport, error) {
 			return tr, nil
 		},
 		Sleep: func(context.Context, time.Duration) error { return nil },
@@ -267,7 +267,7 @@ func TestReconnectBacksOffAndResendsFullState(t *testing.T) {
 	c := newClient(t, conns[0])
 	c.Credential = "ck_cred_live"
 	c.Backoff = client.Backoff{Base: time.Second, Max: 8 * time.Second, Factor: 2}
-	c.Dial = func(context.Context, string) (client.Transport, error) {
+	c.Dial = func(context.Context, string, string) (client.Transport, error) {
 		i := dialed
 		dialed++
 
@@ -360,7 +360,7 @@ func TestRepeatedSnapshotFailuresEndTheSession(t *testing.T) {
 	}}}
 
 	c := newClient(t, nil)
-	c.Dial = func(context.Context, string) (client.Transport, error) { return tr, nil }
+	c.Dial = func(context.Context, string, string) (client.Transport, error) { return tr, nil }
 	c.Credential = "ck_cred_live"
 	c.Observer = observer.New(set, func() time.Time { return time.Unix(42, 0) })
 	c.SnapshotInterval = time.Millisecond
