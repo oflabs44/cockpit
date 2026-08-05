@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cockpit — deployment</title>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/img/favicon.ico">
+<script src="assets/js/proto.js"></script>
+<link rel="stylesheet" href="assets/css/theme.css">
+<link rel="stylesheet" href="assets/css/frame.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .protobar {
+    display: flex; align-items: center; gap: var(--s2);
+    padding: var(--s2) var(--s4); border-bottom: 1px solid var(--ink-12); flex: none;
+  }
+  .protobar .spacer { flex: 1; }
+  .protobar button {
+    height: 26px; padding: 0 10px; background: transparent; color: var(--ink-60);
+    border: 1px solid var(--ink-12); font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer;
+  }
+  .protobar button[aria-current='true'] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+
+  .metric { display: flex; align-items: center; gap: 7px; }
+  .metric .icon { color: var(--ink-40); }
+  .metric .v { font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-60); }
+  .metric[data-hot] .icon, .metric[data-hot] .v { color: var(--color-warn); }
+  .metrics { display: flex; gap: var(--s4); }
+
+  /* A label, not a ruled divider. The table below already declares where it
+     starts with its own header rule — a second line above it was one of five
+     different kinds of rule competing on this screen. */
+  .sec { padding: var(--s6) var(--s5) var(--s3); display: flex; align-items: baseline; gap: var(--s3); }
+
+  /* No heading here: the tab already says Overview, and repeating it spends a
+     line saying nothing. */
+  .summary { padding: var(--s5); }
+  .view { display: none; }
+  .view[data-active] { display: block; }
+  .view.is-flex[data-active] { display: flex; flex-direction: column; flex: 1; }
+</style>
+</head>
+<body>
+
+<div hidden data-sprite></div>
+
+<div class="protobar">
+  <span class="label">server</span>
+  <button onclick="setState('running')" aria-current="true">running</button>
+  <button onclick="setState('failed')">failed</button>
+  <button onclick="setState('done')">succeeded</button>
+  <span class="spacer"></span>
+  <button onclick="toggleTheme()">view <span data-theme-label>light</span></button>
+  <button onclick="location.href='server.html'">server</button>
+</div>
+
+<div class="frame" data-rail="open" data-view="desktop">
+
+  <nav class="rail">
+    <a class="brand" href="#" data-health="healthy" title="cockpit">
+      <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+        <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+        <path d="M3.75 20h24.5v8.25H3.75z" data-ground/>
+        <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+      </svg>
+      <span class="word">cockpit</span>
+    </a>
+
+    <div class="nav">
+      <a href="servers.html" aria-current="page" title="Servers">
+        <svg class="icon icon-lg"><use href="#server"/></svg>
+        <span>Servers</span><span class="count">4</span>
+      </a>
+      <a href="#" data-badge title="Plans">
+        <svg class="icon icon-lg"><use href="#layers"/></svg>
+        <span>Plans</span><span class="count" data-attention>1</span>
+      </a>
+      <a href="#" title="Activity">
+        <svg class="icon icon-lg"><use href="#activity"/></svg>
+        <span>Activity</span>
+      </a>
+      <div class="nav-sep"></div>
+      <a href="#" title="Domains">
+        <svg class="icon icon-lg"><use href="#globe"/></svg>
+        <span>Domains</span>
+      </a>
+      <a href="#" title="Sources">
+        <svg class="icon icon-lg"><use href="#package"/></svg>
+        <span>Sources</span>
+      </a>
+      <a href="#" title="Secrets">
+        <svg class="icon icon-lg"><use href="#database"/></svg>
+        <span>Secrets</span>
+      </a>
+      <div class="nav-sep"></div>
+      <a href="#" title="Settings">
+        <svg class="icon icon-lg"><use href="#settings"/></svg>
+        <span>Settings</span>
+      </a>
+    </div>
+
+    <div class="rail-foot">
+      <button class="who" title="oflabs44">
+        <span class="avatar"></span>
+        <span class="stack">
+          <span class="name">oflabs44</span>
+          <span class="label">owner</span>
+        </span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="bar">
+      <button class="railtoggle" title="Toggle rail">
+        <svg class="icon icon-sm"><use href="#sidebar"/></svg>
+      </button>
+      <a class="bar-mark" href="#" data-health="healthy" title="cockpit">
+        <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+          <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+          <path d="M3.75 20h24.5v8.25H3.75z" data-ground/>
+          <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+        </svg>
+      </a>
+
+      <div class="crumbs">
+        <a href="servers.html">Servers</a>
+        <span class="sep">/</span>
+        <a href="server.html">prod-fsn1</a>
+        <span class="sep">/</span>
+        <a href="deployments.html">jerry</a>
+        <span class="sep">/</span>
+        <span class="here"><span class="dot dot-pending dot-live" data-hdot></span>r49</span>
+      </div>
+      <span class="spacer"></span>
+
+      <button class="search" onclick="openPalette('command')">
+        <svg class="icon icon-sm"><use href="#search"/></svg>
+        <span>Search or run</span>
+        <kbd>&#8984;K</kbd>
+      </button>
+      <button class="bell" data-unread title="2 notifications" onclick="alert('Notifications view comes next')">
+        <svg class="icon icon-sm"><use href="#bell"/></svg>
+      </button>
+      <button class="btn btn-primary btn-sm" data-deploy>Deploy</button>
+    </header>
+
+    <!-- The strip belongs to the deepest object in the breadcrumb. Entering an
+         app replaces it; it never stacks. -->
+    <!-- The server's strip is REPLACED, not stacked. One sidebar, one strip,
+         always belonging to the deepest thing in the breadcrumb. -->
+
+    <div class="summary" style="padding:var(--s5) var(--s5) 0">
+      <div class="card"><div class="card-section">
+        <div class="kv kv-inline">
+          <div class="kv-item"><div class="kv-k">status</div><div class="kv-v" data-status><span class="dot dot-pending dot-live"></span>building</div></div>
+          <div class="kv-item"><div class="kv-k">release</div><div class="kv-v">r49</div></div>
+          <div class="kv-item"><div class="kv-k">commit</div><div class="kv-v">9f2c1ab</div></div>
+          <div class="kv-item"><div class="kv-k">branch</div><div class="kv-v">main</div></div>
+          <div class="kv-item"><div class="kv-k">by</div><div class="kv-v">you</div></div>
+          <div class="kv-item"><div class="kv-k">started</div><div class="kv-v">just now</div></div>
+          <div class="kv-item"><div class="kv-k">took</div><div class="kv-v" data-took>&mdash;</div></div>
+          <div class="kv-item"><div class="kv-k">plan</div><div class="kv-v">pln_8fkq2</div></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="steps" data-steps><div class="step" data-state="done"><span class="dot dot-healthy"></span><span class="step-name">clone</span><span class="step-t">2s</span></div><div class="step" data-state="running"><span class="dot dot-pending dot-live"></span><span class="step-name">build</span><span class="step-t">—</span></div><div class="step" data-state="pending"><span class="dot dot-stopped"></span><span class="step-name">start</span><span class="step-t">—</span></div><div class="step" data-state="pending"><span class="dot dot-stopped"></span><span class="step-name">healthcheck</span><span class="step-t">—</span></div><div class="step" data-state="pending"><span class="dot dot-stopped"></span><span class="step-name">release</span><span class="step-t">—</span></div></div>
+
+    <div data-failnotice hidden>
+      <div class="notice-group" style="--notice-inset: var(--s5)">
+        <div class="notice" data-severity="danger">
+          <div class="notice-meta">
+            <span class="notice-tag">failed</span>
+            <span class="notice-code">apply.step_failed</span>
+          </div>
+          <div class="notice-body">
+            <span class="mono">healthcheck</span> never passed &mdash; the container exited 137
+            four times. Three earlier steps were applied.
+            <div class="notice-actions">
+              <button class="btn btn-primary btn-sm">Revert applied steps</button>
+              <button class="btn btn-ghost btn-sm">Retry from healthcheck</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="logbar">
+      <span class="label" data-logstate>streaming</span>
+      <span class="spacer"></span>
+      <button class="btn btn-quiet btn-sm">Download</button>
+      <button class="btn btn-quiet btn-sm">Copy</button>
+    </div>
+
+    <div class="content" style="position:relative">
+      <div class="logs scrollbar-thin" data-logs></div>
+      <button class="btn btn-ghost btn-sm tolive" data-tolive onclick="toLive()">Jump to latest</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.PALETTES = {
+    /* Add component — the picker behind the canvas toolbar. Grouped by what
+       the thing IS, since that is how you arrive: "I need a database." */
+    add: {
+      placeholder: 'Add a component\u2026',
+      groups: [
+        { label: 'Apps', items: [
+          { icon: 'package',  name: 'From a Git repo',   hint: 'build on the server' },
+          { icon: 'package',  name: 'From a Docker image', hint: 'pull and run' }
+        ]},
+        { label: 'Databases', items: [
+          { icon: 'database', name: 'PostgreSQL 16', hint: 'private' },
+          { icon: 'database', name: 'Redis 7',       hint: 'private' }
+        ]},
+        { label: 'Jobs', items: [
+          { icon: 'clock',    name: 'Cron job', hint: 'schedule' }
+        ]},
+        { label: 'Storage and networking', items: [
+          { icon: 'disk',     name: 'Volume', hint: 'persistent' },
+          { icon: 'globe',    name: 'Domain', hint: 'account-scoped' }
+        ]}
+      ],
+      onPick: function (i) { alert('Would add: ' + i.name + '\n\nAdding is a change, so it lands as a draft on the canvas and you review the plan before it is applied.'); }
+    },
+
+    /* Global \u2318K. Actions first: you open it to DO something far more often
+       than to navigate. */
+    command: {
+      placeholder: 'Search or run\u2026',
+      groups: [
+        { label: 'Actions', items: [
+          { icon: 'layers',   name: 'Review pending plan', hint: '1 waiting' },
+          { icon: 'package',  name: 'Deploy\u2026',           hint: 'app' },
+          { icon: 'terminal', name: 'Tail logs\u2026',        hint: 'resource' },
+          { icon: 'server',   name: 'Add server',          hint: 'enrol' }
+        ]},
+        { label: 'Go to', items: [
+          { icon: 'server',   name: 'prod-fsn1',  hint: 'server' },
+          { icon: 'server',   name: 'edge-ash',   hint: 'server' },
+          { icon: 'package',  name: 'jerry',      hint: 'prod-fsn1 / app' },
+          { icon: 'database', name: 'db-jerry',   hint: 'prod-fsn1 / database' }
+        ]}
+      ]
+    }
+  };
+</script>
+<script>
+  fetch('assets/img/icons.svg').then(function (r) { return r.text(); })
+    .then(function (t) { document.querySelector('[data-sprite]').innerHTML = t; });
+
+  var LINES = [
+    ['hd','cloning oflabs44/jerry at 9f2c1ab'],
+    ['','  remote: enumerating objects: 1284, done.'],
+    ['','  resolving deltas: 100% (612/612)'],
+    ['ok','cloned in 2.1s'],
+    ['hd','building image jerry:9f2c1ab'],
+    ['','  [1/5] FROM node:22-alpine'],
+    ['','  [2/5] COPY package.json pnpm-lock.yaml ./'],
+    ['','  [3/5] RUN pnpm install --frozen-lockfile'],
+    ['','      Lockfile is up to date, resolution step is skipped'],
+    ['','      Progress: resolved 812, reused 806, downloaded 6, added 812'],
+    ['','  [4/5] COPY . .'],
+    ['','  [5/5] RUN pnpm build'],
+    ['','      vite v8.0.9 building for production...'],
+    ['','      ✓ 1462 modules transformed'],
+    ['','      dist/assets/index-Bq3f19.js   284.11 kB │ gzip: 88.42 kB'],
+    ['ok','built in 48.6s — sha256:9f2c1ab4e7'],
+    ['hd','starting jerry (2 replicas)'],
+    ['','  stopping previous container 4b1d7e0a91'],
+    ['','  network db-jerry attached'],
+    ['ok','container 9f2c1ab4e7 running'],
+    ['hd','healthcheck GET /healthz'],
+    ['','  attempt 1 — connection refused'],
+    ['','  attempt 2 — connection refused']
+  ];
+  var FAIL = [
+    ['','  attempt 3 — connection refused'],
+    ['','  attempt 4 — connection refused'],
+    ['err','healthcheck failed after 4 attempts — container exited 137'],
+    ['err','apply stopped at step 4 of 5']
+  ];
+  var DONE = [
+    ['ok','healthcheck passed in 6.2s'],
+    ['hd','release r49'],
+    ['ok','applied 5 of 5 steps in 1m 04s']
+  ];
+
+  var logs = document.querySelector('[data-logs]');
+  var follow = true, timer = null, i = 0, t0 = 0;
+
+  logs.addEventListener('scroll', function () {
+    var atEnd = logs.scrollHeight - logs.scrollTop - logs.clientHeight < 24;
+    follow = atEnd;
+    document.querySelector('[data-tolive]').toggleAttribute('data-show', !atEnd);
+  });
+
+  function toLive() { follow = true; logs.scrollTop = logs.scrollHeight; document.querySelector('[data-tolive]').removeAttribute('data-show'); }
+
+  function stamp(ms) {
+    var s = Math.floor(ms / 1000);
+    return String(Math.floor(s / 60)).padStart(2,'0') + ':' + String(s % 60).padStart(2,'0');
+  }
+
+  function push(l) {
+    var d = document.createElement('div');
+    d.className = 'log-line';
+    if (l[0]) d.dataset.lvl = l[0];
+    d.innerHTML = '<span class="log-ts">' + stamp(t0) + '</span><span class="log-msg">' + l[1] + '</span>';
+    logs.appendChild(d);
+    t0 += 2400 + Math.floor(i * 137) % 3000;
+    if (follow) logs.scrollTop = logs.scrollHeight;
+  }
+
+  function setSteps(spec) {
+    var el = document.querySelectorAll('.step');
+    spec.forEach(function (s, n) {
+      var dot = el[n].querySelector('.dot');
+      dot.className = 'dot ' + s[0];
+      el[n].dataset.state = s[1];
+      el[n].querySelector('.step-t').textContent = s[2];
+    });
+  }
+
+  var STEP_RUNNING = [['dot-healthy','done','2s'],['dot-pending dot-live','running','—'],['dot-stopped','pending','—'],['dot-stopped','pending','—'],['dot-stopped','pending','—']];
+  var STEP_FAILED  = [['dot-healthy','done','2s'],['dot-healthy','done','48s'],['dot-healthy','done','3s'],['dot-failed','failed','11s'],['dot-stopped','pending','—']];
+  var STEP_DONE    = [['dot-healthy','done','2s'],['dot-healthy','done','48s'],['dot-healthy','done','3s'],['dot-healthy','done','6s'],['dot-healthy','done','1s']];
+
+  function setState(name) {
+    clearInterval(timer); logs.innerHTML = ''; i = 0; t0 = 0; follow = true;
+    var hdot = document.querySelector('[data-hdot]');
+    var status = document.querySelector('[data-status]');
+    var took = document.querySelector('[data-took]');
+    var logstate = document.querySelector('[data-logstate]');
+    document.querySelector('[data-failnotice]').hidden = name !== 'failed';
+
+    if (name === 'running') {
+      hdot.className = 'dot dot-pending dot-live';
+      status.innerHTML = '<span class="dot dot-pending dot-live"></span>building';
+      took.innerHTML = '&mdash;'; logstate.textContent = 'streaming';
+      setSteps(STEP_RUNNING);
+      // Stream, so the pane is a live thing rather than a screenshot of one.
+      timer = setInterval(function () {
+        if (i >= LINES.length) { clearInterval(timer); return; }
+        push(LINES[i++]);
+      }, 260);
+    } else {
+      var all = LINES.concat(name === 'failed' ? FAIL : DONE);
+      all.forEach(push);
+      hdot.className = 'dot ' + (name === 'failed' ? 'dot-failed' : 'dot-healthy');
+      status.innerHTML = '<span class="dot dot-' + (name === 'failed' ? 'failed' : 'healthy') + '"></span>' + (name === 'failed' ? 'failed' : 'succeeded');
+      took.textContent = name === 'failed' ? '1m 42s' : '1m 04s';
+      logstate.textContent = 'archived';
+      setSteps(name === 'failed' ? STEP_FAILED : STEP_DONE);
+      logs.scrollTop = 0;
+    }
+
+    document.querySelectorAll('.protobar button').forEach(function (b) {
+      var oc = b.getAttribute('onclick') || '';
+      if (oc.indexOf('setState(') === 0) b.setAttribute('aria-current', oc.indexOf("'" + name + "'") > -1 ? 'true' : 'false');
+    });
+  }
+
+  setState('running');
+
+</script>
+</body>
+</html>

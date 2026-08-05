@@ -950,3 +950,64 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 /* No keyboard legend. Arrow to move, enter to pick, escape to close is what
    anyone opening a palette already expects — printing it teaches nothing and
    spends a row saying so. */
+/* --------------------------------------------------------------------------
+   Steps — an apply is a Workflow with one durable step per change (ADR-0003),
+   so a deployment has structure the log stream does not. The strip carries the
+   structure; the pane below carries the output.
+
+   Horizontal, not a left column: the logs are the thing you read, and they
+   want the full width. Steps are glanceable state, not a navigation surface.
+   -------------------------------------------------------------------------- */
+
+.steps { display: flex; flex-wrap: wrap; gap: var(--s5); padding: var(--s4) var(--s5); }
+.step { display: flex; align-items: center; gap: var(--s3); min-width: 0; }
+.step-name { font-size: var(--t-sm); }
+.step-t { font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-40); }
+.step[data-state='pending'] .step-name { color: var(--ink-40); }
+.step[data-state='running'] .step-name { font-weight: 500; }
+.step[data-state='failed'] .step-name { color: var(--color-danger); }
+
+/* --------------------------------------------------------------------------
+   Log pane — a live stream while the deployment runs, an archive afterwards.
+   -------------------------------------------------------------------------- */
+
+.logs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s3) 0 var(--s5);
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  line-height: 1.65;
+  background: var(--color-paper);
+}
+.log-line { display: flex; gap: var(--s4); padding: 0 var(--s5); white-space: pre-wrap; word-break: break-word; }
+.log-line:hover { background: var(--ink-04); }
+.log-ts { color: var(--ink-20); flex: none; user-select: none; }
+.log-msg { color: var(--ink-60); min-width: 0; }
+/* Only two levels take colour. Build output is not a severity feed, and
+   tinting every warn would make the one that matters invisible. */
+.log-line[data-lvl='err'] .log-msg { color: var(--color-danger); }
+.log-line[data-lvl='ok'] .log-msg { color: var(--color-accent); }
+.log-line[data-lvl='hd'] .log-msg { color: var(--color-ink); font-weight: 500; }
+
+.logbar {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s2) var(--s5);
+  border-top: 1px solid var(--ink-12);
+  border-bottom: 1px solid var(--ink-12);
+  flex: none;
+}
+.logbar .spacer { flex: 1; }
+
+/* Scrolling up pins the view. Without this a live pane yanks you back to the
+   bottom the moment you try to read anything, which is the single most common
+   way log UIs get in the way. */
+.tolive {
+  position: absolute;
+  left: 50%; bottom: var(--s5);
+  transform: translateX(-50%);
+  z-index: 3;
+  display: none;
+}
+.tolive[data-show] { display: inline-flex; }

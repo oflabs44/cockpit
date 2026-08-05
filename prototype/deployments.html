@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cockpit — deployments</title>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/img/favicon.ico">
+<script src="assets/js/proto.js"></script>
+<link rel="stylesheet" href="assets/css/theme.css">
+<link rel="stylesheet" href="assets/css/frame.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .protobar {
+    display: flex; align-items: center; gap: var(--s2);
+    padding: var(--s2) var(--s4); border-bottom: 1px solid var(--ink-12); flex: none;
+  }
+  .protobar .spacer { flex: 1; }
+  .protobar button {
+    height: 26px; padding: 0 10px; background: transparent; color: var(--ink-60);
+    border: 1px solid var(--ink-12); font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer;
+  }
+  .protobar button[aria-current='true'] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+
+  .metric { display: flex; align-items: center; gap: 7px; }
+  .metric .icon { color: var(--ink-40); }
+  .metric .v { font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-60); }
+  .metric[data-hot] .icon, .metric[data-hot] .v { color: var(--color-warn); }
+  .metrics { display: flex; gap: var(--s4); }
+
+  /* A label, not a ruled divider. The table below already declares where it
+     starts with its own header rule — a second line above it was one of five
+     different kinds of rule competing on this screen. */
+  .sec { padding: var(--s6) var(--s5) var(--s3); display: flex; align-items: baseline; gap: var(--s3); }
+
+  /* No heading here: the tab already says Overview, and repeating it spends a
+     line saying nothing. */
+  .summary { padding: var(--s5); }
+  .view { display: none; }
+  .view[data-active] { display: block; }
+  .view.is-flex[data-active] { display: flex; flex-direction: column; flex: 1; }
+</style>
+</head>
+<body>
+
+<div hidden data-sprite></div>
+
+<div class="protobar">
+  <span class="label">server</span>
+  <button aria-current="true">list</button>
+  <span class="spacer"></span>
+  <button onclick="toggleTheme()">view <span data-theme-label>light</span></button>
+  <button onclick="location.href='server.html'">server</button>
+</div>
+
+<div class="frame" data-rail="open" data-view="desktop">
+
+  <nav class="rail">
+    <a class="brand" href="#" data-health="healthy" title="cockpit">
+      <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+        <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+        <path d="M3.75 20h24.5v8.25H3.75z" data-ground/>
+        <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+      </svg>
+      <span class="word">cockpit</span>
+    </a>
+
+    <div class="nav">
+      <a href="servers.html" aria-current="page" title="Servers">
+        <svg class="icon icon-lg"><use href="#server"/></svg>
+        <span>Servers</span><span class="count">4</span>
+      </a>
+      <a href="#" data-badge title="Plans">
+        <svg class="icon icon-lg"><use href="#layers"/></svg>
+        <span>Plans</span><span class="count" data-attention>1</span>
+      </a>
+      <a href="#" title="Activity">
+        <svg class="icon icon-lg"><use href="#activity"/></svg>
+        <span>Activity</span>
+      </a>
+      <div class="nav-sep"></div>
+      <a href="#" title="Domains">
+        <svg class="icon icon-lg"><use href="#globe"/></svg>
+        <span>Domains</span>
+      </a>
+      <a href="#" title="Sources">
+        <svg class="icon icon-lg"><use href="#package"/></svg>
+        <span>Sources</span>
+      </a>
+      <a href="#" title="Secrets">
+        <svg class="icon icon-lg"><use href="#database"/></svg>
+        <span>Secrets</span>
+      </a>
+      <div class="nav-sep"></div>
+      <a href="#" title="Settings">
+        <svg class="icon icon-lg"><use href="#settings"/></svg>
+        <span>Settings</span>
+      </a>
+    </div>
+
+    <div class="rail-foot">
+      <button class="who" title="oflabs44">
+        <span class="avatar"></span>
+        <span class="stack">
+          <span class="name">oflabs44</span>
+          <span class="label">owner</span>
+        </span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="bar">
+      <button class="railtoggle" title="Toggle rail">
+        <svg class="icon icon-sm"><use href="#sidebar"/></svg>
+      </button>
+      <a class="bar-mark" href="#" data-health="healthy" title="cockpit">
+        <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+          <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+          <path d="M3.75 20h24.5v8.25H3.75z" data-ground/>
+          <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+        </svg>
+      </a>
+
+      <div class="crumbs">
+        <a href="servers.html">Servers</a>
+        <span class="sep">/</span>
+        <a href="server.html">prod-fsn1</a>
+        <span class="sep">/</span>
+        <span class="here"><span class="dot dot-failed"></span>jerry</span>
+      </div>
+      <span class="spacer"></span>
+
+      <button class="search" onclick="openPalette('command')">
+        <svg class="icon icon-sm"><use href="#search"/></svg>
+        <span>Search or run</span>
+        <kbd>&#8984;K</kbd>
+      </button>
+      <button class="bell" data-unread title="2 notifications" onclick="alert('Notifications view comes next')">
+        <svg class="icon icon-sm"><use href="#bell"/></svg>
+      </button>
+      <button class="btn btn-primary btn-sm" data-deploy>Deploy</button>
+    </header>
+
+    <!-- The strip belongs to the deepest object in the breadcrumb. Entering an
+         app replaces it; it never stacks. -->
+    <!-- The server's strip is REPLACED, not stacked. One sidebar, one strip,
+         always belonging to the deepest thing in the breadcrumb. -->
+    <nav class="tabs">
+      <a href="project.html">Overview</a>
+      <a href="#" aria-current="page">Deployments</a>
+      <a href="#">Variables</a>
+      <a href="#">Settings</a>
+    </nav>
+
+    <div class="content">
+      <div class="content-inner" style="padding:0">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:110px">release</th>
+              <th>change</th>
+              <th style="width:130px">by</th>
+              <th style="width:96px">took</th>
+              <th style="width:110px">when</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr onclick="location.href='deployment.html'">
+              <td><span class="cell"><span class="dot dot-pending dot-live"></span><span class="mono">r49</span></span></td>
+              <td><span class="cell"><span class="mono muted">9f2c1ab</span> bump pnpm, drop the polyfill</span></td>
+              <td class="muted">you</td>
+              <td class="muted">building</td>
+              <td class="muted">just now</td>
+            </tr>
+            <tr onclick="location.href='deployment.html'">
+              <td><span class="cell"><span class="dot dot-failed"></span><span class="mono">r48</span></span></td>
+              <td><span class="cell"><span class="mono muted">4b1d7e0</span> fix auth redirect</span></td>
+              <td class="muted">claude-code</td>
+              <td class="muted">1m 42s</td>
+              <td class="muted">12m ago</td>
+            </tr>
+            <tr onclick="location.href='#'">
+              <td><span class="cell"><span class="dot dot-healthy"></span><span class="mono">r47</span></span></td>
+              <td><span class="cell"><span class="mono muted">c0a91f4</span> add rate limit to /api</span></td>
+              <td class="muted">you</td>
+              <td class="muted">1m 18s</td>
+              <td class="muted">3h ago</td>
+            </tr>
+            <tr onclick="location.href='#'">
+              <td><span class="cell"><span class="dot dot-healthy"></span><span class="mono">r46</span></span></td>
+              <td><span class="cell"><span class="mono muted">7e33b21</span> update deps</span></td>
+              <td class="muted">claude-code</td>
+              <td class="muted">1m 31s</td>
+              <td class="muted">2d ago</td>
+            </tr>
+            <tr onclick="location.href='#'">
+              <td><span class="cell"><span class="dot dot-stopped"></span><span class="mono">r45</span></span></td>
+              <td><span class="cell"><span class="mono muted">0d18aa9</span> revert r44</span></td>
+              <td class="muted">you</td>
+              <td class="muted">58s</td>
+              <td class="muted">2d ago</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.PALETTES = {
+    /* Add component — the picker behind the canvas toolbar. Grouped by what
+       the thing IS, since that is how you arrive: "I need a database." */
+    add: {
+      placeholder: 'Add a component\u2026',
+      groups: [
+        { label: 'Apps', items: [
+          { icon: 'package',  name: 'From a Git repo',   hint: 'build on the server' },
+          { icon: 'package',  name: 'From a Docker image', hint: 'pull and run' }
+        ]},
+        { label: 'Databases', items: [
+          { icon: 'database', name: 'PostgreSQL 16', hint: 'private' },
+          { icon: 'database', name: 'Redis 7',       hint: 'private' }
+        ]},
+        { label: 'Jobs', items: [
+          { icon: 'clock',    name: 'Cron job', hint: 'schedule' }
+        ]},
+        { label: 'Storage and networking', items: [
+          { icon: 'disk',     name: 'Volume', hint: 'persistent' },
+          { icon: 'globe',    name: 'Domain', hint: 'account-scoped' }
+        ]}
+      ],
+      onPick: function (i) { alert('Would add: ' + i.name + '\n\nAdding is a change, so it lands as a draft on the canvas and you review the plan before it is applied.'); }
+    },
+
+    /* Global \u2318K. Actions first: you open it to DO something far more often
+       than to navigate. */
+    command: {
+      placeholder: 'Search or run\u2026',
+      groups: [
+        { label: 'Actions', items: [
+          { icon: 'layers',   name: 'Review pending plan', hint: '1 waiting' },
+          { icon: 'package',  name: 'Deploy\u2026',           hint: 'app' },
+          { icon: 'terminal', name: 'Tail logs\u2026',        hint: 'resource' },
+          { icon: 'server',   name: 'Add server',          hint: 'enrol' }
+        ]},
+        { label: 'Go to', items: [
+          { icon: 'server',   name: 'prod-fsn1',  hint: 'server' },
+          { icon: 'server',   name: 'edge-ash',   hint: 'server' },
+          { icon: 'package',  name: 'jerry',      hint: 'prod-fsn1 / app' },
+          { icon: 'database', name: 'db-jerry',   hint: 'prod-fsn1 / database' }
+        ]}
+      ]
+    }
+  };
+</script>
+<script>
+  fetch('assets/img/icons.svg').then(function (r) { return r.text(); })
+    .then(function (t) { document.querySelector('[data-sprite]').innerHTML = t; });
+
+</script>
+</body>
+</html>
