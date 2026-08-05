@@ -148,6 +148,11 @@
          app replaces it; it never stacks. -->
     <nav class="tabs">
       <a href="#" aria-current="page">Overview</a>
+      <!-- Projects and Resources are siblings inside the server, which is what
+           makes the scoping legible: a database is a thing on THIS box, and a
+           project binds to it. Neither floats free of the machine. -->
+      <a href="project.html">Projects</a>
+      <a href="#">Resources</a>
       <a href="#">Firewall</a>
       <a href="#">Settings</a>
     </nav>

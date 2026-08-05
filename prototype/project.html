@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cockpit — project</title>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="assets/img/favicon.ico">
+<script src="assets/js/proto.js"></script>
+<link rel="stylesheet" href="assets/css/theme.css">
+<link rel="stylesheet" href="assets/css/frame.css">
+<style>
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .protobar {
+    display: flex; align-items: center; gap: var(--s2);
+    padding: var(--s2) var(--s4); border-bottom: 1px solid var(--ink-12); flex: none;
+  }
+  .protobar .spacer { flex: 1; }
+  .protobar button {
+    height: 26px; padding: 0 10px; background: transparent; color: var(--ink-60);
+    border: 1px solid var(--ink-12); font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer;
+  }
+  .protobar button[aria-current='true'] { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+
+  .metric { display: flex; align-items: center; gap: 7px; }
+  .metric .icon { color: var(--ink-40); }
+  .metric .v { font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-60); }
+  .metric[data-hot] .icon, .metric[data-hot] .v { color: var(--color-warn); }
+  .metrics { display: flex; gap: var(--s4); }
+
+  /* A label, not a ruled divider. The table below already declares where it
+     starts with its own header rule — a second line above it was one of five
+     different kinds of rule competing on this screen. */
+  .sec { padding: var(--s6) var(--s5) var(--s3); display: flex; align-items: baseline; gap: var(--s3); }
+
+  /* No heading here: the tab already says Overview, and repeating it spends a
+     line saying nothing. */
+  .summary { padding: var(--s5); }
+  .view { display: none; }
+  .view[data-active] { display: block; }
+  .view.is-flex[data-active] { display: flex; flex-direction: column; flex: 1; }
+</style>
+</head>
+<body>
+
+<div hidden data-sprite></div>
+
+<div class="protobar">
+  <span class="label">server</span>
+  <button aria-current="true">canvas</button>
+  <span class="spacer"></span>
+  <button onclick="toggleTheme()">view <span data-theme-label>light</span></button>
+  <button onclick="location.href='server.html'">server</button>
+</div>
+
+<div class="frame" data-rail="open" data-view="desktop">
+
+  <nav class="rail">
+    <a class="brand" href="#" data-health="healthy" title="cockpit">
+      <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+        <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+        <path d="M3.75 20h24.5v8.25H3.75z" data-ground/>
+        <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+      </svg>
+      <span class="word">cockpit</span>
+    </a>
+
+    <div class="nav">
+      <a href="servers.html" aria-current="page" title="Servers">
+        <svg class="icon icon-lg"><use href="#server"/></svg>
+        <span>Servers</span><span class="count">4</span>
+      </a>
+      <a href="#" data-badge title="Plans">
+        <svg class="icon icon-lg"><use href="#layers"/></svg>
+        <span>Plans</span><span class="count" data-attention>1</span>
+      </a>
+      <a href="#" title="Activity">
+        <svg class="icon icon-lg"><use href="#activity"/></svg>
+        <span>Activity</span>
+      </a>
+      <div class="nav-sep"></div>
+      <a href="#" title="Domains">
+        <svg class="icon icon-lg"><use href="#globe"/></svg>
+        <span>Domains</span>
+      </a>
+      <a href="#" title="Sources">
+        <svg class="icon icon-lg"><use href="#package"/></svg>
+        <span>Sources</span>
+      </a>
+      <a href="#" title="Secrets">
+        <svg class="icon icon-lg"><use href="#database"/></svg>
+        <span>Secrets</span>
+      </a>
+      <div class="nav-sep"></div>
+      <a href="#" title="Settings">
+        <svg class="icon icon-lg"><use href="#settings"/></svg>
+        <span>Settings</span>
+      </a>
+    </div>
+
+    <div class="rail-foot">
+      <button class="who" title="oflabs44">
+        <span class="avatar"></span>
+        <span class="stack">
+          <span class="name">oflabs44</span>
+          <span class="label">owner</span>
+        </span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <header class="bar">
+      <button class="railtoggle" title="Toggle rail">
+        <svg class="icon icon-sm"><use href="#sidebar"/></svg>
+      </button>
+      <a class="bar-mark" href="#" data-health="healthy" title="cockpit">
+        <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+          <path d="M1.25 1.25h29.5v29.5H1.25V1.25zm2.5 2.5v24.5h24.5V3.75H3.75z"/>
+          <path d="M3.75 20h24.5v8.25H3.75z" data-ground/>
+          <path d="M6.5 14.5h6.5v3H6.5zM14.5 14.5h3v3h-3zM19 14.5h6.5v3H19z"/>
+        </svg>
+      </a>
+
+      <div class="crumbs">
+        <a href="servers.html">Servers</a>
+        <span class="sep">/</span>
+        <a href="server.html">prod-fsn1</a>
+        <span class="sep">/</span>
+        <span class="here"><span class="dot dot-failed"></span>jerry</span>
+      </div>
+      <span class="spacer"></span>
+
+      <button class="search">
+        <svg class="icon icon-sm"><use href="#search"/></svg>
+        <span>Search or run</span>
+        <kbd>&#8984;K</kbd>
+      </button>
+      <button class="bell" data-unread title="2 notifications" onclick="alert('Notifications view comes next')">
+        <svg class="icon icon-sm"><use href="#bell"/></svg>
+      </button>
+      <button class="btn btn-primary btn-sm" data-deploy>Deploy</button>
+    </header>
+
+    <!-- The strip belongs to the deepest object in the breadcrumb. Entering an
+         app replaces it; it never stacks. -->
+    <!-- The server's strip is REPLACED, not stacked. One sidebar, one strip,
+         always belonging to the deepest thing in the breadcrumb. -->
+    <nav class="tabs">
+      <a href="#" aria-current="page">Canvas</a>
+      <a href="#">Releases</a>
+      <a href="#">Variables</a>
+      <a href="#">Settings</a>
+    </nav>
+
+    <div class="content">
+      <div class="content-inner" style="padding:0">
+      <div class="canvas" style="min-width:1060px;min-height:440px">
+        <svg class="canvas-edges" width="1060" height="440" aria-hidden="true">
+        <path d="M220 210.0 H256.0 V190.0 H292" class=""/><rect class="edge-cap" x="289.5" y="187.5" width="5" height="5"/>
+        <path d="M488 190.0 H524.0 V98.0 H560" class=""/><rect class="edge-cap" x="557.5" y="95.5" width="5" height="5"/>
+        <path d="M756 98.0 H828" class=""/><rect class="edge-cap" x="825.5" y="95.5" width="5" height="5"/>
+        <path d="M658 268 V145" class="is-quiet"/><rect class="edge-cap" x="655.5" y="137.5" width="5" height="5"/>
+        <path d="M390.0 320 H390.0 V232 H390.0" class=""/><rect class="edge-cap" x="387.5" y="229.5" width="5" height="5"/>
+        </svg>
+      <a class="node" href="#" style="left:24px;top:168px" data-shared>
+        <div class="node-head">
+          <svg class="icon"><use href="#globe"/></svg>
+          <span class="node-kind">domain</span>
+        </div>
+        <div class="node-body">
+          <div class="node-name"><span class="dot dot-healthy"></span>jerry.oflabs.dev</div>
+          <div class="node-meta">cloudflare / A</div>
+        </div>
+      </a>
+      <a class="node" href="#" style="left:292px;top:148px">
+        <div class="node-head">
+          <svg class="icon"><use href="#package"/></svg>
+          <span class="node-kind">app</span>
+        </div>
+        <div class="node-body">
+          <div class="node-name"><span class="dot dot-failed"></span>jerry</div>
+          <div class="node-meta">r48 / restarting</div>
+        </div>
+      </a>
+      <a class="node" href="#" style="left:560px;top:56px">
+        <div class="node-head">
+          <svg class="icon"><use href="#database"/></svg>
+          <span class="node-kind">database</span>
+        </div>
+        <div class="node-body">
+          <div class="node-name"><span class="dot dot-healthy"></span>db-jerry</div>
+          <div class="node-meta">postgres 16</div>
+        </div>
+      </a>
+      <a class="node" href="#" style="left:828px;top:56px">
+        <div class="node-head">
+          <svg class="icon"><use href="#disk"/></svg>
+          <span class="node-kind">volume</span>
+        </div>
+        <div class="node-body">
+          <div class="node-name"><span class="dot dot-healthy"></span>db-jerry-data</div>
+          <div class="node-meta">2.1 GB</div>
+        </div>
+      </a>
+      <a class="node" href="#" style="left:560px;top:268px">
+        <div class="node-head">
+          <svg class="icon"><use href="#clock"/></svg>
+          <span class="node-kind">cron</span>
+        </div>
+        <div class="node-body">
+          <div class="node-name"><span class="dot dot-healthy"></span>nightly-backup</div>
+          <div class="node-meta">03:00 Europe/Berlin</div>
+        </div>
+      </a>
+      <a class="node" href="#" style="left:292px;top:320px" data-shared>
+        <div class="node-head">
+          <svg class="icon"><use href="#globe"/></svg>
+          <span class="node-kind">proxy</span>
+        </div>
+        <div class="node-body">
+          <div class="node-name"><span class="dot dot-healthy"></span>traefik</div>
+          <div class="node-meta">:80 :443</div>
+        </div>
+      </a>
+      </div>
+      <div class="canvas-legend">
+        <span><i></i> carries traffic</span>
+        <span><i class="q"></i> writes to / reads from</span>
+        <span><b></b> shared with the server</span>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  fetch('assets/img/icons.svg').then(function (r) { return r.text(); })
+    .then(function (t) { document.querySelector('[data-sprite]').innerHTML = t; });
+</script>
+</body>
+</html>

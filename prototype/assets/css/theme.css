@@ -703,3 +703,81 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 /* Icon variant. */
 .kv-icon .kv-k { display: flex; align-items: center; gap: 6px; }
 .kv-icon .kv-k .icon { width: 13px; height: 13px; color: var(--ink-40); }
+
+/* --------------------------------------------------------------------------
+   Canvas — a project drawn as its dependency graph.
+
+   Not a visualisation bolted onto a list: Link is a first-class entity in the
+   model, so this is a direct rendering of stored data. What connects to what
+   is the thing you actually need to know when a deploy breaks, and it is the
+   one view a table cannot give you.
+
+   Edges are orthogonal, never curved. Right angles are the system's whole
+   grammar, and in a dense graph an axis-aligned path is easier to trace than a
+   bezier — you follow it by eye without losing which end you started from.
+   -------------------------------------------------------------------------- */
+
+.canvas {
+  position: relative;
+  min-height: 460px;
+  overflow: auto;
+  /* A faint grid, so nodes read as placed rather than floating. */
+  background-image:
+    linear-gradient(var(--ink-04) 1px, transparent 1px),
+    linear-gradient(90deg, var(--ink-04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.canvas-edges { position: absolute; inset: 0; pointer-events: none; }
+.canvas-edges path { fill: none; stroke: var(--ink-20); stroke-width: 1; }
+.canvas-edges .edge-cap { fill: var(--ink-40); }
+/* A dashed edge is a relationship that does not carry traffic — a backup
+   writing to a volume, a cron touching a database. */
+.canvas-edges .is-quiet { stroke-dasharray: 3 3; }
+
+.node {
+  position: absolute;
+  width: 196px;
+  background: var(--color-sheet);
+  border: 1px solid var(--ink-12);
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: border-color 0.14s var(--ease);
+}
+.node:hover { border-color: var(--ink-40); }
+
+.node-head {
+  display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  border-bottom: 1px solid var(--ink-12);
+}
+.node-head .icon { width: 14px; height: 14px; color: var(--ink-40); }
+.node-kind {
+  font-family: var(--font-mono); font-size: var(--t-micro);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-40);
+}
+.node-body { padding: var(--s3); }
+.node-name { display: flex; align-items: center; gap: var(--s2); font-weight: 500; font-size: var(--t-base); }
+.node-meta {
+  margin-top: 4px; font-family: var(--font-mono);
+  font-size: var(--t-sm); color: var(--ink-40);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Resources that live outside the project — shared by the whole server —
+   are drawn with a dashed outline so ownership is visible at a glance. */
+.node[data-shared] { border-style: dashed; }
+.node[data-shared] .node-head { border-bottom-style: dashed; }
+
+.canvas-legend {
+  display: flex; gap: var(--s5); flex-wrap: wrap;
+  padding: var(--s3) var(--s5);
+  border-top: 1px solid var(--ink-12);
+  font-family: var(--font-mono); font-size: var(--t-micro);
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-40);
+}
+.canvas-legend span { display: flex; align-items: center; gap: var(--s2); }
+.canvas-legend i { display: block; width: 20px; height: 1px; background: var(--ink-20); }
+.canvas-legend i.q { background: none; border-top: 1px dashed var(--ink-20); }
+.canvas-legend b { display: block; width: 12px; height: 12px; border: 1px dashed var(--ink-40); }
