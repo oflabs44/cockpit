@@ -209,10 +209,15 @@
 /* --------------------------------------------------------------------------
    Tab strip — sub-navigation for the object you are currently on.
 
-   Exactly one strip is ever visible, and it always belongs to the deepest
-   thing in the breadcrumb. Going from a server into an app REPLACES this
-   strip rather than stacking a second one, which is what keeps the shell to
-   one sidebar and one strip at any depth.
+   Exactly one strip is ever visible, and it belongs to the deepest object
+   that HAS sub-views. Going from a server into a project REPLACES the strip
+   rather than stacking a second one, which keeps the shell to one sidebar and
+   one strip at any depth.
+
+   A leaf — a deployment, a single log — has no sub-views, so it keeps its
+   parent's strip with the tab it lives under still marked. Dropping the strip
+   there makes the page read as having left the hierarchy, and removes the
+   one-click route back to its siblings.
    -------------------------------------------------------------------------- */
 
 .tabs {
@@ -281,10 +286,15 @@
 /* --------------------------------------------------------------------------
    Tab strip — sub-navigation for the object you are currently on.
 
-   Exactly one strip is ever visible, and it always belongs to the deepest
-   thing in the breadcrumb. Going from a server into an app REPLACES this
-   strip rather than stacking a second one, which is what keeps the shell to
-   one sidebar and one strip at any depth.
+   Exactly one strip is ever visible, and it belongs to the deepest object
+   that HAS sub-views. Going from a server into a project REPLACES the strip
+   rather than stacking a second one, which keeps the shell to one sidebar and
+   one strip at any depth.
+
+   A leaf — a deployment, a single log — has no sub-views, so it keeps its
+   parent's strip with the tab it lives under still marked. Dropping the strip
+   there makes the page read as having left the hierarchy, and removes the
+   one-click route back to its siblings.
    -------------------------------------------------------------------------- */
 
 .tabs {

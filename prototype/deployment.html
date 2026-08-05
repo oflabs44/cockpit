@@ -152,6 +152,17 @@
     <!-- The server's strip is REPLACED, not stacked. One sidebar, one strip,
          always belonging to the deepest thing in the breadcrumb. -->
 
+    <!-- A leaf keeps its parent's strip rather than dropping it. A deployment
+         has no sub-views of its own, but losing the tabs would make the page
+         read as having left the hierarchy instead of sitting inside it — and
+         the tab you came through stays marked, so the way back is visible. -->
+    <nav class="tabs">
+      <a href="project.html">Overview</a>
+      <a href="deployments.html" aria-current="page">Deployments</a>
+      <a href="#">Variables</a>
+      <a href="#">Settings</a>
+    </nav>
+
     <div class="summary" style="padding:var(--s5) var(--s5) 0">
       <div class="card"><div class="card-section">
         <div class="kv kv-inline">
