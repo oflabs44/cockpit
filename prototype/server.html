@@ -34,17 +34,9 @@
      different kinds of rule competing on this screen. */
   .sec { padding: var(--s6) var(--s5) var(--s3); display: flex; align-items: baseline; gap: var(--s3); }
 
-  .summary { padding: var(--s5) var(--s5) 0; }
-  .summary-head {
-    display: flex; align-items: baseline; gap: var(--s3);
-    margin-bottom: var(--s4);
-  }
-  .summary-head .spacer { flex: 1; }
-  .conn {
-    display: flex; align-items: center; gap: var(--s2);
-    font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-40);
-  }
-  .conn .sep { opacity: .45; }
+  /* No heading here: the tab already says Overview, and repeating it spends a
+     line saying nothing. */
+  .summary { padding: var(--s5); }
   .view { display: none; }
   .view[data-active] { display: block; }
   .view.is-flex[data-active] { display: flex; flex-direction: column; flex: 1; }
@@ -166,16 +158,19 @@
       <div class="view" data-view-name="populated" data-active>
 
         <div class="summary">
-          <div class="summary-head">
-            <span class="label">Overview</span>
-            <span class="spacer"></span>
-            <span class="conn" data-conn><span class="dot dot-healthy"></span><span>connected</span><span class="sep">&middot;</span><span>up 84d</span><span class="sep">&middot;</span><span>cockpitd 0.4.1</span></span>
-          </div>
-          <div class="stats">
-            <div class="stat"><div class="stat-label">cpu</div><div class="stat-value">38%</div><div class="stat-sub">8 vCPU</div></div>
-            <div class="stat"><div class="stat-label">memory</div><div class="stat-value">71%</div><div class="stat-sub">5.6 / 8 GB</div></div>
-            <div class="stat"><div class="stat-label">disk</div><div class="stat-value">52%</div><div class="stat-sub">24 / 46 GB</div></div>
-            <div class="stat"><div class="stat-label">resources</div><div class="stat-value">6</div><div class="stat-sub">2 apps &middot; 1 database</div></div>
+          <div class="kv">
+            <div class="kv-item"><div class="kv-k">status</div><div class="kv-v"><span class="dot dot-healthy"></span>connected</div></div>
+            <div class="kv-item"><div class="kv-k">provider</div><div class="kv-v">hetzner</div></div>
+            <div class="kv-item"><div class="kv-k">ip</div><div class="kv-v">95.216.44.12</div></div>
+            <div class="kv-item"><div class="kv-k">size</div><div class="kv-v">cpx31</div></div>
+            <div class="kv-item"><div class="kv-k">arch</div><div class="kv-v">arm64</div></div>
+            <div class="kv-item"><div class="kv-k">os</div><div class="kv-v">ubuntu 24.04</div></div>
+            <div class="kv-item"><div class="kv-k">cpu</div><div class="kv-v">38%</div></div>
+            <div class="kv-item"><div class="kv-k">memory</div><div class="kv-v">71%</div></div>
+            <div class="kv-item"><div class="kv-k">disk</div><div class="kv-v">52%</div></div>
+            <div class="kv-item"><div class="kv-k">uptime</div><div class="kv-v">84d</div></div>
+            <div class="kv-item"><div class="kv-k">daemon</div><div class="kv-v">cockpitd 0.4.1</div></div>
+            <div class="kv-item"><div class="kv-k">resources</div><div class="kv-v">6</div></div>
           </div>
         </div>
 
@@ -244,16 +239,19 @@
       <div class="view is-flex" data-view-name="empty">
 
         <div class="summary">
-          <div class="summary-head">
-            <span class="label">Overview</span>
-            <span class="spacer"></span>
-            <span class="conn" data-conn><span class="dot dot-healthy"></span><span>connected</span><span class="sep">&middot;</span><span>up 12d</span><span class="sep">&middot;</span><span>cockpitd 0.4.1</span></span>
-          </div>
-          <div class="stats">
-            <div class="stat"><div class="stat-label">cpu</div><div class="stat-value">4%</div><div class="stat-sub">4 vCPU</div></div>
-            <div class="stat"><div class="stat-label">memory</div><div class="stat-value">11%</div><div class="stat-sub">0.9 / 8 GB</div></div>
-            <div class="stat"><div class="stat-label">disk</div><div class="stat-value">9%</div><div class="stat-sub">4 / 46 GB</div></div>
-            <div class="stat"><div class="stat-label">resources</div><div class="stat-value">0</div><div class="stat-sub">nothing deployed</div></div>
+          <div class="kv">
+            <div class="kv-item"><div class="kv-k">status</div><div class="kv-v"><span class="dot dot-stopped"></span>no contact</div></div>
+            <div class="kv-item"><div class="kv-k">provider</div><div class="kv-v">hetzner</div></div>
+            <div class="kv-item"><div class="kv-k">ip</div><div class="kv-v">159.69.120.33</div></div>
+            <div class="kv-item"><div class="kv-k">size</div><div class="kv-v">cx22</div></div>
+            <div class="kv-item"><div class="kv-k">arch</div><div class="kv-v">amd64</div></div>
+            <div class="kv-item"><div class="kv-k">os</div><div class="kv-v">ubuntu 24.04</div></div>
+            <div class="kv-item"><div class="kv-k">cpu</div><div class="kv-v" data-none>&mdash;</div></div>
+            <div class="kv-item"><div class="kv-k">memory</div><div class="kv-v" data-none>&mdash;</div></div>
+            <div class="kv-item"><div class="kv-k">disk</div><div class="kv-v" data-none>&mdash;</div></div>
+            <div class="kv-item"><div class="kv-k">last seen</div><div class="kv-v">3d ago</div></div>
+            <div class="kv-item"><div class="kv-k">daemon</div><div class="kv-v">cockpitd 0.4.1</div></div>
+            <div class="kv-item"><div class="kv-k">resources</div><div class="kv-v">2</div></div>
           </div>
         </div>
 
@@ -288,16 +286,19 @@
       <div class="view" data-view-name="disconnected">
 
         <div class="summary">
-          <div class="summary-head">
-            <span class="label">Overview</span>
-            <span class="spacer"></span>
-            <span class="conn" data-conn><span class="dot dot-stopped"></span><span>no contact</span><span class="sep">&middot;</span><span>last seen 3d ago</span></span>
-          </div>
-          <div class="stats">
-            <div class="stat"><div class="stat-label">cpu</div><div class="stat-value" data-none>&mdash;</div><div class="stat-sub">no data</div></div>
-            <div class="stat"><div class="stat-label">memory</div><div class="stat-value" data-none>&mdash;</div><div class="stat-sub">no data</div></div>
-            <div class="stat"><div class="stat-label">disk</div><div class="stat-value" data-none>&mdash;</div><div class="stat-sub">no data</div></div>
-            <div class="stat"><div class="stat-label">resources</div><div class="stat-value">2</div><div class="stat-sub">last known</div></div>
+          <div class="kv">
+            <div class="kv-item"><div class="kv-k">status</div><div class="kv-v"><span class="dot dot-healthy"></span>connected</div></div>
+            <div class="kv-item"><div class="kv-k">provider</div><div class="kv-v">hetzner</div></div>
+            <div class="kv-item"><div class="kv-k">ip</div><div class="kv-v">65.108.13.204</div></div>
+            <div class="kv-item"><div class="kv-k">size</div><div class="kv-v">ccx13</div></div>
+            <div class="kv-item"><div class="kv-k">arch</div><div class="kv-v">amd64</div></div>
+            <div class="kv-item"><div class="kv-k">os</div><div class="kv-v">ubuntu 24.04</div></div>
+            <div class="kv-item"><div class="kv-k">cpu</div><div class="kv-v">4%</div></div>
+            <div class="kv-item"><div class="kv-k">memory</div><div class="kv-v">11%</div></div>
+            <div class="kv-item"><div class="kv-k">disk</div><div class="kv-v">9%</div></div>
+            <div class="kv-item"><div class="kv-k">uptime</div><div class="kv-v">12d</div></div>
+            <div class="kv-item"><div class="kv-k">daemon</div><div class="kv-v">cockpitd 0.4.1</div></div>
+            <div class="kv-item"><div class="kv-k">resources</div><div class="kv-v">0</div></div>
           </div>
         </div>
 

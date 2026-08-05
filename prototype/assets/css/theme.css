@@ -651,24 +651,23 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 .table .muted { color: var(--ink-40); font-family: var(--font-mono); font-size: var(--t-sm); }
 
 /* --------------------------------------------------------------------------
-   Stats — the summary band at the top of an object's page. A short rule over
-   each column, a label, the figure, and one line of context.
+   Key/value grid — the facts at the head of an object's page.
 
-   A rule per column rather than a box per column: boxes would add four
-   outlines to a screen that already has tabs, a table header, and a rule per
-   row. The rule is the smallest mark that still groups a column, and it keeps
-   the band reading as content rather than chrome.
+   No rules, no boxes, no oversized figures. This is reference material you
+   scan for one value, not a dashboard you read: a server's CPU has no
+   week-over-week trend worth a headline number, and every rule or outline
+   added here competes with the table below it.
    -------------------------------------------------------------------------- */
 
-.stats {
+.kv {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--s5);
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: var(--s4) var(--s5);
 }
 
-.stat { border-top: 1px solid var(--ink-20); padding-top: var(--s3); min-width: 0; }
+.kv-item { min-width: 0; }
 
-.stat-label {
+.kv-k {
   font-family: var(--font-mono);
   font-size: var(--t-micro);
   letter-spacing: 0.08em;
@@ -676,19 +675,15 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
   color: var(--ink-40);
 }
 
-.stat-value {
-  font-size: var(--t-2xl);
-  font-weight: 600;
-  letter-spacing: -0.025em;
-  line-height: 1.15;
-  margin-top: var(--s2);
-}
-.stat-value[data-hot] { color: var(--color-warn); }
-.stat-value[data-none] { color: var(--ink-20); }
-
-.stat-sub {
-  margin-top: 5px;
+.kv-v {
+  margin-top: 4px;
   font-family: var(--font-mono);
-  font-size: var(--t-sm);
-  color: var(--ink-40);
+  font-size: var(--t-base);
+  color: var(--ink-80);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-width: 0;
 }
+.kv-v[data-hot] { color: var(--color-warn); }
+.kv-v[data-none] { color: var(--ink-20); }
