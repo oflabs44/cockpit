@@ -174,28 +174,24 @@
       <span class="edge-label" style="left:1058px;top:357px">backs up</span>
       <span class="edge-label" style="left:758px;top:425px">uses</span>
       <a class="node" href="#" style="left:40px;top:250px" data-shared>
-        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
           <div class="node-name"><svg class="icon"><use href="#globe"/></svg>jerry.oflabs.dev<span class="node-tag">shared</span></div>
           <div class="node-state"><span class="dot dot-healthy"></span>cloudflare<span class="node-kind">domain</span></div>
         </div>
       </a>
       <a class="node" href="#" style="left:340px;top:250px" data-shared>
-        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
           <div class="node-name"><svg class="icon"><use href="#globe"/></svg>traefik<span class="node-tag">shared</span></div>
           <div class="node-state"><span class="dot dot-healthy"></span>:80 :443<span class="node-kind">proxy</span></div>
         </div>
       </a>
       <a class="node" href="#" style="left:640px;top:250px">
-        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
           <div class="node-name"><svg class="icon"><use href="#package"/></svg>jerry</div>
           <div class="node-state"><span class="dot dot-failed"></span>restarting / r48<span class="node-kind">app</span></div>
         </div>
       </a>
       <a class="node" href="#" style="left:940px;top:150px">
-        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
           <div class="node-name"><svg class="icon"><use href="#database"/></svg>db-jerry</div>
           <div class="node-state"><span class="dot dot-healthy"></span>postgres 16<span class="node-kind">database</span></div>
@@ -203,14 +199,12 @@
         <div class="node-attached"><svg class="icon"><use href="#disk"/></svg><span>db-jerry-data</span><span style="margin-left:auto">2.1 GB</span></div>
       </a>
       <a class="node" href="#" style="left:940px;top:430px">
-        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
           <div class="node-name"><svg class="icon"><use href="#clock"/></svg>nightly-backup</div>
           <div class="node-state"><span class="dot dot-healthy"></span>ran 6h ago<span class="node-kind">cron</span></div>
         </div>
       </a>
       <a class="node" href="#" style="left:640px;top:470px" data-draft>
-        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
           <div class="node-name"><svg class="icon"><use href="#database"/></svg>cache<span class="node-tag" style="color:var(--color-info);border-color:var(--color-info)">draft</span></div>
           <div class="node-state"><span class="dot dot-pending"></span>redis 7<span class="node-kind">database</span></div>
@@ -220,7 +214,7 @@
       <!-- Authoring produces a plan, never a silent mutation (ADR-0003). -->
       <div class="canvas-draft">
         <span class="dot dot-pending"></span>
-        <span>1 unapplied change &mdash; add <span class="mono">cache</span> and link it to <span class="mono">jerry</span></span>
+        <span>1 unapplied change &mdash; add <span class="mono">cache</span>, bound to <span class="mono">jerry</span></span>
         <span class="spacer"></span>
         <button class="btn btn-ghost btn-sm">Discard</button>
         <button class="btn btn-primary btn-sm">Review plan</button>

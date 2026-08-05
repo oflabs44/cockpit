@@ -815,8 +815,8 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 /* --------------------------------------------------------------------------
    Canvas authoring.
 
-   The canvas is where a project is built, not just inspected: you add a
-   component, drag a connection, and the graph is the editor. Two consequences
+   The canvas authors COMPOSITION, not connections: you add a component,
+   remove one, and arrange the graph. Connections are derived (see below). Two consequences
    the rest of the system has to absorb —
 
    1. Node positions become persisted state. They are the operator's mental
@@ -838,22 +838,16 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 }
 .canvas-tools .btn { background: var(--color-sheet); }
 
-/* Ports appear on hover. Hidden at rest so an idle canvas reads as a diagram
-   rather than a wiring board. */
-.node-port {
-  position: absolute;
-  width: 9px; height: 9px;
-  background: var(--color-paper);
-  border: 1px solid var(--ink-40);
-  top: 50%;
-  opacity: 0;
-  transition: opacity 0.12s var(--ease);
-  cursor: crosshair;
-}
-.node-port.in  { left: -5px; transform: translateY(-50%); }
-.node-port.out { right: -5px; transform: translateY(-50%); }
-.node:hover .node-port { opacity: 1; }
-.node-port:hover { background: var(--color-ink); border-color: var(--color-ink); }
+/* No connection ports, deliberately. Edges are DERIVED from links, and a link
+   is created where it is configured — binding a database to an app — not by a
+   gesture. Drag-to-connect demos well and costs a lot: ports, live routing,
+   validation of which kinds may link to which, undo — and a drag still cannot
+   say WHICH link it is (uses vs backs_up), so it needs a follow-up menu that a
+   checkbox in the app's config would have done better.
+
+   This is Railway's split too: their canvas adds and arranges services, but
+   connections come from reference variables (${{SERVICE.VAR}}) and the line
+   simply appears. Ours is the same, with Link in place of the variable.
 
 /* A node placed but not yet applied — it exists in the draft plan only. */
 .node[data-draft] { border-style: dashed; border-color: var(--color-info); }
