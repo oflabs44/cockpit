@@ -733,9 +733,8 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 .canvas-edges { position: absolute; inset: 0; pointer-events: none; }
 .canvas-edges path { fill: none; stroke: var(--ink-20); stroke-width: 1; }
 .canvas-edges .edge-cap { fill: var(--ink-40); }
-/* A dashed edge is a relationship that carries no traffic — a backup writing
-   to a volume, a cron touching a database. */
-.canvas-edges .is-quiet { stroke-dasharray: 3 4; }
+/* Dashed = part of the draft plan, not yet applied. Matches the draft node. */
+.canvas-edges .is-draft { stroke: var(--color-info); stroke-dasharray: 3 4; }
 
 .node {
   position: absolute;
@@ -781,23 +780,13 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 .node[data-shared] { border-style: dashed; }
 .node[data-shared] .node-attached { border-top-style: dashed; }
 
-/* Edges say what they are, on the edge. A legend under the canvas made you
-   look away from the graph to read the graph, and it was covering for an
-   encoding too subtle to stand alone — solid versus dashed cannot carry
-   "serves HTTP" versus "backs up" on its own. */
-.edge-label {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  padding: 0 6px;
-  background: var(--color-paper);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-40);
-  white-space: nowrap;
-  pointer-events: none;
-}
+/* Edges carry no labels. A domain wired to a proxy wired to an app wired to a
+   database explains itself — naming the relationship restates what the two
+   node kinds already say. The legend that preceded these labels was the same
+   mistake in a different place.
+
+   So dashing means exactly one thing: not applied yet. It is not a second
+   vocabulary of relationship types. */
 
 /* Shared resources say so, rather than relying on a dashed outline the reader
    has to have been told about. */
