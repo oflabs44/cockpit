@@ -29,8 +29,22 @@
   .metric[data-hot] .icon, .metric[data-hot] .v { color: var(--color-warn); }
   .metrics { display: flex; gap: var(--s4); }
 
-  .sec { padding: var(--s5) var(--s5) var(--s3); display: flex; align-items: baseline; gap: var(--s3); }
-  .sec .hr { flex: 1; }
+  /* A label, not a ruled divider. The table below already declares where it
+     starts with its own header rule — a second line above it was one of five
+     different kinds of rule competing on this screen. */
+  .sec { padding: var(--s6) var(--s5) var(--s3); display: flex; align-items: baseline; gap: var(--s3); }
+
+  .summary { padding: var(--s5) var(--s5) 0; }
+  .summary-head {
+    display: flex; align-items: baseline; gap: var(--s3);
+    margin-bottom: var(--s4);
+  }
+  .summary-head .spacer { flex: 1; }
+  .conn {
+    display: flex; align-items: center; gap: var(--s2);
+    font-family: var(--font-mono); font-size: var(--t-sm); color: var(--ink-40);
+  }
+  .conn .sep { opacity: .45; }
   .view { display: none; }
   .view[data-active] { display: block; }
   .view.is-flex[data-active] { display: flex; flex-direction: column; flex: 1; }
@@ -146,30 +160,26 @@
       <a href="#">Settings</a>
     </nav>
 
-    <!-- ============ vitals ============ -->
-    <!-- Live state only. Provider, IP, size, arch, and OS moved to Settings:
-         they never change, and a permanent strip of them spends the top of
-         every page on facts you look up once. -->
-    <div class="vitals" data-vitals>
-      <div class="metrics" data-metrics>
-        <span class="metric"><svg class="icon icon-sm"><use href="#cpu"/></svg><span class="v">38%</span></span>
-        <span class="metric"><svg class="icon icon-sm"><use href="#memory"/></svg><span class="v">71%</span></span>
-        <span class="metric"><svg class="icon icon-sm"><use href="#disk"/></svg><span class="v">52%</span></span>
-      </div>
-      <span class="spacer"></span>
-      <div class="facts" data-conn>
-        <span class="dot dot-healthy"></span><span>connected</span>
-        <span class="sep">&middot;</span><span>up 84d</span>
-        <span class="sep">&middot;</span><span>cockpitd 0.4.1</span>
-      </div>
-    </div>
-
     <div class="content">
 
       <!-- ========================= populated ========================= -->
       <div class="view" data-view-name="populated" data-active>
 
-        <div class="sec"><span class="label">Resources</span><hr class="hr"></div>
+        <div class="summary">
+          <div class="summary-head">
+            <span class="label">Overview</span>
+            <span class="spacer"></span>
+            <span class="conn" data-conn><span class="dot dot-healthy"></span><span>connected</span><span class="sep">&middot;</span><span>up 84d</span><span class="sep">&middot;</span><span>cockpitd 0.4.1</span></span>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="stat-label">cpu</div><div class="stat-value">38%</div><div class="stat-sub">8 vCPU</div></div>
+            <div class="stat"><div class="stat-label">memory</div><div class="stat-value">71%</div><div class="stat-sub">5.6 / 8 GB</div></div>
+            <div class="stat"><div class="stat-label">disk</div><div class="stat-value">52%</div><div class="stat-sub">24 / 46 GB</div></div>
+            <div class="stat"><div class="stat-label">resources</div><div class="stat-value">6</div><div class="stat-sub">2 apps &middot; 1 database</div></div>
+          </div>
+        </div>
+
+        <div class="sec"><span class="label">Resources</span></div>
 
         <!-- One table, not a section per type. Resources are one polymorphic
              kind, so a new kind never adds a section (ADR-0006). -->
@@ -232,6 +242,21 @@
 
       <!-- ========================= no resources ========================= -->
       <div class="view is-flex" data-view-name="empty">
+
+        <div class="summary">
+          <div class="summary-head">
+            <span class="label">Overview</span>
+            <span class="spacer"></span>
+            <span class="conn" data-conn><span class="dot dot-healthy"></span><span>connected</span><span class="sep">&middot;</span><span>up 12d</span><span class="sep">&middot;</span><span>cockpitd 0.4.1</span></span>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="stat-label">cpu</div><div class="stat-value">4%</div><div class="stat-sub">4 vCPU</div></div>
+            <div class="stat"><div class="stat-label">memory</div><div class="stat-value">11%</div><div class="stat-sub">0.9 / 8 GB</div></div>
+            <div class="stat"><div class="stat-label">disk</div><div class="stat-value">9%</div><div class="stat-sub">4 / 46 GB</div></div>
+            <div class="stat"><div class="stat-label">resources</div><div class="stat-value">0</div><div class="stat-sub">nothing deployed</div></div>
+          </div>
+        </div>
+
         <div class="empty">
           <div class="empty-art">
             <!-- Solid = what exists (the box). Dashed = what is absent. -->
@@ -261,6 +286,21 @@
 
       <!-- ========================= disconnected ========================= -->
       <div class="view" data-view-name="disconnected">
+
+        <div class="summary">
+          <div class="summary-head">
+            <span class="label">Overview</span>
+            <span class="spacer"></span>
+            <span class="conn" data-conn><span class="dot dot-stopped"></span><span>no contact</span><span class="sep">&middot;</span><span>last seen 3d ago</span></span>
+          </div>
+          <div class="stats">
+            <div class="stat"><div class="stat-label">cpu</div><div class="stat-value" data-none>&mdash;</div><div class="stat-sub">no data</div></div>
+            <div class="stat"><div class="stat-label">memory</div><div class="stat-value" data-none>&mdash;</div><div class="stat-sub">no data</div></div>
+            <div class="stat"><div class="stat-label">disk</div><div class="stat-value" data-none>&mdash;</div><div class="stat-sub">no data</div></div>
+            <div class="stat"><div class="stat-label">resources</div><div class="stat-value">2</div><div class="stat-sub">last known</div></div>
+          </div>
+        </div>
+
         <!-- Kept inline, unlike notifications: this explains why everything
              below is stale. It is the state of the page you are on, not an
              event that happened to arrive. -->
@@ -284,7 +324,6 @@
         <div class="sec">
           <span class="label">Resources</span>
           <span class="label" style="color:var(--ink-40)">last known &mdash; 3d ago</span>
-          <hr class="hr">
         </div>
 
         <!-- Rows keep their last-known state but lose their status dots: cockpit
@@ -352,12 +391,6 @@
 
   var NAMES = { populated: 'prod-fsn1', empty: 'build-hel', disconnected: 'lab-nbg1', enrolling: 'store-hel' };
   var DOTS  = { populated: 'dot-failed', empty: 'dot-healthy', disconnected: 'dot-stopped', enrolling: '' };
-  var CONN = {
-    populated:   '<span class="dot dot-healthy"></span><span>connected</span><span class="sep">&middot;</span><span>up 84d</span><span class="sep">&middot;</span><span>cockpitd 0.4.1</span>',
-    empty:       '<span class="dot dot-healthy"></span><span>connected</span><span class="sep">&middot;</span><span>up 12d</span><span class="sep">&middot;</span><span>cockpitd 0.4.1</span>',
-    disconnected:'<span class="dot dot-stopped"></span><span>no contact</span><span class="sep">&middot;</span><span>last seen 3d ago</span>',
-    enrolling:   '<span>awaiting first contact</span>'
-  };
 
   function show(name) {
     document.querySelectorAll('.view').forEach(function (v) {
@@ -368,12 +401,9 @@
     var crumb = document.querySelector('.crumbs .here');
     crumb.innerHTML = (DOTS[name] ? '<span class="dot ' + DOTS[name] + '"></span>' : '') + NAMES[name];
 
-    document.querySelector('[data-conn]').innerHTML = CONN[name];
 
-    // No metrics and no agent version until the daemon has actually reported.
-    // Showing stale bars would be inventing data.
+
     var live = name === 'populated' || name === 'empty';
-    document.querySelector('[data-metrics]').style.display = live ? '' : 'none';
 
     // Nothing can be applied to a box cockpit cannot reach.
     var deploy = document.querySelector('[data-deploy]');
