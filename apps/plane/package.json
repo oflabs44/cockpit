@@ -7,11 +7,13 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "migrate": "wrangler d1 migrations apply cockpit-plane --local",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
     "hono": "^4.12.33",
     "@hono/zod-openapi": "^1.5.1",
+    "drizzle-orm": "1.0.0-rc.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {

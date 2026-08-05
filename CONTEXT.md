@@ -256,3 +256,7 @@ resolved by the daemon on the box and never held by the plane (#15, ADR-0008).
   this means a failing container is the only red thing on screen.
 - **Naming**: resources are `(server, kind, name)`-unique. Names are
   kebab-case, stable, and operator-chosen.
+- **Route files**: one file per route under `apps/plane/src/routes/`, holding
+  both the `createRoute` definition and its handler so they share types by
+  proximity. Both are exported; `app.ts` only wires the pairs together
+  (`app.openapi(route, handler)`) and stays a table of contents.

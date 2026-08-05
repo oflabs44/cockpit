@@ -1,4 +1,4 @@
-.PHONY: help install plane-dev plane-test plane-typecheck
+.PHONY: help install plane-dev plane-test plane-typecheck plane-migrate
 
 help:
 	@grep -E "^[a-zA-Z_-]+:.*?## " $(MAKEFILE_LIST) | awk -F ":.*?## " "{printf \"%-20s %s\\n\", \$$1, \$$2}"
@@ -14,3 +14,6 @@ plane-test: ## run the plane's test suite
 
 plane-typecheck: ## typecheck the plane
 	pnpm --filter @oflabs44/cockpit-plane typecheck
+
+plane-migrate: ## apply D1 migrations to the plane's local dev database
+	pnpm --filter @oflabs44/cockpit-plane migrate
