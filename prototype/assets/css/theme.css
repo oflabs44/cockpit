@@ -781,15 +781,91 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 .node[data-shared] { border-style: dashed; }
 .node[data-shared] .node-attached { border-top-style: dashed; }
 
-.canvas-legend {
-  display: flex; gap: var(--s5); flex-wrap: wrap;
+/* Edges say what they are, on the edge. A legend under the canvas made you
+   look away from the graph to read the graph, and it was covering for an
+   encoding too subtle to stand alone — solid versus dashed cannot carry
+   "serves HTTP" versus "backs up" on its own. */
+.edge-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 0 6px;
+  background: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Shared resources say so, rather than relying on a dashed outline the reader
+   has to have been told about. */
+.node-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  border: 1px solid var(--ink-20);
+  padding: 1px 5px;
+  margin-left: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Canvas authoring.
+
+   The canvas is where a project is built, not just inspected: you add a
+   component, drag a connection, and the graph is the editor. Two consequences
+   the rest of the system has to absorb —
+
+   1. Node positions become persisted state. They are the operator's mental
+      map, so they cannot be recomputed on every load; a project carries a
+      layout, and a newly added node gets an auto-placed position that the
+      operator can then move.
+   2. Authoring still produces a Plan (ADR-0003). Dragging a connection
+      changes env injection and start order, so it is a change like any other:
+      you draw it, cockpit shows the diff, you apply. The canvas is a plan
+      composer, not a live mutation surface — which is what keeps "every
+      mutation is a reviewable plan" true rather than aspirational.
+   -------------------------------------------------------------------------- */
+
+.canvas-tools {
+  position: absolute;
+  top: var(--s4); left: var(--s4);
+  display: flex; gap: var(--s2);
+  z-index: 2;
+}
+.canvas-tools .btn { background: var(--color-sheet); }
+
+/* Ports appear on hover. Hidden at rest so an idle canvas reads as a diagram
+   rather than a wiring board. */
+.node-port {
+  position: absolute;
+  width: 9px; height: 9px;
+  background: var(--color-paper);
+  border: 1px solid var(--ink-40);
+  top: 50%;
+  opacity: 0;
+  transition: opacity 0.12s var(--ease);
+  cursor: crosshair;
+}
+.node-port.in  { left: -5px; transform: translateY(-50%); }
+.node-port.out { right: -5px; transform: translateY(-50%); }
+.node:hover .node-port { opacity: 1; }
+.node-port:hover { background: var(--color-ink); border-color: var(--color-ink); }
+
+/* A node placed but not yet applied — it exists in the draft plan only. */
+.node[data-draft] { border-style: dashed; border-color: var(--color-info); }
+.node[data-draft] .node-kind { color: var(--color-info); }
+
+/* When the canvas holds unapplied changes, the bar says so and offers the
+   diff. Authoring never silently mutates a box. */
+.canvas-draft {
+  display: flex; align-items: center; gap: var(--s3);
   padding: var(--s3) var(--s5);
   border-top: 1px solid var(--ink-12);
-  font-family: var(--font-mono); font-size: var(--t-micro);
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-40);
+  font-size: var(--t-sm);
   flex: none;
 }
-.canvas-legend span { display: flex; align-items: center; gap: var(--s2); }
-.canvas-legend i { display: block; width: 20px; height: 1px; background: var(--ink-20); }
-.canvas-legend i.q { background: none; border-top: 1px dashed var(--ink-20); }
-.canvas-legend b { display: block; width: 12px; height: 12px; border: 1px dashed var(--ink-40); }
+.canvas-draft .spacer { flex: 1; }

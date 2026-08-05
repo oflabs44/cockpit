@@ -157,48 +157,73 @@
     <div class="content">
       <div class="content-inner" style="padding:0">
       <div class="canvas">
-        <svg class="canvas-edges" width="1140" height="620" aria-hidden="true">
-          <path d="M296 300.0 H400" class=""/><rect class="edge-cap" x="397.5" y="297.5" width="5" height="5"/>
-          <path d="M636 300.0 H698.0 V206.5 H760" class=""/><rect class="edge-cap" x="757.5" y="204.0" width="5" height="5"/>
-          <path d="M878.0 430 V273" class="is-quiet"/><rect class="edge-cap" x="875.5" y="270.5" width="5" height="5"/>
-          <path d="M518.0 440 V346" class=""/><rect class="edge-cap" x="515.5" y="343.5" width="5" height="5"/>
+        <div class="canvas-tools">
+          <button class="btn btn-ghost btn-sm">+ Add component</button>
+          <button class="btn btn-ghost btn-sm">Fit</button>
+        </div>
+        <svg class="canvas-edges" width="1240" height="640" aria-hidden="true">
+          <path d="M276 316.5 H340" class=""/><rect class="edge-cap" x="337.5" y="314.0" width="5" height="5"/>
+          <path d="M576 316.5 H640" class=""/><rect class="edge-cap" x="637.5" y="314.0" width="5" height="5"/>
+          <path d="M876 316.5 H908.0 V216.5 H940" class=""/><rect class="edge-cap" x="937.5" y="214.0" width="5" height="5"/>
+          <path d="M1058.0 430 V283" class="is-quiet"/><rect class="edge-cap" x="1055.5" y="280.5" width="5" height="5"/>
+          <path d="M758.0 470 V383" class="is-draft"/><rect class="edge-cap" x="755.5" y="380.5" width="5" height="5"/>
         </svg>
-      <a class="node" href="#" style="left:60px;top:254px" data-shared>
+      <span class="edge-label" style="left:308px;top:296px">routes</span>
+      <span class="edge-label" style="left:608px;top:296px">serves</span>
+      <span class="edge-label" style="left:908px;top:258px">uses</span>
+      <span class="edge-label" style="left:1058px;top:357px">backs up</span>
+      <span class="edge-label" style="left:758px;top:425px">uses</span>
+      <a class="node" href="#" style="left:40px;top:250px" data-shared>
+        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
-          <div class="node-name"><svg class="icon"><use href="#globe"/></svg>jerry.oflabs.dev</div>
-          <div class="node-state"><span class="dot dot-healthy"></span>routing to jerry<span class="node-kind">domain</span></div>
+          <div class="node-name"><svg class="icon"><use href="#globe"/></svg>jerry.oflabs.dev<span class="node-tag">shared</span></div>
+          <div class="node-state"><span class="dot dot-healthy"></span>cloudflare<span class="node-kind">domain</span></div>
         </div>
       </a>
-      <a class="node" href="#" style="left:400px;top:254px">
+      <a class="node" href="#" style="left:340px;top:250px" data-shared>
+        <span class="node-port in"></span><span class="node-port out"></span>
+        <div class="node-body">
+          <div class="node-name"><svg class="icon"><use href="#globe"/></svg>traefik<span class="node-tag">shared</span></div>
+          <div class="node-state"><span class="dot dot-healthy"></span>:80 :443<span class="node-kind">proxy</span></div>
+        </div>
+      </a>
+      <a class="node" href="#" style="left:640px;top:250px">
+        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
           <div class="node-name"><svg class="icon"><use href="#package"/></svg>jerry</div>
           <div class="node-state"><span class="dot dot-failed"></span>restarting / r48<span class="node-kind">app</span></div>
         </div>
       </a>
-      <a class="node" href="#" style="left:760px;top:140px">
+      <a class="node" href="#" style="left:940px;top:150px">
+        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
           <div class="node-name"><svg class="icon"><use href="#database"/></svg>db-jerry</div>
           <div class="node-state"><span class="dot dot-healthy"></span>postgres 16<span class="node-kind">database</span></div>
         </div>
         <div class="node-attached"><svg class="icon"><use href="#disk"/></svg><span>db-jerry-data</span><span style="margin-left:auto">2.1 GB</span></div>
       </a>
-      <a class="node" href="#" style="left:760px;top:430px">
+      <a class="node" href="#" style="left:940px;top:430px">
+        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
           <div class="node-name"><svg class="icon"><use href="#clock"/></svg>nightly-backup</div>
           <div class="node-state"><span class="dot dot-healthy"></span>ran 6h ago<span class="node-kind">cron</span></div>
         </div>
       </a>
-      <a class="node" href="#" style="left:400px;top:440px" data-shared>
+      <a class="node" href="#" style="left:640px;top:470px" data-draft>
+        <span class="node-port in"></span><span class="node-port out"></span>
         <div class="node-body">
-          <div class="node-name"><svg class="icon"><use href="#globe"/></svg>traefik</div>
-          <div class="node-state"><span class="dot dot-healthy"></span>:80 :443<span class="node-kind">proxy</span></div>
+          <div class="node-name"><svg class="icon"><use href="#database"/></svg>cache<span class="node-tag" style="color:var(--color-info);border-color:var(--color-info)">draft</span></div>
+          <div class="node-state"><span class="dot dot-pending"></span>redis 7<span class="node-kind">database</span></div>
         </div>
       </a>
       </div>
-      <div class="canvas-legend">
-        <span><i></i> carries traffic</span>
-        <span><i class="q"></i> writes to / reads from</span>
-        <span><b></b> shared with the server</span>
+      <!-- Authoring produces a plan, never a silent mutation (ADR-0003). -->
+      <div class="canvas-draft">
+        <span class="dot dot-pending"></span>
+        <span>1 unapplied change &mdash; add <span class="mono">cache</span> and link it to <span class="mono">jerry</span></span>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm">Discard</button>
+        <button class="btn btn-primary btn-sm">Review plan</button>
       </div>
       </div>
     </div>
