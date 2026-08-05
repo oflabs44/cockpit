@@ -42,10 +42,11 @@ cockpit is the **state, intent, and memory** layer. `cockpitd` is the hands.
 
 Numbered so other docs can reference them as `(#n)`.
 
-1. **One API. Two client classes. Zero capability gap.**
-   Every capability is a typed operation on the plane's API. The web UI, the
-   CLI, and the MCP server are all *clients*. None may do anything the others
-   cannot. See ADR-0005.
+1. **One API. Two clients. Zero capability gap.**
+   Every capability is a typed operation on the plane's API. The web UI and the
+   MCP server are both *clients*, and neither may do anything the other cannot.
+   A CLI is deliberately deferred, not rejected — it would be a third client of
+   the same API and must not require a single new endpoint. See ADR-0005.
 
 2. **No business logic above the API.**
    The corollary of #1, and the enforceable version of it. If a client
@@ -166,9 +167,6 @@ WebSocket endpoint.
 
 **Daemon / `cockpitd`** — the Go binary on each managed server. Dials out to the
 plane, reports observed state, executes tasks, streams logs and metrics.
-
-**CLI / `cockpit`** — the laptop binary. An ordinary API client with the same
-capability as the UI and the MCP server. Optional; not on the onboarding path.
 
 **Install script** — the versioned shell script served by the plane
 (`curl -fsSL <plane>/install.sh | sh`). Hardens the host, installs Docker and

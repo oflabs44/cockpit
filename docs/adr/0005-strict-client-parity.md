@@ -1,10 +1,11 @@
-# Strict client parity: web UI, CLI, and MCP over one API
+# Strict client parity: every client over one API
 
-Status: accepted
+Status: accepted (amended — CLI deferred)
 
-cockpit exposes exactly one API. The web UI, the `cockpit` CLI, and the MCP server are
-clients of it, with identical capability. No client may do anything the others cannot,
-and no client may contain business logic.
+cockpit exposes exactly one API. The web UI and the MCP server are clients of it, with
+identical capability. No client may do anything the other cannot, and no client may
+contain business logic. Any client added later — a CLI, a TUI, a phone app — is a third
+consumer of the same API and must not require a single new endpoint.
 
 ## Why
 
@@ -21,28 +22,31 @@ retrofit away and cheap to prevent — it costs nothing at line one and enormous
 
 **Parity is only real if it is enforced, not intended.** The mechanism is a single Zod
 schema set in `packages/schema`: every operation is defined once, and the REST route
-handler, the MCP tool definition, the CLI command, and the UI form all derive from that
-definition. Adding an operation makes it appear in all three clients or in none.
+handler, the MCP tool definition, and the UI form all derive from that definition. Adding
+an operation makes it appear in every client or in none.
 
-**The CLI is optional, and that is the point.** An earlier draft argued the CLI was
-structurally required because onboarding needed SSH from the operator's laptop. That was
-wrong — onboarding is an install script the operator runs on the box (ADR-0001), so no
-client is on the critical path. The CLI therefore exists for two honest reasons: it is the
-human-facing peer of the MCP client, and it suits a terminal-first operator who would
-rather type a command than open a dashboard.
+**The CLI is deferred, not rejected.** Two earlier drafts got this wrong in opposite
+directions. The first made it structurally required, because onboarding needed SSH from
+the operator's laptop — wrong, since onboarding is an install script the operator runs on
+the box (ADR-0001). The second kept it as an optional third client. It is now dropped
+from v1 entirely: nothing depends on it, and two clients are enough to prove the rule.
 
-It also serves as the **parity canary**. A capability that is awkward or impossible to
-express as a CLI command is usually a capability that leaked logic into the web app. The
-CLI is where that gets noticed early and cheaply.
+The cost of dropping it is real and worth naming. The CLI was the **parity canary** — a
+capability awkward to express as a command usually means logic leaked into the web app,
+and a human typing commands notices that faster than a test does. Without it, the only
+guard is mechanical (see Consequences), so that test stops being a nice-to-have.
+
+Adding a CLI later must therefore require **zero new endpoints**. If it ever does, the
+parity rule was already broken and the CLI merely revealed it.
 
 ## The enforceable rule
 
 If a client computes, validates, orders, or decides anything, that is a bug.
 
 Clients render, dispatch, and display. Concretely, this forbids: validation that exists
-only in the UI form; ordering of deploy steps decided in the CLI; a "restart after env
-change" rule implemented in a React component; MCP tools that compose several API calls
-to achieve something the API cannot do in one.
+only in the UI form; a "restart after env change" rule implemented in a React component;
+ordering of deploy steps decided client-side; MCP tools that compose several API calls to
+achieve something the API cannot do in one.
 
 Where such logic is discovered, the fix is always to move it below the API, never to
 duplicate it into the other clients.
@@ -57,17 +61,16 @@ duplicate it into the other clients.
   schemas. Ergonomic groupings for agents are allowed as read-side conveniences (for
   example, one call returning logs, metrics, recent changes, and links for a resource) —
   but never as a write path that composes what the API cannot express.
-- **Three clients to keep working.** Mitigated by the fact that two of them
-  (`packages/client` consumers: web and CLI) share a generated typed client, and the
-  third derives from the same schemas.
-- **CLI distribution follows Node.** The CLI is TypeScript on current Node LTS, published
-  to GitHub Packages and installed globally or run via `pnpm dlx`. It shares
-  `packages/schema` and `packages/client` with the web app, which is the point — a
-  separate Go CLI would mean two type worlds for no gain, since the CLI runs on the
-  operator's laptop rather than on a small box. Being off the onboarding path, it has no
-  bootstrapping constraint and need not be a single self-contained binary.
-- **The CLI can ship after v1** without blocking anything, since neither onboarding nor
-  any other flow depends on it.
+- **The parity test is now the only guard, so it is not optional.** For every write
+  operation in `packages/schema`, assert that a REST route and an MCP tool exist and are
+  generated from the same definition (`type-design.md §5.7`). With no CLI to notice a
+  break by feel, a red test is the sole warning.
+- **`packages/client` still earns its place**, even with one consumer. It is where the
+  typed API surface lives, and it is what a CLI would import unchanged on the day it
+  appears.
+- **When a CLI does arrive it is TypeScript on current Node LTS**, sharing `packages/schema`
+  and `packages/client` with the web app — a separate Go CLI would mean two type worlds for
+  no gain, since it runs on a laptop rather than a small box.
 - **Auth differs per client and must not fork behaviour.** The UI sits behind Cloudflare
-  Access; MCP uses OAuth; the CLI uses a device-flow token. Three authentication paths,
-  one authorisation model.
+  Access; MCP uses OAuth. Two authentication paths, one authorisation model — and a third
+  added later must slot into the same model rather than bring its own.

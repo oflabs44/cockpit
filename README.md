@@ -1,8 +1,8 @@
 # cockpit
 
 A personal cloud deployment platform for private VPSes you own. Provision, deploy,
-observe, operate — from a web UI, a CLI, or an AI agent over MCP, with identical
-capability from all three.
+observe, operate — from a web UI or from an AI agent over MCP, with identical
+capability from both.
 
 **Status: design locked, not yet built.**
 
@@ -36,7 +36,7 @@ capability from all three.
 | [ADR-0002](./docs/adr/0002-serverless-control-plane-on-cloudflare.md) | Serverless control plane on Cloudflare, decoupled from managed servers |
 | [ADR-0003](./docs/adr/0003-plan-as-sole-unit-of-change.md) | The Plan is the sole unit of change |
 | [ADR-0004](./docs/adr/0004-d1-as-truth-git-as-mirror.md) | D1 is the truth; git is an export mirror |
-| [ADR-0005](./docs/adr/0005-strict-client-parity.md) | Strict client parity: web UI, CLI, and MCP over one API |
+| [ADR-0005](./docs/adr/0005-strict-client-parity.md) | Strict client parity: every client over one API |
 | [ADR-0006](./docs/adr/0006-polymorphic-resource-model.md) | One polymorphic Resource entity, with Links as first-class relationships |
 
 ## Lineage

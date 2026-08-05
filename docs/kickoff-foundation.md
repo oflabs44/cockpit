@@ -13,7 +13,7 @@ a human checkpoint at the layout step — drop it to let the session run autonom
 ```
 Project: cockpit — a personal cloud deployment platform for private VPSes. Control
 plane on Cloudflare Workers, a Go daemon on each managed server, and strict
-capability parity across web UI, CLI, and MCP. We're starting the build. The design
+capability parity across the web UI and MCP. We're starting the build. The design
 is locked — do NOT re-litigate it; if you hit a real gap, surface it before deviating.
 
 READ FIRST (in this order), then confirm you've internalized them:
@@ -24,7 +24,7 @@ READ FIRST (in this order), then confirm you've internalized them:
 - docs/adr/0001..0006     — rationale for the load-bearing decisions
 
 THE FOUR RULES THAT MATTER MOST (violating these is a design bug, not a style nit):
-1. One API, three clients, zero capability gap. No business logic above the API. (#1, #2)
+1. One API, two clients, zero capability gap. No business logic above the API. (#1, #2)
 2. Every mutation is a Plan. No endpoint mutates a server directly. (#6, ADR-0003)
 3. Plans diff against OBSERVED state reported by the daemon, never last-known. (#7)
 4. Secrets are vault refs (op://...), never values, anywhere. (#14)
@@ -68,7 +68,7 @@ SCOPE FOR THIS SESSION — the spine only. No deploys, no builds, no UI polish:
    test (7) can be a stub that fails loudly once write ops exist.
 
 OUT OF SCOPE (do not start): applying plans, Workflows, deploying anything, builds,
-log/metric streaming, R2, the git mirror, the MCP server, the CLI, the web UI beyond
+log/metric streaming, R2, the git mirror, the MCP server, the web UI beyond
 whatever is needed to prove a server enrols, backups, alerts, provisioning.
 ```
 
@@ -88,8 +88,7 @@ Roughly in dependency order. Each is a session-sized slice.
 6. **Databases** — `DatabaseSpec`, credential generation into the vault, private network,
    and the `uses` link with env injection.
 7. **Drift sweep, health monitoring, alerts.**
-8. **CLI.**
-9. **Backups and tested restore** — the largest inherited gap; needs its own ADR first.
+8. **Backups and tested restore** — the largest inherited gap; needs its own ADR first.
 
 ## The thinnest end-to-end proof
 

@@ -10,13 +10,13 @@ live in [`CONTEXT.md`](../CONTEXT.md). Decision references like `(#7)` point at
 ## 1. Topology
 
 ```
-   ┌───────────┐   ┌────────────┐   ┌────────────┐
-   │  web UI   │   │ cockpit CLI│   │  AI agent  │
-   │ (browser) │   │  (laptop)  │   │   (MCP)    │
-   └─────┬─────┘   └──────┬─────┘   └──────┬─────┘
-         │ REST + WS      │ REST           │ MCP over HTTP
-         └────────────────┼────────────────┘
-                          ▼
+            ┌───────────┐        ┌────────────┐
+            │  web UI   │        │  AI agent  │
+            │ (browser) │        │   (MCP)    │
+            └─────┬─────┘        └──────┬─────┘
+                  │ REST + WS           │ MCP over HTTP
+                  └──────────┬──────────┘
+                             ▼
          ┌────────────────────────────────────┐
          │        PLANE — Cloudflare Worker   │
          │  Hono API · MCP server · web app   │
@@ -57,9 +57,9 @@ everything else depends on them:
 | fan-out / scheduled | Queues + Cron Triggers | health sweeps, backups, notification dispatch |
 | live connections | Durable Objects | `ServerDO` (one per server, holds the daemon WSS), `StreamDO` (per resource log/metric stream). WebSocket hibernation so idle connections cost nothing |
 | blobs | R2 | log archives, build logs, backup artifacts |
-| validation | Zod 4 | from `packages/schema`; the single source for REST, MCP, CLI, UI |
+| validation | Zod 4 | from `packages/schema`; the single source for REST, MCP, and UI |
 | MCP | Cloudflare Agents SDK (`McpAgent`, DO-backed) | same Worker; tools generated from the same schemas |
-| auth | Cloudflare Access (UI) · `workers-oauth-provider` (MCP) · device-flow token (CLI) | three authentication paths, one authorisation model (ADR-0005) |
+| auth | Cloudflare Access (UI) · `workers-oauth-provider` (MCP) | two authentication paths, one authorisation model (ADR-0005) |
 
 The web app and the plane deploy as **one Worker** via `@cloudflare/vite-plugin` — UI
 assets, REST API, MCP endpoint, and the daemon WebSocket endpoint on one origin.
@@ -142,27 +142,15 @@ Because it is fetched over HTTPS and piped to a root shell, it is a security-cri
 artifact: integrity-verifiable, reproducible from the repo, and templated with nothing but
 the plane URL and an enrolment token.
 
-### 2.5 CLI — `apps/cli`
-
-TypeScript on current Node LTS. Published to GitHub Packages, installed globally or run
-via `pnpm dlx`. Shares `packages/schema` and `packages/client` with the web app.
-
-**Optional, and off every critical path.** It is an ordinary API client with the same
-capability as the UI and the MCP server. It exists because the operator is terminal-first,
-and because it is the cheapest early warning that logic has leaked into the web app — a
-capability that resists expression as a CLI command usually means a parity break
-(ADR-0005). It can ship after v1.
-
-### 2.6 Repo layout
+### 2.5 Repo layout
 
 ```
 cockpit/
   apps/plane/         Worker: Hono API + MCP server + Workflows + Durable Objects
   apps/web/           TanStack Start UI (bundled into the plane Worker)
-  apps/cli/           Node CLI — optional API client
   daemon/             Go: cockpitd, plus install.sh
   packages/schema/    Zod: resource kinds, ops, plan/entity types   ← the spine
-  packages/client/    Generated typed API client (web + CLI)
+  packages/client/    Generated typed API client
   packages/types/     Shared TS types with zero runtime deps
   docs/
 ```
@@ -171,10 +159,10 @@ pnpm workspaces. Makefile as the task entrypoint. Never npm; never run `package.
 scripts directly.
 
 `packages/schema` is load-bearing: a kind, an op, or an API payload is defined **once**
-there, and the REST handler, the MCP tool, the CLI command, and the UI form all derive
+there, and the REST handler, the MCP tool, and the UI form all derive
 from that definition. A capability defined twice is a bug (#2, ADR-0005).
 
-### 2.7 Deliberately not used
+### 2.6 Deliberately not used
 
 Kubernetes, Nomad, Terraform, Ansible; Traefik's file provider (Docker labels instead, so
 cockpit owns no proxy config — #17); any ORM-driven admin scaffolding, which is the road
@@ -191,7 +179,7 @@ No SSH, and no client on the critical path (ADR-0001). Two directions, same endp
 **Pre-authorised — the default.**
 
 ```
-  1. operator, in UI / CLI / MCP:  POST /servers
+  1. operator, in UI or over MCP:  POST /servers
                                    → server row (status: enrolling)
                                    + short-lived single-use enrolment token
                                    + a copy-paste one-liner
@@ -209,7 +197,7 @@ No SSH, and no client on the critical path (ADR-0001). Two directions, same endp
   1. operator, on the box:  curl -fsSL <plane>/install.sh | sh
                             → daemon starts unbound, prints a short claim code
   2. daemon dials plane and waits, identified only by that code
-  3. operator, in UI / CLI / MCP:  redeem the code
+  3. operator, in UI or over MCP:  redeem the code
                             → creates or binds the Server, issues the credential
   4. daemon sends `state`   → observed state recorded, server `connected`
 ```
@@ -250,7 +238,7 @@ Rollback is applying release *N-1*: a plan whose changes are the recorded invers
 
 ```
 docker logs -f ──▶ cockpitd ──WSS──▶ ServerDO ──▶ StreamDO ──WS──▶ browser
-                                                          └──────▶ MCP / CLI
+                                                          └──────▶ MCP
 ```
 
 Recent lines live in the `StreamDO`; older lines archive to R2 on a rolling window. One
@@ -270,7 +258,7 @@ Read side: one call returns a resource with its logs, metrics, recent events, re
 plans, and links — enough to diagnose an outage without fifteen round-trips (ADR-0005).
 
 Write side: the agent proposes a `Plan`. It appears in the UI attributed to that agent,
-with its diff and impact. The operator approves in the UI or CLI. The agent cannot mutate
+with its diff and impact. The operator approves it in the UI. The agent cannot mutate
 a server unilaterally, by construction (#3, ADR-0003).
 
 ---

@@ -442,8 +442,9 @@ have a test that fails loudly if it erodes.
 6. **No secret values anywhere.** Assert that no `Spec`, `Release.spec_snapshot`, `Event`
    payload, git snapshot, or API response contains anything but `VaultRef` in a secret
    position.
-7. **Client parity.** For every write operation in `packages/schema`, assert a REST route,
-   an MCP tool, and a CLI command exist. This is the mechanical guard on ADR-0005.
+7. **Client parity.** For every write operation in `packages/schema`, assert that a REST
+   route and an MCP tool exist and are generated from the same definition. With no CLI,
+   this test is the *only* mechanical guard on ADR-0005, so it is not optional.
 8. **`max_impact` is derived**, never accepted from a client; `destructive` plans always
    require explicit approval and are never auto-approved.
 9. **Links never dangle.** Deleting a linked resource either fails or produces a plan that
