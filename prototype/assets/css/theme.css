@@ -947,24 +947,6 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 
 .palette-empty { padding: var(--s5) var(--s4); color: var(--ink-40); font-size: var(--t-sm); }
 
-/* The footer is the whole reason this beats a dropdown: it teaches the
-   keyboard route while you use the mouse one. */
-.palette-foot {
-  display: flex;
-  gap: var(--s4);
-  padding: var(--s3) var(--s4);
-  border-top: 1px solid var(--ink-12);
-  font-family: var(--font-mono);
-  font-size: var(--t-micro);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-40);
-  flex: none;
-}
-.palette-foot span { display: flex; align-items: center; gap: 6px; }
-.palette-foot kbd {
-  font-family: var(--font-mono);
-  border: 1px solid var(--ink-20);
-  padding: 0 4px;
-  font-size: 10px;
-}
+/* No keyboard legend. Arrow to move, enter to pick, escape to close is what
+   anyone opening a palette already expects — printing it teaches nothing and
+   spends a row saying so. */

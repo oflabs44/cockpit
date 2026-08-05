@@ -64,11 +64,6 @@ window.copyTerm = function (btn) {
           '<input autocomplete="off" spellcheck="false">' +
         '</div>' +
         '<div class="palette-list"></div>' +
-        '<div class="palette-foot">' +
-          '<span><kbd>&uarr;</kbd><kbd>&darr;</kbd> navigate</span>' +
-          '<span><kbd>&crarr;</kbd> select</span>' +
-          '<span><kbd>esc</kbd> close</span>' +
-        '</div>' +
       '</div>';
     document.body.appendChild(el);
     input = el.querySelector('input');
