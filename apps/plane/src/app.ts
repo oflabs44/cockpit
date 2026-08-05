@@ -1,4 +1,5 @@
-import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { OpenAPIHono } from "@hono/zod-openapi";
+import type { RouteConfig, RouteHandler } from "@hono/zod-openapi";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 import { csrf } from "hono/csrf";
@@ -6,30 +7,20 @@ import { bodyLimit } from "hono/body-limit";
 import { etag } from "hono/etag";
 import type { Deps } from "./deps";
 import { realDeps } from "./deps";
+import { healthRoute, healthHandler } from "./routes/health";
 
 export type Variables = { deps: Deps };
+export type AppEnv = { Bindings: Env; Variables: Variables };
 
-const healthRoute = createRoute({
-  method: "get",
-  path: "/health",
-  responses: {
-    200: {
-      description: "Proof of life",
-      content: {
-        "application/json": {
-          schema: z.object({ status: z.literal("ok") }),
-        },
-      },
-    },
-  },
-});
+/** Handler type for route files: pairs a `createRoute` definition with its controller. */
+export type AppRouteHandler<R extends RouteConfig> = RouteHandler<R, AppEnv>;
 
 /**
  * App factory: `deps` (clock, id generation) is injected rather than reached for as a
  * global, per docs/type-design.md §1 — no `Date.now()`/`Math.random()` in plane logic.
  */
 export function createApp(deps: Deps = realDeps) {
-  const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
+  const app = new OpenAPIHono<AppEnv>();
 
   app.use("*", requestId({ generator: () => deps.ids.id("req") }));
   app.use("*", secureHeaders());
@@ -55,7 +46,7 @@ export function createApp(deps: Deps = realDeps) {
     await next();
   });
 
-  app.openapi(healthRoute, (c) => c.json({ status: "ok" as const }));
+  app.openapi(healthRoute, healthHandler);
 
   app.doc("/doc", {
     openapi: "3.1.0",
