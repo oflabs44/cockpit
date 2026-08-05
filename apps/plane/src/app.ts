@@ -4,11 +4,9 @@ import { secureHeaders } from "hono/secure-headers";
 import { csrf } from "hono/csrf";
 import { bodyLimit } from "hono/body-limit";
 import { etag } from "hono/etag";
-import type { Env } from "./env";
 import type { Deps } from "./deps";
 import { realDeps } from "./deps";
 
-export type Bindings = Env;
 export type Variables = { deps: Deps };
 
 const healthRoute = createRoute({
@@ -31,20 +29,26 @@ const healthRoute = createRoute({
  * global, per docs/type-design.md §1 — no `Date.now()`/`Math.random()` in plane logic.
  */
 export function createApp(deps: Deps = realDeps) {
-  const app = new OpenAPIHono<{ Bindings: Bindings; Variables: Variables }>();
+  const app = new OpenAPIHono<{ Bindings: Env; Variables: Variables }>();
 
-  app.use("*", requestId());
+  app.use("*", requestId({ generator: () => deps.ids.id("req") }));
   app.use("*", secureHeaders());
-  // No `cors()` — the web UI, MCP server, and daemon WS endpoint all live on this one
-  // Worker (docs/architecture.md §2.1: "one Worker"), so every call is same-origin by
-  // construction. Adding cors() would quietly permit cross-origin calls that the
-  // single-Worker deploy exists to make unnecessary — never add it back.
+  // No `cors()`: Hono's `csrf()` below only inspects form-encoded/multipart/text-plain bodies
+  // (it checks Content-Type, not method) and lets `application/json` requests through
+  // regardless of origin. The absence of `cors()` is therefore the ONLY thing stopping a
+  // cross-origin page from POSTing JSON to this Worker today — adding `cors()` back would
+  // silently remove that defence, not just permit reads.
   app.use("*", bodyLimit({ maxSize: 1 * 1024 * 1024 })); // 1mb; no route needs more yet
   // csrf() only inspects state-changing methods (POST/PUT/PATCH/DELETE) and passes GET/HEAD
   // through untouched, so mounting it on "*" already matches "csrf on mutating routes"
   // (docs/architecture.md §2.1) without a per-route split.
   app.use("*", csrf());
-  app.use("*", etag()); // for polled reads; every route here is a read for now
+  // Scoped to GET/HEAD: etag hashes the body to produce a cache-validation header, which is
+  // meaningless (and wasteful) on errors and on mutating responses once those exist.
+  app.use("*", async (c, next) => {
+    if (c.req.method === "GET" || c.req.method === "HEAD") return etag()(c, next);
+    return next();
+  });
 
   app.use("*", async (c, next) => {
     c.set("deps", deps);

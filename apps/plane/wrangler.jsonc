@@ -3,7 +3,6 @@
   "name": "cockpit-plane",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-05",
-  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true
   }

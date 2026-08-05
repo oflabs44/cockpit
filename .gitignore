@@ -6,4 +6,5 @@ node_modules/
 dist/
 .wrangler/
 *.tsbuildinfo
+worker-configuration.d.ts
 go.work.sum
