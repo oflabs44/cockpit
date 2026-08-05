@@ -688,12 +688,16 @@ a.card:focus-visible, button.card:focus-visible { outline: 2px solid var(--color
 .kv-v[data-hot] { color: var(--color-warn); }
 .kv-v[data-none] { color: var(--ink-20); }
 
-/* Inline variant — label and value on one line, in a narrow column. Works in a
-   sidebar or a two-column spec sheet; in a wide grid it stops the values
-   aligning into a column you can scan down. */
-.kv-inline { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--s3) var(--s7); }
+/* Inline — label left, value right, on one line. The default for a detail
+   head: it reads as a spec sheet, which is a form people already know how to
+   scan, and the fixed label column gives the values a shared left edge within
+   each column.
+
+   Columns are kept narrow enough that twelve pairs still land in three rows;
+   at two columns the head grows taller than the content it heads. */
+.kv-inline { grid-template-columns: repeat(auto-fit, minmax(252px, 1fr)); gap: var(--s3) var(--s6); }
 .kv-inline .kv-item { display: flex; align-items: baseline; gap: var(--s4); }
-.kv-inline .kv-k { flex: none; width: 88px; }
+.kv-inline .kv-k { flex: none; width: 76px; }
 .kv-inline .kv-v { margin-top: 0; }
 
 /* Icon variant. */

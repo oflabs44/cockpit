@@ -425,7 +425,7 @@
       figures competing with the table below.
     </p>
 
-    <div class="caption label">A &mdash; stacked, no icons</div>
+    <div class="caption label">Stacked &mdash; for wide grids with short labels</div>
     <div class="demo">
       <div class="kv ">
         <div class="kv-item"><div class="kv-k">status</div><div class="kv-v"><span class="dot dot-healthy"></span>connected</div></div>
@@ -443,11 +443,12 @@
       </div>
     </div>
     <p class="why" style="margin-bottom:var(--s6)">
-      Values sit on a shared baseline across each row, so the eye can run along them.
-      Labels are small and quiet; the values are the content.
+      Kept for wide grids of short, uniform values where a fixed label column would waste
+      most of its width. Values share a baseline across the row, so the eye can run along
+      them horizontally.
     </p>
 
-    <div class="caption label">B &mdash; stacked, with icons</div>
+    <div class="caption label">With icons &mdash; not used</div>
     <div class="demo">
       <div class="kv kv-icon">
         <div class="kv-item"><div class="kv-k"><svg class="icon"><use href="#server"/></svg>status</div><div class="kv-v"><span class="dot dot-healthy"></span>connected</div></div>
@@ -471,7 +472,7 @@
       weakens that.
     </p>
 
-    <div class="caption label">C &mdash; inline, label left</div>
+    <div class="caption label">Inline &mdash; the default</div>
     <div class="demo">
       <div class="kv kv-inline">
         <div class="kv-item"><div class="kv-k">status</div><div class="kv-v"><span class="dot dot-healthy"></span>connected</div></div>
@@ -489,10 +490,10 @@
       </div>
     </div>
     <p class="why">
-      Denser vertically and reads like a spec sheet. The cost is that values no longer
-      line up into a scannable column: each one starts wherever its fixed-width label
-      ends, and with only two columns across the page the head grows taller than the
-      thing it heads.
+      The default for a detail head. A spec sheet is a form people already know how to
+      read, and the fixed label column gives values a shared left edge within each column.
+      Columns are kept narrow enough that twelve pairs still land in three rows &mdash; at
+      two columns the head grows taller than the content it heads.
     </p>
   </section>
 
