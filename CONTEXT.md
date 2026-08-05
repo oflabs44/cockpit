@@ -75,11 +75,14 @@ Numbered so other docs can reference them as `(#n)`.
    Hosting the control plane on the thing being controlled — Coolify's model —
    is rejected. See ADR-0002.
 
-6. **The `Plan` is the sole unit of change.**
-   Every mutation of any managed resource, from any client, produces a `Plan`:
-   a typed list of changes, each with `before`, `after`, a declared `inverse`,
-   and an `impact`. Plans are approved, then applied. There is no side-door
-   endpoint that mutates a server without one. See ADR-0003.
+6. **The `Plan` is the unit of change to desired state.**
+   Changing what a resource *is* — its spec — produces a `Plan`: a typed list
+   of changes, each with `before`, `after`, a declared `inverse`, and an
+   `impact`, approved then applied. Operations that leave the spec identical —
+   restart, stop, exec, logs, terminal — are direct, and recorded as `Event`s
+   with an actor. The test is whether the spec afterwards says something
+   different. Nothing mutates unattributably; not everything is a plan.
+   See ADR-0003.
 
 7. **Plans are computed against observed state, never last-known state.**
    The daemon reports what is actually on the box; the planner diffs desired

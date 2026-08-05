@@ -1,11 +1,20 @@
-# The Plan is the sole unit of change
+# The Plan is the unit of change to desired state
 
-Status: accepted
+Status: accepted (amended — direct operations carved out)
 
-Every mutation of a managed resource, from every client, produces a `Plan`: a typed list
-of changes, each carrying `before`, `after`, a declared `inverse`, and an `impact`. Plans
-are computed against observed state, approved, then applied. No endpoint mutates a server
-without one.
+A `Plan` is required whenever **desired state** changes: a typed list of changes, each
+carrying `before`, `after`, a declared `inverse`, and an `impact`, computed against
+observed state, approved, then applied.
+
+Operations that do **not** alter desired state — restart, stop, start, exec, tail logs,
+run a one-off command, open a terminal — are **direct**. They execute immediately and are
+recorded as `Event`s with an actor. They are not plans, and requiring them to be one was
+over-strict.
+
+The test is a single question: **after this, does the spec say something different?**
+Restarting `jerry` leaves the spec identical — same image, same env, same replica count —
+so it is an operation. Setting `LOG_LEVEL=debug` changes what `jerry` *is*, so it is a
+plan.
 
 ## Why
 
@@ -21,6 +30,20 @@ separately:
 | drift detection | plan against observed state; unrequested changes *are* drift |
 | agent safety | an agent's output is a proposal, not an effect |
 | approval gating | `impact` decides what needs confirmation, and how loudly |
+
+## Why it is not every mutation
+
+The original rule said every mutation, full stop. That is over-broad, and the cost is not
+merely friction — it is that **approval fatigue destroys approval**. If restarting a
+container produces a diff and a confirmation, the operator learns to click through
+confirmations, and the click-through habit is exactly what carries them past the plan that
+destroys a volume. A gate that fires on everything protects nothing.
+
+The carve-out is narrow and testable. Direct operations may not change the spec, so they
+cannot silently redefine what a resource is; anything that would is still a plan. And
+`impact: destructive` still requires explicit confirmation whether it arrives as a plan or
+as an operation — deleting data is never a "direct operation" on the grounds that it left
+the spec alone.
 
 **It decouples "reviewable diff" from "git as storage."** The desire for reviewable
 infrastructure changes usually leads to git-as-truth and a reconciler. The Plan delivers
@@ -44,23 +67,28 @@ is a query, not an investigation.
 
 ## Consequences
 
-- **No side doors, ever.** The moment one convenience endpoint mutates state directly,
-  audit, rollback, and drift detection all become quietly untrue. This is the invariant
-  most likely to be eroded under delivery pressure and must be enforced in tests: the
-  daemon accepts tasks only from an applying plan.
+- **Two write paths, both attributable.** The daemon accepts `task` frames bound to an
+  applying plan, and `op` frames bound to a recorded event. It accepts nothing else. The
+  invariant is no longer "only plans mutate" but "nothing mutates unattributably", which is
+  the property that actually mattered.
+- **Operations manufacture drift, and that is now expected rather than exceptional.** A
+  restart is harmless, but an exec or a terminal session can leave the box diverged from
+  its spec. Every operation therefore forces a state re-sync on completion, so the
+  divergence is detected immediately rather than discovered by the next planner run. This
+  is the strongest argument for surfacing drift in the UI, which was deferred.
 - **Every op must define its inverse**, or explicitly declare itself irreversible (data
   deletion, server destruction). Writing a new op means writing its inverse in the same
   commit.
-- **Read/observe operations are not plans.** Fetching logs, metrics, or state, and
-  running an interactive exec, mutate nothing cockpit models. They are ordinary API calls
-  — logged as events, not planned. The declarative/imperative split must be deliberate;
-  blurring it is precisely what makes Coolify's model muddy.
+- **The declarative/imperative split must stay deliberate.** Blurring it is what makes
+  Coolify's model muddy. The line is drawn at desired state and nowhere else — not at
+  "risky", not at "slow", not at "the operator would find this annoying", each of which
+  would drift under pressure until everything was an operation.
 - **A plan can go stale.** Observed state may change between planning and applying. Plans
   record the observed-state revision they were computed against, and apply revalidates;
   a stale plan is rejected and must be recomputed rather than force-applied.
-- **Some latency and ceremony.** Trivial changes require plan-then-apply. Mitigated by
-  auto-approval policy for `impact: none | reload` where the operator opts in — never for
-  `replace` or `destructive`.
+- **Latency is now confined to real changes.** Spec edits still cost plan-then-apply,
+  which is the point. Auto-approval policy for `impact: none | reload` remains available
+  where the operator opts in — never for `replace` or `destructive`.
 - **Partial failure is real.** Apply is a Workflow with one durable step per change. On
   failure mid-plan, the plan is `failed` with per-change status, and the operator (or
   agent) chooses: retry from the failed step, or revert applied steps via their inverses.

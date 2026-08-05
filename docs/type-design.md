@@ -394,6 +394,7 @@ tool derives from the same definitions (ADR-0005). Listed by shape, not exhausti
   GET    /resources/:id/logs             SSE/WS stream, or historical from R2
   GET    /resources/:id/metrics
   POST   /resources/:id/exec             one-off command; an event, not a plan
+  POST   /resources/:id/restart          direct operation; an event, not a plan
 
   POST   /plans                          propose: desired specs → Plan (never applies)
   GET    /plans                          filter by status, actor, server
@@ -429,8 +430,10 @@ grouping may never become a write path that composes what the API cannot express
 These are the properties that make the design true rather than aspirational. Each should
 have a test that fails loudly if it erodes.
 
-1. **No side doors.** No code path mutates a server outside an applying plan. The daemon
-   rejects `task` frames whose plan is not `applying`.
+1. **Nothing mutates unattributably.** The daemon accepts `task` frames bound to a plan in
+   `applying`, and `op` frames bound to a recorded `Event`. It accepts nothing else, and
+   an `op` may never carry a change to spec — that is what makes the carve-out safe rather
+   than a loophole (ADR-0003).
 2. **Inverse coverage.** Every `Change` produced by the planner carries an `inverse` or an
    `irreversible` with a reason. Property-test across all ops.
 3. **Plans diff observed, not desired-last-known** (#7). A resource changed out-of-band
