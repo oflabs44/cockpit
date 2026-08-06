@@ -1,19 +1,173 @@
+@import 'tailwindcss';
 
-@import "tailwindcss";
+/* Only the weights the prototype actually uses (prototype/assets/css/theme.css):
+   sans 400/500/600, mono 400/500. */
+@import '@fontsource/schibsted-grotesk/400.css';
+@import '@fontsource/schibsted-grotesk/500.css';
+@import '@fontsource/schibsted-grotesk/600.css';
+@import '@fontsource/geist-mono/400.css';
+@import '@fontsource/geist-mono/500.css';
 
-@theme {}
+/* Token values are extracted verbatim from prototype/assets/css/theme.css — the prototype is
+   authoritative (docs/design.md §1, "the prototype wins"). The colour raw values live here as
+   `--paper`/`--sheet`/etc, separate from the `--color-*` names @theme below maps them onto: a
+   Tailwind `@theme` entry compiles to a `:root` declaration of the same name, so if `--color-paper`
+   were declared directly in both places it would resolve against itself instead of the
+   [data-theme='dark'] override. Naming the raw variable differently from the theme token it
+   feeds keeps the override live at runtime rather than baked in at build time. */
+:root {
+  --paper: oklch(0.972 0.003 255);
+  --sheet: oklch(0.993 0.0015 255);
+  --ink: oklch(0.28 0.014 262);
 
-* {
-  box-sizing: border-box;
+  --accent: oklch(0.52 0.12 152);
+  --info: oklch(0.52 0.13 245);
+  --warn: oklch(0.64 0.13 75);
+  --danger: oklch(0.55 0.18 25);
+
+  /* Identity tint — `--idhue` is set inline per element; l/c come from the theme. Not a
+     Tailwind token: composed ad hoc (`oklch(var(--id-l) var(--id-c) var(--idhue, 0))`)
+     wherever identity tint is used, so it stays a plain custom property. */
+  --id-l: 0.52;
+  --id-c: 0.13;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-html,
-body,
-#app {
-  min-height: 100%;
+[data-theme='light'] {
+  --paper: oklch(0.972 0.003 255);
+  --sheet: oklch(0.993 0.0015 255);
+  --ink: oklch(0.28 0.014 262);
+
+  --accent: oklch(0.52 0.12 152);
+  --info: oklch(0.52 0.13 245);
+  --warn: oklch(0.64 0.13 75);
+  --danger: oklch(0.55 0.18 25);
+
+  --id-l: 0.52;
+  --id-c: 0.13;
 }
 
-body {
-  margin: 0;
+[data-theme='dark'] {
+  --paper: oklch(0.192 0.005 264);
+  --sheet: oklch(0.228 0.006 264);
+  --ink: oklch(0.875 0.006 250);
+
+  --accent: oklch(0.76 0.12 152);
+  --info: oklch(0.72 0.11 245);
+  --warn: oklch(0.79 0.12 80);
+  --danger: oklch(0.68 0.15 25);
+
+  --id-l: 0.8;
+  --id-c: 0.1;
 }
 
+@theme {
+  --font-sans: 'Schibsted Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --color-paper: var(--paper);
+  --color-sheet: var(--sheet);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
+  --color-info: var(--info);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+
+  /* Ink at alpha — the whole greyscale, derived not enumerated. `color-mix()` reads
+     `--ink` at call time, so the derivation itself is what re-derives the alpha steps on
+     a theme flip rather than needing its own per-theme override block. Exposed as
+     `--color-ink-*` so `bg-ink-12`, `text-ink-40`, etc. resolve like any other token. */
+  --color-ink-04: color-mix(in oklab, var(--ink) 4%, transparent);
+  --color-ink-08: color-mix(in oklab, var(--ink) 8%, transparent);
+  --color-ink-12: color-mix(in oklab, var(--ink) 12%, transparent);
+  --color-ink-20: color-mix(in oklab, var(--ink) 20%, transparent);
+  --color-ink-40: color-mix(in oklab, var(--ink) 40%, transparent);
+  --color-ink-60: color-mix(in oklab, var(--ink) 60%, transparent);
+  --color-ink-80: color-mix(in oklab, var(--ink) 80%, transparent);
+
+  /* Right angles everywhere: every rounded-* utility resolves to 0 rather than relying on
+     discipline to never reach for one (docs/design.md §2.5, prototype's `--radius: 0px`).
+     `initial` first deletes Tailwind's stock xs/sm/.../4xl scale so those classes cease to
+     exist, then the explicit 0px keys below are the only ones this system has. */
+  --radius-*: initial;
+  --radius: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-full: 0px;
+
+  /* 4px base spacing scale (prototype's --s1..--s8 = 4/8/12/16/24/32/48/64). Tailwind
+     derives p-1..p-16 etc. as multiples of this one value, so this is the whole scale,
+     not just s1. */
+  --spacing: 4px;
+
+  /* `initial` on each line-height companion drops Tailwind's stock per-size ratio, so
+     every text-* utility falls back to the body's own line-height (1.5) instead of a
+     size-specific one the prototype never specified. */
+  --text-micro: 11px;
+  --text-micro--line-height: initial;
+  --text-sm: 12px;
+  --text-sm--line-height: initial;
+  --text-base: 14px;
+  --text-base--line-height: initial;
+  --text-lg: 16px;
+  --text-lg--line-height: initial;
+  --text-xl: 20px;
+  --text-xl--line-height: initial;
+  --text-2xl: 28px;
+  --text-2xl--line-height: initial;
+  --text-3xl: 40px;
+  --text-3xl--line-height: initial;
+}
+
+@layer utilities {
+  /* Bare `.rounded` (no size suffix) is Tailwind's one radius utility that ships a fixed
+     0.25rem rather than reading a `--radius-*` theme key, so the `@theme` overrides above
+     can't reach it — force it here instead. */
+  .rounded {
+    border-radius: 0;
+  }
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-ink-12);
+  }
+
+  a {
+    color: inherit;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
