@@ -1,0 +1,16 @@
+Status: active
+Logging: on (low)
+Default: deny (incoming), allow (outgoing), disabled (routed)
+New profiles: skip
+
+To                         Action      From
+--                         ------      ----
+22/tcp                     ALLOW IN    Anywhere                   # ssh
+80/tcp                     ALLOW IN    Anywhere
+443/tcp                    ALLOW IN    Anywhere                   # traefik
+5432/tcp                   ALLOW IN    10.0.0.0/8                 # postgres from vpn
+9100                       DENY IN     Anywhere
+OpenSSH                    ALLOW IN    Anywhere
+22/tcp (v6)                ALLOW IN    Anywhere (v6)
+443/tcp (v6)               ALLOW IN    Anywhere (v6)
+nonsense

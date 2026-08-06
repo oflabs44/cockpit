@@ -345,7 +345,14 @@ type Up =
                          *  load, listeners, and the security baseline (sshd flags,
                          *  fail2ban, unattended-upgrades, last apt upgrade). Raw
                          *  values only — health thresholds are plane policy. */
-                        host?: ObservedHost }                          // full snapshot,
+                        host?: ObservedHost
+                        /** Per-probe outcome, added 2026-08-06. Soft degradation means a
+                         *  failed probe otherwise looks identical to an empty box — and a
+                         *  planner diffing against it would read "every firewall rule was
+                         *  deleted". `unavailable` tells the plane to treat that kind's
+                         *  absence as unknown, not as deletion. */
+                        probes?: Record<'docker'|'firewall'|'systemd'|'cron'|'host',
+                                        'ok' | 'unavailable'> }        // full snapshot,
                                                                        // on connect + interval
   | { type: 'event';    event: Omit<Event, 'id' | 'actor'> }
   | { type: 'task_progress'; task_id: string; change_index: number
@@ -356,6 +363,23 @@ type Up =
   | { type: 'pong' }
 
 interface ObservedResource { kind: Kind; name: string; observed: Observed }
+
+/** Host-level half of a state snapshot (2026-08-06). Raw facts only — bytes,
+ *  counts, and the words the source itself used. Thresholds (disk ≥ 80%,
+ *  PermitRootLogin yes is red, …) are plane policy, never daemon logic.
+ *  Mirrors daemon/internal/protocol/protocol.go, which is authoritative. */
+interface ObservedHost {
+  identity:  { os: string; kernel: string; hostname: string; uptime_s: number }
+  capacity:  { cpus: number; mem_total: number; swap_total: number
+               disks: { mount: string; size: number; used: number }[] }
+  load:      [number, number, number]
+  listeners: { proto: string; addr: string; port: number; pid_name: string }[]
+  security:  { sshd: { permit_root_login: string; password_authentication: string
+                       max_auth_tries: number }
+               fail2ban_active: boolean
+               unattended_upgrades_active: boolean
+               last_apt_activity_unix: number }   // mtime of apt's history log —
+}                                                 // any apt activity, not upgrades only
 ```
 
 ### 3.2 Plane → daemon

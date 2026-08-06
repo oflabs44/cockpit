@@ -1,0 +1,7 @@
+MemTotal:        8123456 kB
+MemFree:          312044 kB
+MemAvailable:    5011992 kB
+Buffers:          181236 kB
+SwapTotal:       2097148 kB
+SwapFree:        2097148 kB
+Bogus:           notanumber kB

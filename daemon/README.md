@@ -1,9 +1,9 @@
 # cockpitd
 
-The on-box agent. This build does the first slice from
-[`docs/development.md`](../docs/development.md) section 4 and nothing more:
-**enrol, hello, one state snapshot.** It executes nothing — no `task`, no `op`,
-no streams, no `install.sh`.
+The on-box agent. This build **enrols, connects, and observes**: the full state
+snapshot — host, containers, firewall rules, systemd units, cron — reported on
+connect and on an interval. It executes nothing — no `task`, no `op`, no
+streams, no metrics, no `install.sh`.
 
 ## Run it
 
@@ -65,8 +65,9 @@ cmd/cockpitd          flags, wiring, signals
 internal/protocol     frame types, verbatim from docs/type-design.md section 3
 internal/client       dial, handshake, snapshot, serve, reconnect with backoff
 internal/observer     executors -> state snapshot; reports, never mutates
-internal/executor     Docker, Firewall, Systemd, Cron interfaces
+internal/executor     Docker, Host, Firewall, Systemd, Cron interfaces
   /dockercli          Docker over the docker CLI
+  /oscli              host, ufw, systemd and cron over /proc, /etc and the CLIs
   /fake               in-memory executors for tier 1 tests
 internal/config       the plane URL, server id, and credential; nothing about the box
 ```
@@ -96,9 +97,51 @@ retried at the start of every session. The failure logs at Error, because a
 restart before it lands orphans the box — the plane has already burned the
 enrolment secret.
 
-Only `Docker` is implemented. `Firewall`, `Systemd` and `Cron` exist as
-interfaces with stubs so their shape is fixed before there are callers, and so
-`executor.Set` is already the whole seam the tests fake out.
+## What it observes
+
+The snapshot is the operator's old `inspect-server` playbook, compiled. Probes
+A–F of that markdown become typed observers; the thresholds it carried
+(disk >= 80%, cert < 14 days, `PermitRootLogin yes` is red) do **not** come with
+them — those are plane policy. The daemon reports raw facts only.
+
+- **host** — `identity` (os, kernel, hostname, uptime), `capacity` (cpus, mem,
+  swap, disks with tmpfs/overlay filtered out), `load`, `listeners`, and
+  `security` (sshd's effective flags, fail2ban and unattended-upgrades active,
+  `last_apt_activity_unix` — the mtime of apt's history log, which is any apt
+  activity, not specifically an upgrade).
+- **app** — containers, now with `started_at`, `restart_count`,
+  `restart_policy`, `image_id` (the local image) and `image_digest` (the
+  registry digest, empty for an image built on the box) from one `docker
+  inspect` per snapshot.
+- **firewall_rule** — parsed from `ufw status verbose`, v6 duplicates dropped.
+  Named `<port>-<protocol>-<action>-<source>` (`22-tcp-allow-any`,
+  `9100-tcp-deny-any`), so rules differing only by source or by allow/deny are
+  separate resources rather than one that flickers. `Anywhere` normalises to
+  `any`.
+- **daemon** — systemd units, scoped to `cockpit-*`, docker, ssh/sshd, fail2ban
+  and unattended-upgrades. Not all 300 units on a box. A second
+  `list-unit-files` pass covers units systemd knows but has not loaded — masked,
+  disabled, never started — so a hard-stopped unit reports inactive instead of
+  vanishing.
+- **cron** — root's crontab.
+
+Docker is the one hard dependency: a daemon that cannot see containers is not
+observing anything useful. Every other probe is soft — a box without ufw, a
+container without systemd, a Mac in development — and yields zero values with a
+debug line rather than failing the snapshot. Parsers skip malformed lines with a
+warning and keep going.
+
+Soft failure is reported, not hidden: the state frame carries
+`probes: {docker|firewall|systemd|cron|host: ok|unavailable}`. A probe that ran
+and found nothing is `ok`; one whose command is missing or errored is
+`unavailable`, so a transient ufw failure cannot read to the planner as every
+firewall rule having been deleted.
+
+All five executors — `Docker`, `Host`, `Firewall`, `Systemd`, `Cron` — are
+implemented and faked. `executor.Set` is the whole seam the tier-1 tests replace,
+so every parser is tested against captured `ufw`, `ss`, `sshd -T`, `systemctl`,
+`crontab`, `df` and `/proc` output in `internal/executor/oscli/testdata` with none
+of those binaries present.
 
 Docker is read through the `docker` CLI rather than the Go client library: the
 daemon is a static single binary with no runtime dependency on the box beyond
@@ -146,6 +189,19 @@ Both need confirming with the plane implementor.
    whether a rejected or expired code gets an explicit refusal frame rather
    than a silent close, are both open. This build treats silence to the code's
    own deadline as expiry, generates a new code, and reconnects.
+
+4. **`ObservedHost` has no interface body in the spec.** Section 3.1 names the
+   field and says what it carries in prose; the struct is defined here from that
+   description (`identity`, `capacity`, `load`, `listeners`, `security`,
+   snake_case throughout) and the plane's Zod schema has to match it or one side
+   moves.
+
+5. **A crontab line has no name.** `Resource` is keyed by `(server, kind, name)`,
+   but a crontab entry carries no identity of its own, so names are synthesised
+   positionally — `root-1`, `root-2`. Re-ordering the crontab therefore renames
+   the resources. Stable names need cron entries the daemon *installs* (with a
+   comment marker or as systemd timers), which is also what
+   `prototype-reality-check` invented #2 needs for last-run and exit status.
 
 Smaller ones: `state.rev` is treated as monotonic per daemon process and
 restarts at 1 after a restart (the plane reconciles on every full snapshot, so

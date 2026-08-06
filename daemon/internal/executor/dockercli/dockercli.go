@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,11 +24,20 @@ type Runner func(ctx context.Context, name string, args ...string) ([]byte, erro
 type Client struct {
 	Bin string
 	Run Runner
+	Log *slog.Logger
 }
 
 // New returns a Client using the docker binary on PATH.
-func New() *Client {
-	return &Client{Bin: "docker", Run: execRun}
+func New(log *slog.Logger) *Client {
+	return &Client{Bin: "docker", Run: execRun, Log: log}
+}
+
+func (c *Client) log() *slog.Logger {
+	if c.Log != nil {
+		return c.Log
+	}
+
+	return slog.Default()
 }
 
 func execRun(ctx context.Context, name string, args ...string) ([]byte, error) {
@@ -55,17 +65,91 @@ type psLine struct {
 	CreatedAt string `json:"CreatedAt"`
 }
 
+// inspectFormat is one line per container, tab separated. Fields docker ps
+// does not carry: when it started, how often it has restarted, under what
+// policy, the local image id it resolved to, and the registry digest it was
+// pulled by. The last is empty for an image built on the box, which never had
+// a registry to be digested by.
+const inspectFormat = "{{.Id}}\t{{.State.StartedAt}}\t{{.RestartCount}}\t{{.HostConfig.RestartPolicy.Name}}\t{{.Image}}\t{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}"
+
 func (c *Client) ListContainers(ctx context.Context) ([]executor.Container, error) {
 	out, err := c.Run(ctx, c.Bin, "ps", "--all", "--no-trunc", "--format", "{{json .}}")
 	if err != nil {
 		return nil, err
 	}
 
-	return ParsePS(out)
+	cs, err := ParsePS(out, c.log())
+	if err != nil {
+		return nil, err
+	}
+
+	if len(cs) == 0 {
+		return cs, nil
+	}
+
+	// One inspect for every container, not one each: the enrichment is worth a
+	// single extra exec per snapshot and no more.
+	args := []string{"inspect", "--format", inspectFormat}
+	for _, container := range cs {
+		args = append(args, container.ID)
+	}
+
+	inspected, err := c.Run(ctx, c.Bin, args...)
+	if err != nil {
+		// A container removed between ps and inspect fails the whole call.
+		// The ps facts are still true, so they stand.
+		c.log().Warn("docker inspect failed, reporting containers without it", "err", err)
+
+		return cs, nil
+	}
+
+	ApplyInspect(cs, inspected, c.log())
+
+	return cs, nil
+}
+
+// ApplyInspect merges `docker inspect` output into containers, matched by id.
+func ApplyInspect(cs []executor.Container, out []byte, log *slog.Logger) {
+	byID := make(map[string]*executor.Container, len(cs))
+	for i := range cs {
+		byID[cs[i].ID] = &cs[i]
+	}
+
+	sc := bufio.NewScanner(bytes.NewReader(out))
+
+	for sc.Scan() {
+		// Trimmed on the right only: an image with no registry digest ends the
+		// line with an empty final field, and TrimSpace would eat it.
+		f := strings.Split(strings.TrimRight(sc.Text(), "\r\n "), "\t")
+		if len(f) != 6 {
+			if strings.TrimSpace(sc.Text()) != "" {
+				log.Warn("unparseable docker inspect line", "line", sc.Text())
+			}
+
+			continue
+		}
+
+		container, ok := byID[f[0]]
+		if !ok {
+			continue
+		}
+
+		if t, err := time.Parse(time.RFC3339Nano, f[1]); err == nil && !t.IsZero() {
+			container.StartedAt = t.Unix()
+		}
+
+		if n, err := strconv.Atoi(f[2]); err == nil {
+			container.RestartCount = n
+		}
+
+		container.RestartPolicy = f[3]
+		container.ImageID = f[4]
+		container.ImageDigest = f[5]
+	}
 }
 
 // ParsePS turns `docker ps --format '{{json .}}'` output into containers.
-func ParsePS(out []byte) ([]executor.Container, error) {
+func ParsePS(out []byte, log *slog.Logger) ([]executor.Container, error) {
 	var cs []executor.Container
 
 	sc := bufio.NewScanner(bytes.NewReader(out))
@@ -91,7 +175,7 @@ func ParsePS(out []byte) ([]executor.Container, error) {
 			Status:  p.Status,
 			Health:  healthFromStatus(p.Status),
 			Labels:  parseLabels(p.Labels),
-			Created: parseCreated(p.CreatedAt),
+			Created: parseCreated(p.CreatedAt, log),
 		})
 	}
 
@@ -147,14 +231,14 @@ func parseLabels(s string) map[string]string {
 // docker prints CreatedAt as "2006-01-02 15:04:05 -0700 MST". An unparseable
 // value is reported as zero rather than failing the whole snapshot, but it
 // means the format moved, so say so.
-func parseCreated(s string) int64 {
+func parseCreated(s string, log *slog.Logger) int64 {
 	if s == "" {
 		return 0
 	}
 
 	t, err := time.Parse("2006-01-02 15:04:05 -0700 MST", s)
 	if err != nil {
-		slog.Warn("unparseable docker CreatedAt, reporting zero", "value", s, "err", err)
+		log.Warn("unparseable docker CreatedAt, reporting zero", "value", s, "err", err)
 
 		return 0
 	}

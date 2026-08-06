@@ -20,6 +20,7 @@ import (
 	"github.com/oflabs44/cockpit/daemon/internal/config"
 	"github.com/oflabs44/cockpit/daemon/internal/executor"
 	"github.com/oflabs44/cockpit/daemon/internal/executor/dockercli"
+	"github.com/oflabs44/cockpit/daemon/internal/executor/oscli"
 	"github.com/oflabs44/cockpit/daemon/internal/observer"
 )
 
@@ -70,11 +71,13 @@ func run() error {
 		return err
 	}
 
+	hostCLI := oscli.New(log)
 	set := executor.Set{
-		Docker:   dockercli.New(),
-		Firewall: executor.StubFirewall{},
-		Systemd:  executor.StubSystemd{},
-		Cron:     executor.StubCron{},
+		Docker:   dockercli.New(log),
+		Host:     hostCLI,
+		Firewall: hostCLI,
+		Systemd:  hostCLI,
+		Cron:     hostCLI,
 	}
 
 	c := &client.Client{
@@ -84,7 +87,7 @@ func run() error {
 			Arch:         runtime.GOARCH,
 			Hostname:     hostname,
 		},
-		Observer:        observer.New(set, time.Now),
+		Observer:        observer.New(set, time.Now).WithLogger(log),
 		Dial:            client.WSDialer,
 		Log:             log,
 		EnrolmentSecret: *token,

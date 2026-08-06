@@ -1,0 +1,6 @@
+docker.service loaded active running Docker Application Container Engine
+ssh.service loaded active running OpenBSD Secure Shell server
+fail2ban.service loaded failed failed Fail2Ban Service
+unattended-upgrades.service loaded inactive dead Unattended Upgrades Shutdown
+cockpit-agent.service loaded activating start-pre cockpit daemon
+truncated line

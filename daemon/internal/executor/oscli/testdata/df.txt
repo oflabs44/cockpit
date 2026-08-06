@@ -1,0 +1,7 @@
+Filesystem     Mounted on          1B-blocks         Used
+/dev/sda1      /                 50044211200  21470642176
+tmpfs          /run               4061728768    102400000
+/dev/sdb1      /mnt/data       2000398934016 431234567168
+udev           /dev               4051234816            0
+overlay        /var/lib/docker/overlay2/abc  50044211200  21470642176
+/dev/broken    /weird                   xxx          yyy

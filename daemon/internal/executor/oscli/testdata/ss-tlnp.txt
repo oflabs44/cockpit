@@ -1,0 +1,6 @@
+State    Recv-Q   Send-Q     Local Address:Port     Peer Address:Port  Process
+LISTEN   0        4096             0.0.0.0:22            0.0.0.0:*      users:(("sshd",pid=812,fd=3))
+LISTEN   0        511            127.0.0.1:8428          0.0.0.0:*      users:(("victoria-metric",pid=2201,fd=7))
+LISTEN   0        4096                [::]:443              [::]:*      users:(("docker-proxy",pid=3310,fd=4))
+LISTEN   0        128                    *:9100                *:*
+LISTEN   0        garbage

@@ -98,11 +98,79 @@ type ObservedResource struct {
 	Observed Observed `json:"observed"`
 }
 
+// HostIdentity is what the box calls itself.
+type HostIdentity struct {
+	OS       string `json:"os"` // PRETTY_NAME from /etc/os-release
+	Kernel   string `json:"kernel"`
+	Hostname string `json:"hostname"`
+	UptimeS  int64  `json:"uptime_s"`
+}
+
+// Disk is one mounted filesystem, in bytes.
+type Disk struct {
+	Mount string `json:"mount"`
+	Size  int64  `json:"size"`
+	Used  int64  `json:"used"`
+}
+
+// HostCapacity is what the box has, in bytes and counts. No percentages and no
+// thresholds: what counts as full is plane policy.
+type HostCapacity struct {
+	CPUs      int    `json:"cpus"`
+	MemTotal  int64  `json:"mem_total"`
+	SwapTotal int64  `json:"swap_total"`
+	Disks     []Disk `json:"disks"`
+}
+
+// Listener is one listening socket.
+type Listener struct {
+	Proto   string `json:"proto"`
+	Addr    string `json:"addr"`
+	Port    int    `json:"port"`
+	PIDName string `json:"pid_name"`
+}
+
+// SSHD is the effective sshd configuration, as sshd itself reports it.
+type SSHD struct {
+	PermitRootLogin        string `json:"permit_root_login"`
+	PasswordAuthentication string `json:"password_authentication"`
+	MaxAuthTries           int    `json:"max_auth_tries"`
+}
+
+// HostSecurity is the security baseline, reported raw. Whether "yes" on root
+// login is a red line is the plane's call.
+type HostSecurity struct {
+	SSHD                     SSHD  `json:"sshd"`
+	Fail2banActive           bool  `json:"fail2ban_active"`
+	UnattendedUpgradesActive bool  `json:"unattended_upgrades_active"`
+	LastAptActivityUnix      int64 `json:"last_apt_activity_unix"`
+}
+
+// ObservedHost is the host-level half of a state snapshot: identity, capacity,
+// load, listeners, and the security baseline. Facts only.
+type ObservedHost struct {
+	Identity  HostIdentity `json:"identity"`
+	Capacity  HostCapacity `json:"capacity"`
+	Load      [3]float64   `json:"load"`
+	Listeners []Listener   `json:"listeners"`
+	Security  HostSecurity `json:"security"`
+}
+
+// Probe outcomes. A probe that ran and found nothing is ok; one whose command
+// is missing or failed is unavailable, so the plane reads that kind's absence
+// as unknown rather than as every resource having been deleted.
+const (
+	ProbeOK          = "ok"
+	ProbeUnavailable = "unavailable"
+)
+
 // State is a full snapshot, sent on connect and on an interval.
 type State struct {
 	Type      string             `json:"type"`
 	Rev       int                `json:"rev"`
 	Resources []ObservedResource `json:"resources"`
+	Host      *ObservedHost      `json:"host,omitempty"`
+	Probes    map[string]string  `json:"probes,omitempty"`
 }
 
 // Pong answers a Ping.

@@ -6,7 +6,11 @@
 // slice; the rest exist so their shape is fixed before there are callers.
 package executor
 
-import "context"
+import (
+	"context"
+
+	"github.com/oflabs44/cockpit/daemon/internal/protocol"
+)
 
 // Container is one Docker container as observed on the box.
 type Container struct {
@@ -18,6 +22,17 @@ type Container struct {
 	Health  string // healthy, unhealthy, starting, or "" when no healthcheck
 	Labels  map[string]string
 	Created int64
+
+	// From docker inspect. RunningFor is deliberately absent: it is
+	// StartedAt subtracted from now, and the plane has both.
+	StartedAt     int64
+	RestartCount  int
+	RestartPolicy string
+	// ImageID is the local image this container resolved to. ImageDigest is
+	// the registry digest it was pulled by, empty for an image built on the
+	// box — which never had a registry to be digested by.
+	ImageID     string
+	ImageDigest string
 }
 
 // Docker enumerates and (later) manipulates containers, volumes and networks.
@@ -25,30 +40,32 @@ type Docker interface {
 	ListContainers(ctx context.Context) ([]Container, error)
 }
 
-// FirewallRule is one UFW or cloud-firewall rule as observed on the box.
+// FirewallRule is one UFW rule as observed on the box.
 type FirewallRule struct {
 	Port     int
 	Protocol string
 	Source   string
 	Action   string
+	Comment  string
 }
 
-// Firewall mediates UFW and provider firewalls. Not implemented in this slice.
+// Firewall mediates UFW and provider firewalls.
 type Firewall interface {
+	// Active reports whether the firewall itself is enabled.
+	Active(ctx context.Context) (bool, error)
 	ListRules(ctx context.Context) ([]FirewallRule, error)
 }
 
 // Unit is one systemd unit as observed on the box.
 type Unit struct {
-	Name      string
-	Load      string
-	Active    string
-	Sub       string
-	Enabled   bool
-	Substates map[string]string
+	Name        string
+	Load        string
+	Active      string
+	Sub         string
+	Description string
 }
 
-// Systemd observes and manages units. Not implemented in this slice.
+// Systemd observes and manages units.
 type Systemd interface {
 	ListUnits(ctx context.Context) ([]Unit, error)
 }
@@ -56,19 +73,27 @@ type Systemd interface {
 // CronEntry is one scheduled job as observed on the box.
 type CronEntry struct {
 	Name     string
+	User     string
 	Schedule string
 	Command  string
-	Timezone string
 }
 
-// Cron observes and manages scheduled jobs. Not implemented in this slice.
+// Cron observes and manages scheduled jobs.
 type Cron interface {
 	ListEntries(ctx context.Context) ([]CronEntry, error)
+}
+
+// Host reports the box itself. It returns the protocol type directly: every
+// field is already a raw fact in the shape the state frame carries, so a
+// parallel struct here would be a copy with a mapping function and nothing else.
+type Host interface {
+	Observe(ctx context.Context) (protocol.ObservedHost, error)
 }
 
 // Set is the full complement of executors available to the daemon.
 type Set struct {
 	Docker   Docker
+	Host     Host
 	Firewall Firewall
 	Systemd  Systemd
 	Cron     Cron

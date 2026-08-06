@@ -1,0 +1,4 @@
+docker.service                 enabled  enabled
+cockpit-agent.service          enabled  enabled
+cockpit-relay.service          masked   masked
+broken
