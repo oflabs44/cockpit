@@ -247,7 +247,9 @@ interface Change {
 
 interface Plan {
   id: Id<'pln'>
-  status: 'pending' | 'approved' | 'applying' | 'applied' | 'failed' | 'reverted'
+  /** `rejected` added 2026-08-06: a refused proposal is kept, with its deciding
+   *  actor and decided_at — the audit log records turned-down plans too. */
+  status: 'pending' | 'approved' | 'applying' | 'applied' | 'failed' | 'reverted' | 'rejected'
   changes: Change[]
   /** Observed revisions this plan was computed against; apply revalidates (ADR-0003). */
   basis: Record<Id<'res'>, number>

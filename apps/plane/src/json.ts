@@ -5,7 +5,9 @@ export function safeJsonParse<T>(raw: string, fallback: T, context: string): T {
   try {
     return JSON.parse(raw) as T;
   } catch (err) {
-    console.warn(`corrupt JSON in ${context}:`, err);
+    // error, not warn: corrupt stored state is never routine, and a warn-level line is exactly
+    // what nobody has an alert on.
+    console.error(`corrupt JSON in ${context}:`, err);
     return fallback;
   }
 }

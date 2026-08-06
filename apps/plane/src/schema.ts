@@ -100,3 +100,102 @@ export const EnrolmentSchema = z.object({
 export const RedeemResponse = z.object({
   server: ServerSchema,
 });
+
+// docs/type-design.md §2.2 / §2.5 — resources and plans.
+
+export const ActorSchema = z.object({
+  kind: z.enum(["human", "agent", "system"]),
+  id: z.string(),
+});
+
+export const ResourceSchema = z.object({
+  id: z.string(),
+  server_id: z.string().nullable(),
+  project_id: z.string().nullable(),
+  kind: z.string(),
+  name: z.string(),
+  spec: z.record(z.string(), z.unknown()),
+  created_at: z.number(),
+  updated_at: z.number(),
+});
+
+const TargetSchema = z.object({
+  kind: z.string(),
+  name: z.string(),
+  spec: z.record(z.string(), z.unknown()),
+});
+
+export const ImpactSchema = z.enum(["none", "reload", "restart", "replace", "destructive"]);
+
+const InverseChangeSchema = z.object({
+  op: z.enum(["resource.create", "resource.update", "resource.delete"]),
+  target: z.string(),
+  before: TargetSchema.nullable(),
+  after: TargetSchema.nullable(),
+  impact: ImpactSchema,
+});
+
+export const ChangeSchema = InverseChangeSchema.extend({
+  inverse: InverseChangeSchema.nullable(),
+  irreversible: z.object({ reason: z.string() }).optional(),
+  status: z.enum(["pending", "applied", "failed", "skipped"]),
+});
+
+export const PlanStatus = z.enum([
+  "pending",
+  "approved",
+  "rejected",
+  "applying",
+  "applied",
+  "failed",
+  "reverted",
+]);
+
+export const PlanSchema = z.object({
+  // Null for a no-op plan: an empty diff is returned transiently and never persisted, so it
+  // has no id to give (see src/routes/resources-upsert.ts).
+  id: z.string().nullable(),
+  server_id: z.string(),
+  resource_id: z.string(),
+  status: PlanStatus,
+  changes: z.array(ChangeSchema),
+  basis: z.object({ observed_rev: z.number(), observed_at: z.number().nullable() }),
+  summary: z.string(),
+  max_impact: ImpactSchema, // derived, never accepted from a client (invariant 8)
+  created_by: ActorSchema,
+  decided_by: ActorSchema.nullable(),
+  /** Spec keys that differ from the stored spec but that this kind cannot observe, so they
+   *  produced no change. Empty is the normal case; non-empty means "you asked for something
+   *  cockpit cannot yet see, and therefore cannot plan". */
+  undiffable_keys: z.array(z.string()),
+  created_at: z.number(),
+  decided_at: z.number().nullable(),
+  approved_at: z.number().nullable(),
+});
+
+/** A plan whose stored record could not be trusted. Deliberately carries no changes, basis, or
+ *  actor: a corrupt audit record must read as unreadable, never as an empty, harmless plan. */
+export const CorruptPlanSchema = z.object({
+  id: z.string(),
+  server_id: z.string(),
+  resource_id: z.string(),
+  corrupt: z.literal(true),
+  summary: z.string(),
+  created_at: z.number(),
+});
+
+export const UpsertResourceBody = z.object({
+  // Optional, not defaulted to null: an absent field must not silently clear a resource's
+  // project on every subsequent PUT.
+  project_id: z.string().nullable().optional(),
+  // Validated against the kind's schema from the registry, not here: one definition per kind
+  // (ADR-0006). This route-level schema only says "an object arrived".
+  spec: z.record(z.string(), z.unknown()),
+});
+
+export const PlanResponse = z.object({ plan: PlanSchema });
+export const PlanListResponse = z.object({
+  plans: z.array(z.union([PlanSchema, CorruptPlanSchema])),
+});
+export const ResourceListResponse = z.object({ resources: z.array(ResourceSchema) });
+export const ErrorResponse = z.object({ error: z.string() });

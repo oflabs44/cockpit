@@ -1,6 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import type { RouteConfig, RouteHandler } from "@hono/zod-openapi";
 import type { MiddlewareHandler } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 import { csrf } from "hono/csrf";
@@ -14,6 +15,15 @@ import { listServersRoute, listServersHandler } from "./routes/servers-list";
 import { getServerRoute, getServerHandler } from "./routes/servers-detail";
 import { listEnrolmentsRoute, listEnrolmentsHandler } from "./routes/enrolments-list";
 import { redeemEnrolmentRoute, redeemEnrolmentHandler } from "./routes/enrolments-redeem";
+import { upsertResourceRoute, upsertResourceHandler } from "./routes/resources-upsert";
+import {
+  listServerResourcesRoute,
+  listServerResourcesHandler,
+} from "./routes/servers-resources-list";
+import { listPlansRoute, listPlansHandler } from "./routes/plans-list";
+import { getPlanRoute, getPlanHandler } from "./routes/plans-detail";
+import { approvePlanRoute, approvePlanHandler } from "./routes/plans-approve";
+import { rejectPlanRoute, rejectPlanHandler } from "./routes/plans-reject";
 import { daemonWsHandler } from "./routes/daemon-ws";
 import type { ServerDO } from "./durable-objects/server-do";
 
@@ -87,7 +97,27 @@ export function createApp(deps: Deps = realDeps) {
   app.openapi(getServerRoute, getServerHandler);
   app.openapi(listEnrolmentsRoute, listEnrolmentsHandler);
   app.openapi(redeemEnrolmentRoute, redeemEnrolmentHandler);
+  app.openapi(upsertResourceRoute, upsertResourceHandler);
+  app.openapi(listServerResourcesRoute, listServerResourcesHandler);
+  app.openapi(listPlansRoute, listPlansHandler);
+  app.openapi(getPlanRoute, getPlanHandler);
+  app.openapi(approvePlanRoute, approvePlanHandler);
+  app.openapi(rejectPlanRoute, rejectPlanHandler);
   app.get("/daemon", daemonWsHandler);
+
+  // Without this, an unhandled throw — the ServerDO stub failing, a D1 error — becomes Hono's
+  // default plain-text 500, which is neither the documented error shape nor traceable to a
+  // route. HTTPException (csrf, body limit) keeps its own response.
+  app.onError((err, c) => {
+    if (err instanceof HTTPException) return err.getResponse();
+
+    console.error(`unhandled error on ${c.req.method} ${c.req.routePath}`, {
+      params: c.req.param(),
+      error: err,
+    });
+
+    return c.json({ error: "internal error" }, 500);
+  });
 
   app.doc("/doc", {
     openapi: "3.1.0",
