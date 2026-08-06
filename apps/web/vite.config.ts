@@ -22,6 +22,9 @@ const config = defineConfig({
     viteReact(),
   ],
   server: {
+    // Deliberately obscure port: 3000/5173/8080 are contested on a machine where many
+    // agents run dev servers at once. Vite bumps to the next port if even this is taken.
+    port: 47811,
     proxy: Object.fromEntries(API_PATHS.map((path) => [path, { target: PLANE_URL, ws: true }])),
   },
 })
