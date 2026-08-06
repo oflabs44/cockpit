@@ -64,6 +64,16 @@ func (c *CLI) Observe(ctx context.Context) (protocol.ObservedHost, error) {
 		},
 	}
 
+	// The wire contract (type-design §3.1) says arrays; a Go nil slice marshals
+	// to JSON null, which the plane rightly rejects as malformed.
+	if h.Capacity.Disks == nil {
+		h.Capacity.Disks = []protocol.Disk{}
+	}
+
+	if h.Listeners == nil {
+		h.Listeners = []protocol.Listener{}
+	}
+
 	if ran == 0 {
 		return h, fmt.Errorf("%w: host", ErrUnavailable)
 	}

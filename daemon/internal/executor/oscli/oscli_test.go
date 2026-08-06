@@ -2,9 +2,11 @@ package oscli_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/oflabs44/cockpit/daemon/internal/executor/oscli"
@@ -249,6 +251,25 @@ func TestParseCrontab(t *testing.T) {
 
 // TestObserveOnAHostWithoutAnyOfIt is the macOS development case: none of the
 // probes exist. It must produce zero values and no error.
+func TestHostMarshalsEmptySlicesNotNull(t *testing.T) {
+	c := &oscli.CLI{
+		Run: func(context.Context, string, ...string) ([]byte, error) {
+			return nil, errors.New("executable file not found in $PATH")
+		},
+		Read: func(string) ([]byte, error) { return nil, os.ErrNotExist },
+	}
+	h, _ := c.Observe(context.Background())
+
+	b, err := json.Marshal(h)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.Contains(string(b), `"disks":null`) || strings.Contains(string(b), `"listeners":null`) {
+		t.Fatalf("nil slice leaked as JSON null: %s", b)
+	}
+}
+
 func TestObserveOnAHostWithoutAnyOfIt(t *testing.T) {
 	c := &oscli.CLI{
 		Run: func(context.Context, string, ...string) ([]byte, error) {
