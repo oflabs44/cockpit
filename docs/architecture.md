@@ -63,8 +63,13 @@ everything else depends on them:
 | MCP | Cloudflare Agents SDK (`McpAgent`, DO-backed) | same Worker; tools generated from the same schemas |
 | auth | Cloudflare Access (UI) · `workers-oauth-provider` (MCP) | two authentication paths, one authorisation model (ADR-0005) |
 
-The web app and the plane deploy as **one Worker** via `@cloudflare/vite-plugin` — UI
-assets, REST API, MCP endpoint, and the daemon WebSocket endpoint on one origin.
+The web app and the plane deploy as **one Worker** — UI assets, REST API, MCP
+endpoint, and the daemon WebSocket endpoint on one origin. (Amended 2026-08-06:
+via wrangler's native `assets` config on the plane — `apps/web` is a plain
+Vite-built static bundle, `not_found_handling: single-page-application`, and
+`run_worker_first` inverted so the Worker is the default and assets the
+exception. `@cloudflare/vite-plugin` is not used: it exists to Vite-build the
+Worker itself, and the plane is not Vite-built.)
 
 **One route definition, three consumers.** `@hono/zod-openapi` takes a `createRoute`
 carrying Zod request and response schemas, and from that single definition produces
@@ -121,10 +126,10 @@ Mirrors `postern`'s stack and design language exactly.
 
 | concern | choice |
 |---|---|
-| framework | TanStack Start + TanStack Router |
+| framework | TanStack Router, SPA mode (amended 2026-08-06 — Start was specified originally, but its current Cloudflare integration owns the Worker entrypoint (`@tanstack/react-start/server-entry` as `main`), which cannot compose with the plane's Hono app being the single Worker. Router-SPA keeps one origin and one Worker; revisit only if SSR becomes a requirement, which forces the bigger restructure of mounting Hono inside a Start server) |
 | server state | TanStack Query, plus WebSocket subscriptions for live panels |
 | build | Vite + `@cloudflare/vite-plugin` |
-| primitives | Base UI (`@base-ui-components/react`) |
+| primitives | Base UI (`@base-ui/react` (renamed from `@base-ui-components/react`)) |
 | styling | Tailwind v4 (`@theme` in CSS, no config file) + `cva` + `clsx` + `tailwind-merge` |
 | command palette | hand-built | ~80 lines, specified in `docs/design.md`. `cmdk` was considered and dropped: it brings its own DOM structure for behaviour already pinned down, and the palette doubles as every picker |
 | icons | HugeIcons (`@hugeicons/core-free-icons`), geometry only — stroke, width, and caps set in CSS so the rounded caps it ships become square |

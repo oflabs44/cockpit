@@ -37,6 +37,7 @@ export type Variables = { deps: Deps };
 export interface Bindings {
   DB: D1Database;
   SERVER_DO: DurableObjectNamespace<ServerDO>;
+  ASSETS: Fetcher;
 }
 export type AppEnv = { Bindings: Bindings; Variables: Variables };
 
@@ -104,6 +105,21 @@ export function createApp(deps: Deps = realDeps) {
   app.openapi(approvePlanRoute, approvePlanHandler);
   app.openapi(rejectPlanRoute, rejectPlanHandler);
   app.get("/daemon", daemonWsHandler);
+
+  // `run_worker_first: ["/*", ...]` (apps/plane/wrangler.jsonc) routes every request through
+  // this Worker, including the UI's own paths — so an unmatched route here falls back to the
+  // built SPA shell (index.html, client-side router takes over) rather than a bare Hono 404.
+  // `env.ASSETS` is unset in plain `app.request()` unit tests (no real Workers runtime, no
+  // assets binding to mock) — fall through to Hono's default 404 rather than throw.
+  app.notFound(async (c) => {
+    if (!c.env?.ASSETS) return new Response("404 not found", { status: 404 });
+
+    // `etag()` above (mounted on "*") mutates the outgoing response's headers, but a
+    // Response straight off `ASSETS.fetch()` ships immutable headers — re-wrap it so a
+    // static-asset request goes through the same middleware chain as any other GET.
+    const assetRes = await c.env.ASSETS.fetch(c.req.raw);
+    return new Response(assetRes.body, assetRes);
+  });
 
   // Without this, an unhandled throw — the ServerDO stub failing, a D1 error — becomes Hono's
   // default plain-text 500, which is neither the documented error shape nor traceable to a

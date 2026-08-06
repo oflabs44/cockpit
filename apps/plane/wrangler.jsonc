@@ -6,6 +6,18 @@
   "observability": {
     "enabled": true
   },
+  // Hazard both directions: the Worker is the default handler for every
+  // path, with the built UI assets as the explicit exception. A route added
+  // to the Hono app with no matching negative pattern here 404s as JSON from
+  // the Worker (fail loud) rather than 200ing as the SPA shell (fail silent,
+  // looks like a working page that does nothing). Conversely, any new static
+  // asset path must get its own "!/..." entry or it never reaches ASSETS.
+  "assets": {
+    "directory": "../web/dist",
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": ["/*", "!/assets/*", "!/favicon.ico"]
+  },
   "d1_databases": [
     {
       "binding": "DB",
