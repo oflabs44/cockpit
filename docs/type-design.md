@@ -339,7 +339,13 @@ type Up =
                         auth: { kind: 'enrolment' | 'credential'; secret: string }
                         server_id?: Id<'srv'> }
   | { type: 'awaiting_claim'; code: string }   // claim-code flow, before binding
-  | { type: 'state';    rev: number; resources: ObservedResource[] }   // full snapshot,
+  | { type: 'state';    rev: number; resources: ObservedResource[]
+                        /** Host-level observed facts, added 2026-08-06: identity
+                         *  (os, kernel, uptime), capacity (cpus, mem, disks, swap),
+                         *  load, listeners, and the security baseline (sshd flags,
+                         *  fail2ban, unattended-upgrades, last apt upgrade). Raw
+                         *  values only — health thresholds are plane policy. */
+                        host?: ObservedHost }                          // full snapshot,
                                                                        // on connect + interval
   | { type: 'event';    event: Omit<Event, 'id' | 'actor'> }
   | { type: 'task_progress'; task_id: string; change_index: number
