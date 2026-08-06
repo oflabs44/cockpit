@@ -241,11 +241,21 @@ describe("enrolment: claim code", () => {
       }),
     );
     ws.send(JSON.stringify({ type: "awaiting_claim", code: claimCode }));
+    // `hello` lands on the pending claim connection (stores `presented` in `enrolments`) before
+    // redeem reads it — give it a moment, since it's a separate execution path from the HTTP
+    // request below.
+    await tick();
 
     const welcome = waitForMessage(ws);
     const res = await redeem(app, claimCode, "203.0.113.10", { name: "claimed-box", provider: "hetzner" });
     expect(res.status).toBe(200);
-    const { server } = (await res.json()) as { server: { id: string; status: string } };
+    const { server } = (await res.json()) as {
+      server: { id: string; status: string; arch: string | null; agent_version: string | null };
+    };
+    // The daemon's `hello` already reported its identity before redeem ever ran — a claim-mode
+    // server shouldn't start its first session with these null.
+    expect(server.arch).toBe("arm64");
+    expect(server.agent_version).toBe("0.0.1");
 
     const frame = await welcome;
     expect(frame.type).toBe("welcome");

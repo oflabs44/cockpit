@@ -78,6 +78,10 @@ export class ServerDO extends DurableObject<Env> {
         await this.#handleState(ws, session, frame);
         return;
       }
+      if (frame.type === "op_result") {
+        this.#handleOpResult(session, frame);
+        return;
+      }
       if (frame.type === "pong") return;
 
       // task_progress/stream_data/metrics/event: out of scope this slice.
@@ -190,6 +194,14 @@ export class ServerDO extends DurableObject<Env> {
       }
       session.enrolled = true;
       ws.serializeAttachment(session);
+      // `clampField` turns a missing value into `""`, not absence — only write columns the
+      // daemon actually reported, so a hello missing one leaves it `null` rather than "".
+      const identity: { arch?: string; agentVersion?: string } = {};
+      if (presented.arch) identity.arch = presented.arch;
+      if (presented.agent_version) identity.agentVersion = presented.agent_version;
+      if (Object.keys(identity).length > 0) {
+        await db(this.env.DB).update(servers).set(identity).where(eq(servers.id, session.serverId));
+      }
       await this.#setConnected(session.serverId, Date.now());
       ws.send(JSON.stringify({ type: "welcome", server_id: session.serverId, credential }));
       return;
@@ -243,8 +255,36 @@ export class ServerDO extends DurableObject<Env> {
         };
       }),
     };
+
+    // Added 2026-08-06 (type-design §3.1). Both are optional on the wire and malformed on an
+    // otherwise-good frame must not reject it — drop just the bad field and keep going.
+    if ("host" in frame) {
+      const host = parseHost(frame.host);
+      if (host) snapshot.host = host;
+      else console.warn("dropping malformed host field on state frame", { serverId: session.serverId });
+    }
+    if ("probes" in frame) {
+      const probes = parseProbes(frame.probes);
+      if (probes) snapshot.probes = probes;
+      else console.warn("dropping malformed probes field on state frame", { serverId: session.serverId });
+    }
+
     await this.ctx.storage.put("snapshot", snapshot);
     if (session.serverId) await this.#setConnected(session.serverId, Date.now());
+  }
+
+  /** Outcome of a direct op (type-design §3.1, added 2026-08-06). Nothing consumes this yet — a
+   *  later (plans) slice does — so it's just validated and logged; critically it must not fall
+   *  through to the unknown-frame close path. */
+  #handleOpResult(session: Session, frame: Record<string, unknown>) {
+    const opId = frame.op_id;
+    if (typeof opId !== "string" || !opId) {
+      console.warn("malformed op_result frame — missing op_id", { serverId: session.serverId });
+      return;
+    }
+    const changed = typeof frame.changed === "string" ? frame.changed : undefined;
+    const error = isFrameError(frame.error) ? frame.error : undefined;
+    console.log("op_result", { serverId: session.serverId, opId, changed, error });
   }
 
   async #markDisconnected(ws: WebSocket) {
@@ -307,6 +347,8 @@ type DetailValue = string | number | boolean | null;
 interface Snapshot {
   rev: number;
   resources: { kind: string; name: string; observed: ObservedRecord }[];
+  host?: HostRecord;
+  probes?: Partial<Record<ProbeKind, ProbeStatus>>;
 }
 
 interface ObservedRecord {
@@ -314,4 +356,157 @@ interface ObservedRecord {
   health: string;
   detail: Record<string, DetailValue>;
   observed_at: number;
+}
+
+// docs/type-design.md §3.1 `ObservedHost` (added 2026-08-06), mirrored from
+// daemon/internal/protocol/protocol.go. Same closed-scalar-shape approach as `DetailValue`
+// above — every leaf is a plain scalar or an array of scalar-only records, so it satisfies the
+// RPC `Serializable<T>` constraint without the recursion that broke `getSnapshot`'s inference.
+interface HostRecord {
+  identity: { os: string; kernel: string; hostname: string; uptime_s: number };
+  capacity: {
+    cpus: number;
+    mem_total: number;
+    swap_total: number;
+    disks: { mount: string; size: number; used: number }[];
+  };
+  load: [number, number, number];
+  listeners: { proto: string; addr: string; port: number; pid_name: string }[];
+  security: {
+    sshd: { permit_root_login: string; password_authentication: string; max_auth_tries: number };
+    fail2ban_active: boolean;
+    unattended_upgrades_active: boolean;
+    last_apt_activity_unix: number;
+  };
+}
+
+type ProbeKind = "docker" | "firewall" | "systemd" | "cron" | "host";
+type ProbeStatus = "ok" | "unavailable";
+const PROBE_KINDS: ProbeKind[] = ["docker", "firewall", "systemd", "cron", "host"];
+const PROBE_STATUSES: ProbeStatus[] = ["ok", "unavailable"];
+
+// Minimal structural validation, not a full schema — malformed just means "don't store this
+// field," not "reject the frame" (the rest of `state` — resources — is otherwise good).
+function parseHost(value: unknown): HostRecord | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const v = value as Record<string, unknown>;
+
+  const identity = v.identity as Record<string, unknown> | undefined;
+  if (
+    typeof identity?.os !== "string" ||
+    typeof identity.kernel !== "string" ||
+    typeof identity.hostname !== "string" ||
+    typeof identity.uptime_s !== "number"
+  ) {
+    return undefined;
+  }
+
+  const capacity = v.capacity as Record<string, unknown> | undefined;
+  if (
+    typeof capacity?.cpus !== "number" ||
+    typeof capacity.mem_total !== "number" ||
+    typeof capacity.swap_total !== "number" ||
+    !Array.isArray(capacity.disks) ||
+    !capacity.disks.every(
+      (d) =>
+        typeof d === "object" &&
+        d !== null &&
+        typeof (d as Record<string, unknown>).mount === "string" &&
+        typeof (d as Record<string, unknown>).size === "number" &&
+        typeof (d as Record<string, unknown>).used === "number",
+    )
+  ) {
+    return undefined;
+  }
+
+  if (!Array.isArray(v.load) || v.load.length !== 3 || !v.load.every((n) => typeof n === "number")) {
+    return undefined;
+  }
+
+  if (
+    !Array.isArray(v.listeners) ||
+    !v.listeners.every((l) => {
+      const listener = l as Record<string, unknown>;
+      return (
+        typeof listener === "object" &&
+        listener !== null &&
+        typeof listener.proto === "string" &&
+        typeof listener.addr === "string" &&
+        typeof listener.port === "number" &&
+        typeof listener.pid_name === "string"
+      );
+    })
+  ) {
+    return undefined;
+  }
+
+  const security = v.security as Record<string, unknown> | undefined;
+  const sshd = security?.sshd as Record<string, unknown> | undefined;
+  if (
+    typeof sshd?.permit_root_login !== "string" ||
+    typeof sshd.password_authentication !== "string" ||
+    typeof sshd.max_auth_tries !== "number" ||
+    typeof security?.fail2ban_active !== "boolean" ||
+    typeof security.unattended_upgrades_active !== "boolean" ||
+    typeof security.last_apt_activity_unix !== "number"
+  ) {
+    return undefined;
+  }
+
+  return {
+    identity: {
+      os: identity.os,
+      kernel: identity.kernel,
+      hostname: identity.hostname,
+      uptime_s: identity.uptime_s,
+    },
+    capacity: {
+      cpus: capacity.cpus,
+      mem_total: capacity.mem_total,
+      swap_total: capacity.swap_total,
+      disks: (capacity.disks as Record<string, unknown>[]).map((d) => ({
+        mount: d.mount as string,
+        size: d.size as number,
+        used: d.used as number,
+      })),
+    },
+    load: v.load as [number, number, number],
+    listeners: (v.listeners as Record<string, unknown>[]).map((l) => ({
+      proto: l.proto as string,
+      addr: l.addr as string,
+      port: l.port as number,
+      pid_name: l.pid_name as string,
+    })),
+    security: {
+      sshd: {
+        permit_root_login: sshd.permit_root_login as string,
+        password_authentication: sshd.password_authentication as string,
+        max_auth_tries: sshd.max_auth_tries as number,
+      },
+      fail2ban_active: security.fail2ban_active as boolean,
+      unattended_upgrades_active: security.unattended_upgrades_active as boolean,
+      last_apt_activity_unix: security.last_apt_activity_unix as number,
+    },
+  };
+}
+
+function parseProbes(value: unknown): Partial<Record<ProbeKind, ProbeStatus>> | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const result: Partial<Record<ProbeKind, ProbeStatus>> = {};
+  for (const [kind, status] of Object.entries(value as Record<string, unknown>)) {
+    // Forward-compat: a probe kind this version doesn't know about yet is skipped, not fatal —
+    // an older plane shouldn't lose every known-good probe because a newer daemon added one.
+    // A *known* kind with a malformed status is different: that's not a new kind, it's bad
+    // data, so it still rejects the whole field (probes has no per-entry fallback to store).
+    if (!PROBE_KINDS.includes(kind as ProbeKind)) continue;
+    if (!PROBE_STATUSES.includes(status as ProbeStatus)) return undefined;
+    result[kind as ProbeKind] = status as ProbeStatus;
+  }
+  return result;
+}
+
+function isFrameError(value: unknown): value is { kind: string; message: string } {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.kind === "string" && typeof v.message === "string";
 }

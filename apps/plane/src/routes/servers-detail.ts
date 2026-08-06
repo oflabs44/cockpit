@@ -40,5 +40,7 @@ export const getServerHandler: AppRouteHandler<typeof getServerRoute> = async (c
       created_at: row.createdAt,
     },
     observed: observed ? { rev: observed.rev, resources: observed.resources } : null,
+    host: observed?.host ?? null,
+    probes: observed?.probes ?? null,
   });
 };
