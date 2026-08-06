@@ -23,13 +23,15 @@ type Runner func(ctx context.Context, name string, args ...string) ([]byte, erro
 // Client is an executor.Docker backed by the docker binary.
 type Client struct {
 	Bin string
-	Run Runner
-	Log *slog.Logger
+	// Exec runs the docker binary. Named for what it does rather than Run,
+	// which is the executor verb below.
+	Exec Runner
+	Log  *slog.Logger
 }
 
 // New returns a Client using the docker binary on PATH.
 func New(log *slog.Logger) *Client {
-	return &Client{Bin: "docker", Run: execRun, Log: log}
+	return &Client{Bin: "docker", Exec: execRun, Log: log}
 }
 
 func (c *Client) log() *slog.Logger {
@@ -73,7 +75,7 @@ type psLine struct {
 const inspectFormat = "{{.Id}}\t{{.State.StartedAt}}\t{{.RestartCount}}\t{{.HostConfig.RestartPolicy.Name}}\t{{.Image}}\t{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}"
 
 func (c *Client) ListContainers(ctx context.Context) ([]executor.Container, error) {
-	out, err := c.Run(ctx, c.Bin, "ps", "--all", "--no-trunc", "--format", "{{json .}}")
+	out, err := c.Exec(ctx, c.Bin, "ps", "--all", "--no-trunc", "--format", "{{json .}}")
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +96,7 @@ func (c *Client) ListContainers(ctx context.Context) ([]executor.Container, erro
 		args = append(args, container.ID)
 	}
 
-	inspected, err := c.Run(ctx, c.Bin, args...)
+	inspected, err := c.Exec(ctx, c.Bin, args...)
 	if err != nil {
 		// A container removed between ps and inspect fails the whole call.
 		// The ps facts are still true, so they stand.

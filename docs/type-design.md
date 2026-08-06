@@ -358,6 +358,13 @@ type Up =
   | { type: 'task_progress'; task_id: string; change_index: number
                         status: 'started' | 'ok' | 'error'
                         changed?: Changed; error?: { kind: string; message: string } }
+  /** Outcome of a direct op, added 2026-08-06: without it a failed restart is
+   *  indistinguishable plane-side from a successful no_op, and a refused frame
+   *  from a dead daemon. Sent for every op — success, failure, or refusal.
+   *  Task refusals answer too, as task_progress {status:'error',
+   *  error:{kind:'refused', …}} at change_index 0. */
+  | { type: 'op_result'; op_id: string; changed?: Changed
+                         error?: { kind: string; message: string } }
   | { type: 'stream_data'; stream_id: string; lines: string[] }
   | { type: 'metrics';  samples: MetricSample[] }
   | { type: 'pong' }

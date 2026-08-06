@@ -22,6 +22,7 @@ import (
 	"github.com/oflabs44/cockpit/daemon/internal/executor/dockercli"
 	"github.com/oflabs44/cockpit/daemon/internal/executor/oscli"
 	"github.com/oflabs44/cockpit/daemon/internal/observer"
+	"github.com/oflabs44/cockpit/daemon/internal/ops"
 )
 
 // version is stamped at build time by the Makefile.
@@ -72,8 +73,9 @@ func run() error {
 	}
 
 	hostCLI := oscli.New(log)
+	docker := dockercli.New(log)
 	set := executor.Set{
-		Docker:   dockercli.New(log),
+		Docker:   docker,
 		Host:     hostCLI,
 		Firewall: hostCLI,
 		Systemd:  hostCLI,
@@ -88,6 +90,7 @@ func run() error {
 			Hostname:     hostname,
 		},
 		Observer:        observer.New(set, time.Now).WithLogger(log),
+		Ops:             &ops.Runner{Docker: docker},
 		Dial:            client.WSDialer,
 		Log:             log,
 		EnrolmentSecret: *token,

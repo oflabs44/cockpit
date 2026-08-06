@@ -35,9 +35,29 @@ type Container struct {
 	ImageDigest string
 }
 
-// Docker enumerates and (later) manipulates containers, volumes and networks.
+// RunSpec is everything needed to create and start one container.
+type RunSpec struct {
+	Name    string
+	Image   string
+	Env     map[string]string
+	Labels  map[string]string
+	Ports   []protocol.Port
+	Restart string
+	CPU     string
+	Memory  string
+}
+
+// Docker enumerates and manipulates containers.
 type Docker interface {
 	ListContainers(ctx context.Context) ([]Container, error)
+	// Inspect returns one container by name. The bool is false when no
+	// container of that name exists, which is not an error.
+	Inspect(ctx context.Context, name string) (Container, bool, error)
+	Run(ctx context.Context, spec RunSpec) error
+	Remove(ctx context.Context, name string) error
+	Start(ctx context.Context, name string) error
+	Stop(ctx context.Context, name string) error
+	Restart(ctx context.Context, name string) error
 }
 
 // FirewallRule is one UFW rule as observed on the box.

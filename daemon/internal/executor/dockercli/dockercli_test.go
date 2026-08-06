@@ -76,7 +76,7 @@ func TestListContainersInvokesPSThenInspect(t *testing.T) {
 
 	c := &dockercli.Client{
 		Bin: "docker",
-		Run: func(_ context.Context, name string, args ...string) ([]byte, error) {
+		Exec: func(_ context.Context, name string, args ...string) ([]byte, error) {
 			calls = append(calls, append([]string{name}, args...))
 
 			if args[0] == "inspect" {
@@ -131,7 +131,7 @@ func TestListContainersInvokesPSThenInspect(t *testing.T) {
 func TestListContainersSurvivesAFailedInspect(t *testing.T) {
 	c := &dockercli.Client{
 		Bin: "docker",
-		Run: func(_ context.Context, _ string, args ...string) ([]byte, error) {
+		Exec: func(_ context.Context, _ string, args ...string) ([]byte, error) {
 			if args[0] == "inspect" {
 				return nil, errors.New("no such container")
 			}
@@ -167,7 +167,7 @@ func TestApplyInspectSkipsMalformedLines(t *testing.T) {
 
 func TestListContainersPropagatesRunError(t *testing.T) {
 	boom := errors.New("no docker")
-	c := &dockercli.Client{Bin: "docker", Run: func(context.Context, string, ...string) ([]byte, error) {
+	c := &dockercli.Client{Bin: "docker", Exec: func(context.Context, string, ...string) ([]byte, error) {
 		return nil, boom
 	}}
 

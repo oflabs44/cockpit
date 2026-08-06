@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/oflabs44/cockpit/daemon/internal/observer"
+	"github.com/oflabs44/cockpit/daemon/internal/ops"
 	"github.com/oflabs44/cockpit/daemon/internal/protocol"
 )
 
@@ -57,9 +58,12 @@ type Client struct {
 	PlaneURL string
 	Identity Identity
 	Observer *observer.Observer
-	Dial     Dialer
-	Backoff  Backoff
-	Log      *slog.Logger
+	// Ops executes task and op frames. Nil means an observe-only daemon,
+	// which refuses both.
+	Ops     *ops.Runner
+	Dial    Dialer
+	Backoff Backoff
+	Log     *slog.Logger
 
 	// EnrolmentSecret is presented once, on a daemon that holds no credential.
 	EnrolmentSecret string
@@ -388,6 +392,14 @@ func (c *Client) serve(ctx context.Context, cancel context.CancelFunc, tr Transp
 		switch down.Type {
 		case protocol.TypePing:
 			if err := send(ctx, tr, protocol.Pong{Type: protocol.TypePong}); err != nil {
+				return err
+			}
+		case protocol.TypeTask:
+			if err := c.handleTask(ctx, tr, down.Raw); err != nil {
+				return err
+			}
+		case protocol.TypeOp:
+			if err := c.handleOp(ctx, tr, down.Raw); err != nil {
 				return err
 			}
 		default:

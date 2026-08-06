@@ -1,9 +1,10 @@
 # cockpitd
 
-The on-box agent. This build **enrols, connects, and observes**: the full state
-snapshot — host, containers, firewall rules, systemd units, cron — reported on
-connect and on an interval. It executes nothing — no `task`, no `op`, no
-streams, no metrics, no `install.sh`.
+The on-box agent. This build **enrols, connects, observes, and executes docker
+app changes**: the full state snapshot — host, containers, firewall rules,
+systemd units, cron — plus `task` and `op` frames against the app kind. No
+builds, no secret resolution, no ufw/systemd/cron execution, no streams, no
+metrics, no `install.sh`.
 
 ## Run it
 
@@ -65,6 +66,7 @@ cmd/cockpitd          flags, wiring, signals
 internal/protocol     frame types, verbatim from docs/type-design.md section 3
 internal/client       dial, handshake, snapshot, serve, reconnect with backoff
 internal/observer     executors -> state snapshot; reports, never mutates
+internal/ops          ensure-semantics docker ops; the only code that mutates
 internal/executor     Docker, Host, Firewall, Systemd, Cron interfaces
   /dockercli          Docker over the docker CLI
   /oscli              host, ufw, systemd and cron over /proc, /etc and the CLIs
@@ -150,6 +152,40 @@ Docker itself, the CLI is guaranteed present wherever Docker is, and `docker ps
 large dependency tree and an API-version negotiation problem for one read.
 `ParsePS` is a pure function, so the parsing is tested without Docker present.
 
+## What it executes
+
+Two write frames and nothing else (type-design section 3.3):
+
+- **`task`** — a plan's changes, run in order, one `task_progress` pair
+  (`started`, then `ok`/`error`) per change. It stops at the first failure: the
+  plane owns retry and revert, every op is idempotent so a re-sent task is
+  safe, and continuing would apply later changes against a box that is no
+  longer what the plan was computed for.
+- **`op`** — one direct `restart`/`stop`/`start`, answered with an `op_result`
+  for every outcome: executed, failed, or refused. A frame carrying `spec`,
+  `after`, `before`, `changes` or `plan_id` is refused: an op leaves the spec
+  identical by definition, and that refusal is what keeps the carve-out from
+  being a loophole. A frame naming no `op_id`/`event_id` is dropped in silence —
+  it is bound to no Event, so there is nothing to answer.
+
+Refusals answer. A task the daemon will not run (no `task_id`/`plan_id`, no
+executor wired) gets a `task_progress` `{status: error, error: {kind: refused}}`
+at change index 0, because a plan sitting in `applying` must never hang on the
+daemon's silence.
+
+Both force a fresh state snapshot on completion, so the plane sees what is
+actually on the box rather than inferring it from the changes.
+
+Every op has ensure-semantics and reports `create | in_place | replace | no_op`.
+The container carries a `cockpit.spec` label holding a hash of the spec it was
+created from — that label, on the box, is how "is this already what the plan
+asks for" is answered without the daemon holding any desired state (#13). Run
+any op twice and the second is `no_op`; every op has a test that proves it.
+
+The one exception is `restart`, which reports `in_place` every time: asking for
+two restarts means two restarts, and reporting the second as `no_op` would be a
+lie about what happened to the box.
+
 ## Protocol notes
 
 Two gaps against `docs/type-design.md` section 3, resolved here provisionally.
@@ -202,6 +238,20 @@ Both need confirming with the plane implementor.
    the resources. Stable names need cron entries the daemon *installs* (with a
    comment marker or as systemd timers), which is also what
    `prototype-reality-check` invented #2 needs for last-run and exit status.
+
+6. **A change names a resource the daemon cannot resolve.** `Change.target` and
+   `op.resource_id` are plane-side resource ids, and the daemon holds none
+   (#13) — it addresses the box by container name. This build reads `kind` and
+   `name` from the change's `after`/`before` payload, and expects the same two
+   fields on the `op` frame; an op without a name is refused rather than
+   guessed at. Either the plane sends them, or the daemon has to keep an
+   id-to-name map, which is state it is not supposed to have.
+
+7. **`AppSpec` here is the daemon's slice of the kind, not the whole schema.**
+   `source`, `build`, `domains`, `replicas` and `healthcheck` are absent: they
+   belong to the build and proxy slices. `env` arrives already resolved —
+   secret resolution is its own slice (ADR-0008), and this daemon dereferences
+   nothing.
 
 Smaller ones: `state.rev` is treated as monotonic per daemon process and
 restarts at 1 after a restart (the plane reconciles on every full snapshot, so

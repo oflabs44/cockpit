@@ -233,7 +233,7 @@ func TestPingIsAnsweredWithPong(t *testing.T) {
 func TestUnknownFrameIsIgnored(t *testing.T) {
 	tr := &fakeTransport{inbox: [][]byte{
 		mustJSON(t, protocol.Welcome{Type: protocol.TypeWelcome, ServerID: "srv_1"}),
-		mustJSON(t, map[string]any{"type": "task", "task_id": "t1"}),
+		mustJSON(t, map[string]any{"type": "stream", "stream_id": "s1"}),
 		mustJSON(t, map[string]any{"type": protocol.TypePing}),
 	}}
 
@@ -244,7 +244,7 @@ func TestUnknownFrameIsIgnored(t *testing.T) {
 
 	frames := tr.frames()
 
-	// This build executes nothing: the task is dropped, the ping still answered.
+	// A frame this build does not implement is dropped, the ping still answered.
 	if len(frames) != 3 || frames[2]["type"] != protocol.TypePong {
 		t.Fatalf("frames = %+v, want hello, state, pong", frames)
 	}
@@ -322,8 +322,11 @@ func TestReconnectBacksOffAndResendsFullState(t *testing.T) {
 }
 
 // deadDocker answers the connect snapshot and then fails, as dockerd dying
-// under a connected daemon does.
+// under a connected daemon does. It only ever observes; the execute verbs are
+// unreachable in this test and satisfy the interface only.
 type deadDocker struct {
+	fake.Docker
+
 	mu    sync.Mutex
 	calls int
 }

@@ -13,6 +13,7 @@ const (
 	TypeState         = "state"
 	TypeEvent         = "event"
 	TypeTaskProgress  = "task_progress"
+	TypeOpResult      = "op_result"
 	TypeStreamData    = "stream_data"
 	TypeMetrics       = "metrics"
 	TypePong          = "pong"
@@ -171,6 +172,129 @@ type State struct {
 	Resources []ObservedResource `json:"resources"`
 	Host      *ObservedHost      `json:"host,omitempty"`
 	Probes    map[string]string  `json:"probes,omitempty"`
+}
+
+// Changed is the result of any ensure-semantics op (type-design section 1).
+const (
+	ChangedCreate  = "create"
+	ChangedInPlace = "in_place"
+	ChangedReplace = "replace"
+	ChangedNoOp    = "no_op"
+)
+
+// Ops the daemon implements. Anything else in the Op union belongs to the
+// plane or to a later slice and is refused rather than guessed at.
+const (
+	OpResourceCreate  = "resource.create"
+	OpResourceUpdate  = "resource.update"
+	OpResourceDelete  = "resource.delete"
+	OpResourceStart   = "resource.start"
+	OpResourceStop    = "resource.stop"
+	OpResourceRestart = "resource.restart"
+)
+
+// Change is one entry of a plan, as the daemon needs it. The plane's Change
+// carries more (inverse, status, error); those are its bookkeeping.
+type Change struct {
+	Op     string  `json:"op"`
+	Target string  `json:"target"`
+	Before *Target `json:"before"`
+	After  *Target `json:"after"`
+	Impact string  `json:"impact"`
+}
+
+// Target is the resource a change acts on. `Change.target` is a plane-side
+// resource id, and the daemon holds no plane ids (#13), so the kind and name
+// it addresses the box by have to travel in the payload.
+type Target struct {
+	Kind string  `json:"kind"`
+	Name string  `json:"name"`
+	Spec AppSpec `json:"spec"`
+}
+
+// Port is one published port.
+type Port struct {
+	Container int    `json:"container"`
+	Host      int    `json:"host"`
+	Protocol  string `json:"protocol"`
+}
+
+// Limits bound a container's resources.
+type Limits struct {
+	CPU    string `json:"cpu"`
+	Memory string `json:"memory"`
+}
+
+// AppSpec is the daemon's slice of the app kind: what it takes to run the
+// container. Env values arrive already resolved — the daemon does not
+// dereference secret refs in this slice (ADR-0008 resolution is its own).
+type AppSpec struct {
+	Image   string            `json:"image"`
+	Ports   []Port            `json:"ports"`
+	Env     map[string]string `json:"env"`
+	Labels  map[string]string `json:"labels"`
+	Restart string            `json:"restart"`
+	Limits  Limits            `json:"limits"`
+}
+
+// Task is a plane -> daemon frame carrying a plan's changes.
+type Task struct {
+	Type    string   `json:"type"`
+	TaskID  string   `json:"task_id"`
+	PlanID  string   `json:"plan_id"`
+	Changes []Change `json:"changes"`
+}
+
+// Op is a plane -> daemon frame carrying one direct operation. It may never
+// carry a spec change: that restriction is what keeps the carve-out from
+// being a loophole (type-design section 3.3).
+type Op struct {
+	Type       string `json:"type"`
+	OpID       string `json:"op_id"`
+	EventID    string `json:"event_id"`
+	Action     string `json:"action"`
+	ResourceID string `json:"resource_id"`
+	// Kind and Name are the daemon's only way to find the container: it holds
+	// no plane resource ids. See the protocol note in daemon/README.md.
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+}
+
+// TaskProgress reports one change's outcome.
+type TaskProgress struct {
+	Type        string      `json:"type"`
+	TaskID      string      `json:"task_id"`
+	ChangeIndex int         `json:"change_index"`
+	Status      string      `json:"status"`
+	Changed     string      `json:"changed,omitempty"`
+	Error       *FrameError `json:"error,omitempty"`
+}
+
+// TaskProgress statuses.
+const (
+	ProgressStarted = "started"
+	ProgressOK      = "ok"
+	ProgressError   = "error"
+)
+
+// OpResult is the outcome of a direct op: success, failure, or refusal.
+// Without it a failed restart is indistinguishable plane-side from a
+// successful no_op, and a refused frame from a dead daemon.
+type OpResult struct {
+	Type    string      `json:"type"`
+	OpID    string      `json:"op_id"`
+	Changed string      `json:"changed,omitempty"`
+	Error   *FrameError `json:"error,omitempty"`
+}
+
+// ErrRefused is the error kind for a frame the daemon declined to execute, as
+// opposed to one it tried and failed.
+const ErrRefused = "refused"
+
+// FrameError is a typed error as the protocol carries it.
+type FrameError struct {
+	Kind    string `json:"kind"`
+	Message string `json:"message"`
 }
 
 // Pong answers a Ping.
