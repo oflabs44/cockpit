@@ -7,6 +7,7 @@
 @import '@fontsource/schibsted-grotesk/600.css';
 @import '@fontsource/geist-mono/400.css';
 @import '@fontsource/geist-mono/500.css';
+@import './styles/frame.css' layer(components);
 
 /* Token values are extracted verbatim from prototype/assets/css/theme.css — the prototype is
    authoritative (docs/design.md §1, "the prototype wins"). The colour raw values live here as
@@ -145,6 +146,9 @@
 
   body {
     margin: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     background-color: var(--color-paper);
     color: var(--color-ink);
     font-family: var(--font-sans);
@@ -152,6 +156,59 @@
     line-height: 1.5;
     font-synthesis-weight: none;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* The tree between <body> and .frame (prototype/frame.html has no such gap — .frame is a
+     direct child of <body>): #app is where TanStack mounts, and .frame's `flex: 1` only
+     fills it if #app itself is a flex column with a real height, not content-sized. */
+  #app {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Sized separately from stroke/cap/join (frame.css's per-selector rules, e.g. `.nav svg`,
+     override the size where the prototype gives an element its own) so any icon anywhere in
+     the shell has an explicit box instead of rendering at its SVG's intrinsic size. */
+  .icon {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.25;
+    stroke-linecap: butt;
+    stroke-linejoin: miter;
+  }
+  .icon-sm {
+    width: 15px;
+    height: 15px;
+  }
+  .icon-lg {
+    width: 21px;
+    height: 21px;
+  }
+  /* HugeIcons ships rounded caps/joins as a `stroke-linecap`/`stroke-linejoin` attribute on
+     every individual <path> (docs/design.md §3: "the set's rounded caps become square"), so
+     `.icon`'s own butt/miter above only reaches paths that don't set their own — i.e. none
+     of them. A real selector (even this low-specificity one) still outranks a presentation
+     attribute in the cascade, so this squares every HugeIcons glyph without `!important`. */
+  .icon path,
+  .icon circle,
+  .icon ellipse {
+    stroke-linecap: butt;
+    stroke-linejoin: miter;
+  }
+
+  /* Small uppercase mono label — ported from prototype/assets/css/theme.css. The workhorse
+     for field labels, table headers, and metadata rows. */
+  .label {
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ink-40);
   }
 
   ::selection {

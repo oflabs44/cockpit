@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The favicon is a tile, not a bare mark: it carries its own background so it
+       never depends on the browser's tab colour, and it inverts with the browser
+       theme so it always contrasts with the chrome around it. A bare ink mark
+       disappears into a light tab bar, which is the whole reason this exists. -->
+  <style>
+    .tile { fill: #1b1c22 }
+    .mark { fill: #f4f4f6 }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #f4f4f6 }
+      .mark { fill: #1b1c22 }
+    }
+  </style>
+  <rect class="tile" width="32" height="32"/>
+  <g class="mark" transform="translate(4.5 4.5) scale(0.71875)">
+    <path d="M0 0h32v32H0V0zm3.5 3.5v25h25v-25h-25z"/>
+    <path d="M3.5 20h25v8.5h-25z"/>
+    <path d="M5.5 13.5h9v4h-9zM17.5 13.5h9v4h-9z"/>
+  </g>
+</svg>

@@ -13,6 +13,12 @@ declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router
   }
+  interface StaticDataRouteOption {
+    // Each `_app.*` route's crumb/title text — the bar renders the deepest match's
+    // title instead of a separate <h1> (docs/design.md §4.2). Optional: the root and
+    // `_app` layout routes carry no staticData at all.
+    title?: string
+  }
 }
 
 const queryClient = new QueryClient()

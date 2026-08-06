@@ -16,7 +16,9 @@
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
-    "run_worker_first": ["/*", "!/assets/*", "!/favicon.ico"]
+    // "!/favicon*" is one glob covering favicon.ico/.svg/-16.png/-32.png (Cloudflare docs:
+    // run_worker_first patterns support "*" glob segments) rather than four separate entries.
+    "run_worker_first": ["/*", "!/assets/*", "!/favicon*", "!/apple-touch-icon.png"]
   },
   "d1_databases": [
     {

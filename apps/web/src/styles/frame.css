@@ -1,0 +1,256 @@
+/* ==========================================================================
+   The frame — ported from prototype/assets/css/frame.css. Structure and
+   values are extracted exactly; only the custom-property names are remapped
+   onto this app's tokens (--s* -> calc(var(--spacing) * n), --t-* ->
+   --text-*, --ink-NN -> --color-ink-NN).
+
+   Only the desktop rail+bar+content chrome this slice needs is ported —
+   mobile bottom-bar layout, the tab strip, and the rail-foot "who" button
+   (needs real auth data; the prototype's name is invented) are deliberately
+   left out. See /tmp/web-layout-summary.md.
+   ========================================================================== */
+
+.frame {
+  flex: 1;
+  display: grid;
+  grid-template-columns: var(--rail, 216px) 1fr;
+  min-height: 0;
+  transition: grid-template-columns 0.16s var(--ease);
+}
+.frame[data-rail='collapsed'] {
+  --rail: 52px;
+}
+
+/* ---------------------------- rail ---------------------------- */
+.rail {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--color-ink-12);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Brand doubles as the fleet's health indicator: the mark banks when
+   something is wrong, so the chrome itself tells you before you read a word.
+   No health data exists yet, so `data-health` is left unset (renders as the
+   healthy/neutral default) rather than hardcoding "healthy". */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.44em;
+  height: 56px;
+  padding: 0 calc(var(--spacing) * 4);
+  border-bottom: 1px solid var(--color-ink-12);
+  flex: none;
+  text-decoration: none;
+  color: inherit;
+  font-size: 16px;
+}
+.brand svg {
+  width: 1em;
+  height: 1em;
+  flex: none;
+}
+.brand .word {
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+.brand[data-health='degraded'] svg {
+  color: var(--color-warn);
+}
+.brand[data-health='unhealthy'] svg {
+  color: var(--color-danger);
+}
+
+.nav {
+  padding: calc(var(--spacing) * 4) calc(var(--spacing) * 2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nav a {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  height: 38px;
+  padding: 0 calc(var(--spacing) * 3);
+  text-decoration: none;
+  color: var(--color-ink-40);
+  font-size: var(--text-base);
+  white-space: nowrap;
+  transition: color 0.12s var(--ease);
+}
+.nav a:hover {
+  color: var(--color-ink-80);
+}
+/* Active state is contrast alone — no rule, no fill, no pill (docs/design.md §4.1). */
+.nav a[aria-current='page'] {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.nav a[aria-current='page'] svg {
+  stroke-width: 1.5;
+}
+
+.nav svg {
+  width: 21px;
+  height: 21px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
+}
+.nav .count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--color-ink-40);
+}
+.nav .count[data-attention] {
+  color: var(--color-info);
+}
+
+.nav-sep {
+  height: 1px;
+  background: var(--color-ink-12);
+  margin: calc(var(--spacing) * 3) calc(var(--spacing) * -2);
+}
+
+/* Collapsed rail: labels vanish, hit targets and icons stay put. */
+[data-rail='collapsed'] .brand .word,
+[data-rail='collapsed'] .nav a span {
+  display: none;
+}
+[data-rail='collapsed'] .brand,
+[data-rail='collapsed'] .nav a {
+  justify-content: center;
+  padding: 0;
+}
+[data-rail='collapsed'] .nav .count {
+  display: none;
+}
+
+/* ---------------------------- main ---------------------------- */
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  height: 56px;
+  padding: 0 calc(var(--spacing) * 5);
+  border-bottom: 1px solid var(--color-ink-12);
+  flex: none;
+}
+.bar .spacer {
+  flex: 1;
+}
+
+.railtoggle {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--color-ink-40);
+}
+.railtoggle:hover {
+  color: var(--color-ink);
+  background: var(--color-ink-04);
+}
+.railtoggle svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* Breadcrumb is the page title — no separate <h1> (docs/design.md §4.2). */
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  min-width: 0;
+}
+.crumbs .here {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  height: 30px;
+  padding: 0 calc(var(--spacing) * 3);
+  min-width: 210px;
+  border: 1px solid var(--color-ink-12);
+  background: transparent;
+  color: var(--color-ink-40);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.search:hover {
+  border-color: var(--color-ink-40);
+  color: var(--color-ink-60);
+}
+.search kbd {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.bell {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--color-ink-40);
+}
+.bell:hover {
+  color: var(--color-ink);
+  background: var(--color-ink-04);
+}
+.bell[data-unread]::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  background: var(--color-danger);
+  outline: 2px solid var(--color-paper);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.content-inner {
+  padding: calc(var(--spacing) * 5);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
