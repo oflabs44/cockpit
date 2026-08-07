@@ -247,6 +247,9 @@ describe("enrolment: claim code", () => {
     await tick();
 
     const welcome = waitForMessage(ws);
+    // Registered before redeem: the DO sends welcome and closes in one breath, so a listener
+    // attached after `await welcome` can miss the close event entirely.
+    const closed = waitForClose(ws);
     const res = await redeem(app, claimCode, "203.0.113.10", { name: "claimed-box", provider: "hetzner" });
     expect(res.status).toBe(200);
     const { server } = (await res.json()) as {
@@ -261,6 +264,16 @@ describe("enrolment: claim code", () => {
     expect(frame.type).toBe("welcome");
     expect(frame.server_id).toBe(server.id);
     expect(typeof frame.credential).toBe("string");
+
+    // Deliver-then-close: the claim socket must not stay usable, or the daemon's state
+    // frames land on the `claim:<hash>` object instead of `server:<id>` and `observed`
+    // stays null. The close must also not flip the server to disconnected — the session
+    // deliberately never learns the server id.
+    expect((await closed).code).toBe(1000);
+
+    const detail = await createApp(testDeps()).fetch(new Request(`http://plane.test/servers/${server.id}`), env);
+    const body = (await detail.json()) as { server: { status: string } };
+    expect(body.server.status).toBe("connected");
   });
 
   it("double redeem fails", async () => {

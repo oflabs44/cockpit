@@ -11,10 +11,9 @@ import { realDeps } from "../deps";
 //   - a *pending* claim-code connection, addressed `claim:<secretHash>` instead of
 //     `server:<id>` (see routes/daemon-ws.ts for the routing decision). It holds AT MOST ONE
 //     socket, unenrolled, until `redeemBind` is called by the redeem route. Its durable-object
-//     id never becomes `server:<id>` — the daemon's next reconnect (after redeem, or on its
-//     own backoff) presents the new credential and lands on the real per-server object.
-//     Nothing in this slice sends `task`/`op` frames, so a live socket briefly living at the
-//     wrong address costs nothing yet; flagged as a rough edge.
+//     id never becomes `server:<id>` — `redeemBind` delivers the credential and closes the
+//     socket, and the daemon's redial presents that credential and lands on the real
+//     per-server object.
 //   - a rate limiter, addressed `rl:<category>:<ip>` / `rl:<category>:global`, via `checkRateLimit` only — never
 //     receives a WebSocket. Reusing the one DO binding this slice has rather than adding a
 //     second class for a five-line counter.
@@ -120,11 +119,15 @@ export class ServerDO extends DurableObject<Env> {
     const [pending] = this.ctx.getWebSockets();
     if (!pending) return { delivered: 0 };
 
-    const session = pending.deserializeAttachment() as Session;
-    session.serverId = serverId;
-    session.enrolled = true;
-    pending.serializeAttachment(session);
     pending.send(JSON.stringify({ type: "welcome", server_id: serverId, credential }));
+    // Deliver, then close: an enrolment connection "may do nothing but enrol"
+    // (type-design §3). Keeping this socket alive made the daemon send its whole first
+    // session's state frames HERE — a `claim:<hash>` object `getSnapshot` never reads —
+    // so `observed` stayed null on a connected server. Closing forces the daemon's normal
+    // backoff-redial with the credential it just persisted, which lands on `server:<id>`.
+    // The session keeps `serverId: null` so this close doesn't mark the server
+    // disconnected in the gap before the redial.
+    pending.close(1000, "enrolled; reconnect with the credential");
 
     await this.ctx.storage.put("boundServerId", serverId);
     await this.#setConnected(serverId, now);
