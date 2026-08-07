@@ -1,0 +1,233 @@
+/* ==========================================================================
+   Cross-screen components — ported from prototype/assets/css/theme.css.
+   Only the pieces the servers overview screen needs so far: button, status
+   dot, card, sweep, empty state. Same remap convention as frame.css (--s* ->
+   calc(var(--spacing) * n), --t-* -> --text-*, --ink-NN -> --color-ink-NN).
+   ========================================================================== */
+
+/* ---------------------------- button ---------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--spacing) * 2);
+  height: 36px;
+  padding: 0 calc(var(--spacing) * 4);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 0.14s var(--ease),
+    border-color 0.14s var(--ease),
+    color 0.14s var(--ease),
+    opacity 0.14s;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+.btn[disabled] {
+  pointer-events: none;
+  opacity: 0.45;
+}
+
+.btn-lg {
+  height: 44px;
+  padding: 0 calc(var(--spacing) * 5);
+}
+
+.btn-primary {
+  background-color: var(--color-ink);
+  color: var(--color-paper);
+}
+.btn-primary:hover {
+  background-color: color-mix(in oklab, var(--color-ink) 86%, var(--color-paper));
+}
+
+.btn-ghost {
+  background-color: transparent;
+  border-color: var(--color-ink-20);
+  color: var(--color-ink);
+}
+.btn-ghost:hover {
+  background-color: var(--color-ink-04);
+  border-color: var(--color-ink-40);
+}
+
+/* ---------------------------- status dot ---------------------------- */
+/* The atom of the whole dashboard. Colour only ever here and in the text it
+   labels (docs/design.md §5.9). */
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  background-color: var(--color-ink-40);
+}
+.dot-healthy {
+  background-color: var(--color-accent);
+}
+.dot-pending {
+  background-color: var(--color-info);
+}
+.dot-degraded {
+  background-color: var(--color-warn);
+}
+.dot-failed {
+  background-color: var(--color-danger);
+}
+.dot-stopped {
+  background-color: var(--color-ink-20);
+}
+
+/* ---------------------------- card ---------------------------- */
+/* A surface you can click into. Padding lives on the sections, never the
+   card, so internal dividers reach both edges (docs/design.md §5.6). */
+.card {
+  background: var(--color-sheet);
+  border: 1px solid var(--color-ink-12);
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  color: inherit;
+  text-decoration: none;
+  font-family: var(--font-sans);
+  transition:
+    border-color 0.14s var(--ease),
+    background-color 0.14s var(--ease);
+}
+a.card:hover,
+button.card:hover {
+  border-color: var(--color-ink-40);
+  cursor: pointer;
+}
+
+.card-section {
+  padding: calc(var(--spacing) * 4);
+}
+.card-section + .card-section {
+  border-top: 1px solid var(--color-ink-12);
+}
+.card-foot {
+  margin-top: auto;
+}
+
+/* ---------------------------- sweep ---------------------------- */
+/* Indeterminate progress on a hairline — used where cockpit is waiting on
+   something it does not control, e.g. a daemon's first contact. */
+.sweep {
+  position: relative;
+  height: 1px;
+  background: var(--color-ink-12);
+  overflow: hidden;
+}
+.sweep::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 33%;
+  background: var(--color-ink);
+  animation: ck-sweep 1.15s var(--ease) infinite;
+}
+@keyframes ck-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+/* ---------------------------- empty state ---------------------------- */
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: calc(var(--spacing) * 12) calc(var(--spacing) * 6);
+  min-height: 0;
+}
+
+.empty-art {
+  color: var(--color-ink-40);
+  margin-bottom: calc(var(--spacing) * 6);
+}
+.empty-art svg {
+  display: block;
+}
+
+.empty-title {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 calc(var(--spacing) * 2);
+}
+
+.empty-body {
+  color: var(--color-ink-60);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  max-width: 46ch;
+  margin: 0;
+}
+
+.empty-actions {
+  display: flex;
+  gap: calc(var(--spacing) * 3);
+  margin-top: calc(var(--spacing) * 5);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ---------------------------- servers grid ---------------------------- */
+.servers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: calc(var(--spacing) * 4);
+}
+
+.server-head {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--spacing) * 3);
+}
+.server-name {
+  font-weight: 500;
+  font-size: var(--text-base);
+}
+.server-meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-ink-40);
+  margin-top: 2px;
+  display: flex;
+  gap: calc(var(--spacing) * 2);
+  flex-wrap: wrap;
+}
+.server-meta .sep {
+  opacity: 0.5;
+}
+.server-note {
+  color: var(--color-ink-40);
+  font-size: var(--text-sm);
+}
+.server-foot {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  font-size: var(--text-sm);
+}
+.server-foot .spacer {
+  flex: 1;
+}
+.server-foot-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-ink-40);
+}

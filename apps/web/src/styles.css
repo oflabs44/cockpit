@@ -8,6 +8,7 @@
 @import '@fontsource/geist-mono/400.css';
 @import '@fontsource/geist-mono/500.css';
 @import './styles/frame.css' layer(components);
+@import './styles/components.css' layer(components);
 
 /* Token values are extracted verbatim from prototype/assets/css/theme.css — the prototype is
    authoritative (docs/design.md §1, "the prototype wins"). The colour raw values live here as
