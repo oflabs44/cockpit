@@ -1,7 +1,15 @@
 import { lazy, Suspense } from 'react'
-import { Outlet, createRootRoute } from '@tanstack/react-router'
+import { Outlet, createRootRouteWithContext } from '@tanstack/react-router'
+import type { QueryClient } from '@tanstack/react-query'
 
 import '../styles.css'
+
+// Injected from main.tsx so route loaders can call `context.queryClient.ensureQueryData(...)`
+// without importing the client module-scope (the @tanstack/router-core package skill,
+// data-loading: router context + DI is the canonical way to reach Query from a loader).
+export interface RouterContext {
+  queryClient: QueryClient
+}
 
 // Dynamically imported so `@tanstack/react-devtools` / `-router-devtools` never enter the
 // production bundle — dev-only tooling, per devDependencies in package.json.
@@ -22,7 +30,9 @@ const Devtools = import.meta.env.DEV
     })
   : null
 
-export const Route = createRootRoute({
+// Factory pattern — createRootRouteWithContext<T>() returns a function, so it takes two
+// calls: the first fixes the context type, the second passes route options.
+export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootComponent,
 })
 

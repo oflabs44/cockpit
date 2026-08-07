@@ -1,3 +1,5 @@
+import { queryOptions } from '@tanstack/react-query'
+
 // Shape matches apps/plane/src/schema.ts's `ServerSchema`, kept as a hand-written subset
 // rather than a cross-package import — the web app has no dependency on the plane package.
 
@@ -29,3 +31,11 @@ export async function fetchServers(): Promise<Server[]> {
 
   return body.servers
 }
+
+// Shared between the route loader (`ensureQueryData`) and the component (`useSuspenseQuery`)
+// so both sides key and fetch identically — the loader warms the exact cache entry the
+// component reads.
+export const serversQueryOptions = queryOptions({
+  queryKey: ['servers'],
+  queryFn: fetchServers,
+})

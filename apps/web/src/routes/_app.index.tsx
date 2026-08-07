@@ -1,32 +1,49 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
-import { fetchServers } from '#/api/servers'
+import { createFileRoute, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { serversQueryOptions } from '#/api/servers'
 import { ServerCard } from '#/components/server-card'
 
 export const Route = createFileRoute('/_app/')({
   staticData: { title: 'Servers' },
+  // Warms the exact cache entry the component reads via `useSuspenseQuery` below — a hover
+  // (defaultPreload: 'intent') starts the fetch before the click, so a hover-to-click
+  // usually shows no pending state.
+  loader: ({ context }) => context.queryClient.ensureQueryData(serversQueryOptions),
+  pendingComponent: ServersPending,
+  errorComponent: ServersError,
   component: ServersScreen,
 })
 
+function ServersPending() {
+  return (
+    <div className="empty">
+      <p className="empty-body">Loading servers&hellip;</p>
+    </div>
+  )
+}
+
+function ServersError({ error }: ErrorComponentProps) {
+  const router = useRouter()
+
+  return (
+    <div className="empty">
+      <h2 className="empty-title">Couldn&rsquo;t reach the plane</h2>
+      <p className="empty-body">{error.message}. Check that the plane is running.</p>
+      <div className="empty-actions">
+        {/* invalidate() re-runs the loader and resets this boundary; a plain boundary
+            reset would keep the errored query and dead-end the screen. */}
+        <button type="button" className="btn btn-ghost btn-lg" onClick={() => router.invalidate()}>
+          Retry
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ServersScreen() {
-  const { data, isPending, isError, error } = useQuery({ queryKey: ['servers'], queryFn: fetchServers })
-
-  if (isPending) {
-    return (
-      <div className="empty">
-        <p className="empty-body">Loading servers&hellip;</p>
-      </div>
-    )
-  }
-
-  if (isError) {
-    return (
-      <div className="empty">
-        <h2 className="empty-title">Couldn&rsquo;t reach the plane</h2>
-        <p className="empty-body">{error.message}. Check that the plane is running.</p>
-      </div>
-    )
-  }
+  // `useSuspenseQuery` throws to the error boundary only when no data exists; a failed
+  // background refetch keeps rendering cached data and surfaces here as `error` instead.
+  const { data, error } = useSuspenseQuery(serversQueryOptions)
 
   if (data.length === 0) {
     return (
@@ -52,11 +69,18 @@ function ServersScreen() {
   }
 
   return (
-    <div className="servers-grid">
-      {data.map((server) => (
-        <ServerCard key={server.id} server={server} />
-      ))}
-    </div>
+    <>
+      {error && (
+        <p className="server-note" role="alert">
+          Plane unreachable since the last refresh &mdash; this list may be stale.
+        </p>
+      )}
+      <div className="servers-grid">
+        {data.map((server) => (
+          <ServerCard key={server.id} server={server} />
+        ))}
+      </div>
+    </>
   )
 }
 
