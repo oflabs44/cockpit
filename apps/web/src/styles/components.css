@@ -231,3 +231,151 @@ button.card:hover {
   font-size: var(--text-sm);
   color: var(--color-ink-40);
 }
+
+/* ---------------------------- server detail ---------------------------- */
+.summary {
+  padding: calc(var(--spacing) * 5);
+}
+
+/* A label, not a ruled divider — the table/card below already declares where it starts. */
+.sec {
+  padding: calc(var(--spacing) * 6) calc(var(--spacing) * 5) calc(var(--spacing) * 3);
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--spacing) * 3);
+}
+
+.detail-note {
+  padding: 0 calc(var(--spacing) * 5) calc(var(--spacing) * 5);
+  color: var(--color-ink-40);
+  font-size: var(--text-sm);
+}
+
+/* Key/value grid — wide grids of short uniform values; `kv-inline` below is the default for
+   the facts at the head of an object's page (docs/design.md §5.6). No rules, no boxes:
+   reference material scanned for one value, not a dashboard read for a trend. */
+.kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: calc(var(--spacing) * 4) calc(var(--spacing) * 5);
+}
+
+.kv-item {
+  min-width: 0;
+}
+
+.kv-k {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-40);
+}
+
+.kv-v {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--color-ink-80);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 2);
+  min-width: 0;
+}
+
+/* Label left, value right, on one line — the default detail head: a spec sheet, the form
+   people already know how to scan. */
+.kv-inline {
+  grid-template-columns: repeat(auto-fit, minmax(252px, 1fr));
+  gap: calc(var(--spacing) * 3) calc(var(--spacing) * 6);
+}
+.kv-inline .kv-item {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--spacing) * 4);
+}
+.kv-inline .kv-k {
+  flex: none;
+  width: 76px;
+}
+.kv-inline .kv-v {
+  margin-top: 0;
+}
+
+/* ---------------------------- tab strip ---------------------------- */
+/* Belongs to the deepest object that has sub-views (docs/design.md §4.3). Ported with no
+   horizontal padding, unlike the prototype's (which sits directly under the bar, outside any
+   padded region) — here it renders inside `.content-inner`'s own padding, so its column
+   already lines up with the cards below it without a second inset. */
+.tabs {
+  display: flex;
+  gap: calc(var(--spacing) * 5);
+  border-bottom: 1px solid var(--color-ink-12);
+  margin-bottom: calc(var(--spacing) * 2);
+  flex: none;
+}
+.tabs a {
+  position: relative;
+  padding: calc(var(--spacing) * 3) 0;
+  text-decoration: none;
+  color: var(--color-ink-40);
+  font-size: var(--text-base);
+  white-space: nowrap;
+  transition: color 0.12s var(--ease);
+}
+.tabs a:hover {
+  color: var(--color-ink-80);
+}
+/* The active tab interrupts the strip's own baseline — structural, not decorative: it says
+   which section the content below belongs to. */
+.tabs a[aria-current='page'] {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.tabs a[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--color-ink);
+}
+
+/* ---------------------------- data table ---------------------------- */
+/* Divided rows, flush to its container — every cell carries the inset so the rule reaches
+   both edges (docs/design.md §5.6). */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th {
+  text-align: left;
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 5);
+  border-bottom: 1px solid var(--color-ink-12);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-40);
+  font-weight: 400;
+}
+.table td {
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 5);
+  border-bottom: 1px solid var(--color-ink-08);
+  font-size: var(--text-base);
+}
+.table .cell {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  min-width: 0;
+}
+.table .kindicon {
+  color: var(--color-ink-40);
+}
+.table .muted {
+  color: var(--color-ink-40);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}

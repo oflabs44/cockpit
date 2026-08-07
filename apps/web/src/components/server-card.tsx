@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import type { Server, ServerStatus } from '#/api/servers'
 import { formatAgo } from '#/lib/format'
 
@@ -5,7 +6,7 @@ import { formatAgo } from '#/lib/format'
 // cockpit not hearing from a daemon is an absence, not itself a declared failure.
 // `enrolling` gets no dot at all (design.md §6): any dot would imply cockpit knows
 // something it has not been told.
-const DOT_CLASS: Record<ServerStatus, string | null> = {
+export const DOT_CLASS: Record<ServerStatus, string | null> = {
   connected: 'dot-healthy',
   enrolling: null,
   draining: 'dot-degraded',
@@ -16,7 +17,7 @@ export function ServerCard({ server }: { server: Server }) {
   const meta = [server.provider, server.addr, server.arch].filter(Boolean)
 
   return (
-    <div className="card">
+    <Link to="/$serverId" params={{ serverId: server.id }} className="card">
       <div className="card-section">
         <div className="server-head">
           {DOT_CLASS[server.status] && (
@@ -50,7 +51,7 @@ export function ServerCard({ server }: { server: Server }) {
           <ServerCardFoot server={server} />
         </div>
       </div>
-    </div>
+    </Link>
   )
 }
 

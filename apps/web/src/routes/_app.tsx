@@ -25,7 +25,16 @@ const activeProps = { 'aria-current': 'page' as const }
 function AppShell() {
   const [rail, setRail] = useState<'open' | 'collapsed'>('open')
   const matches = useMatches()
-  const title = matches.at(-1)?.staticData.title ?? ''
+  // A route with dynamic content (the server detail screen's server name) can't know its
+  // title at route-definition time the way `staticData.title` requires — its loader returns
+  // `{ title }` instead. The deepest match alone isn't enough: a titled layout route's
+  // children (the server tabs) carry no title of their own, so take the deepest match that
+  // has one, from either source.
+  const title =
+    matches
+      .map((m) => (m.loaderData as { title?: string } | undefined)?.title ?? m.staticData.title)
+      .reverse()
+      .find((t) => t !== undefined) ?? ''
   const contentId = useId()
 
   return (

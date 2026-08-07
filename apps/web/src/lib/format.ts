@@ -19,3 +19,25 @@ export function formatAgo(timestampMs: number, now = Date.now()): string {
 
   return 'just now'
 }
+
+/** "12d 4h", "4h 12m", "12m" — a duration, not a point in time (host uptime_s). */
+export function formatDuration(totalSeconds: number): string {
+  // A negative or non-finite report (clock skew, daemon bug) must not render "-2m"/"NaNm"
+  // as if it were a fact.
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '—'
+
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
+
+/** "8.0 GB" from a raw byte count (daemon reports bytes, per protocol.go's `Disk`/`HostCapacity`). */
+export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '—'
+
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`
+}

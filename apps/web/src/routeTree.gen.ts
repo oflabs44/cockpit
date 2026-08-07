@@ -11,12 +11,18 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppServerIdRouteImport } from './routes/_app.$serverId'
 import { Route as AppActivityRouteImport } from './routes/_app.activity'
 import { Route as AppDomainsRouteImport } from './routes/_app.domains'
 import { Route as AppPlansRouteImport } from './routes/_app.plans'
 import { Route as AppSecretsRouteImport } from './routes/_app.secrets'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppSourcesRouteImport } from './routes/_app.sources'
+import { Route as AppServerIdIndexRouteImport } from './routes/_app.$serverId.index'
+import { Route as AppServerIdFirewallRouteImport } from './routes/_app.$serverId.firewall'
+import { Route as AppServerIdProjectsRouteImport } from './routes/_app.$serverId.projects'
+import { Route as AppServerIdResourcesRouteImport } from './routes/_app.$serverId.resources'
+import { Route as AppServerIdSettingsRouteImport } from './routes/_app.$serverId.settings'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -25,6 +31,11 @@ const AppRoute = AppRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppServerIdRoute = AppServerIdRouteImport.update({
+  id: '/$serverId',
+  path: '/$serverId',
   getParentRoute: () => AppRoute,
 } as any)
 const AppActivityRoute = AppActivityRouteImport.update({
@@ -57,15 +68,46 @@ const AppSourcesRoute = AppSourcesRouteImport.update({
   path: '/sources',
   getParentRoute: () => AppRoute,
 } as any)
+const AppServerIdIndexRoute = AppServerIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppServerIdRoute,
+} as any)
+const AppServerIdFirewallRoute = AppServerIdFirewallRouteImport.update({
+  id: '/firewall',
+  path: '/firewall',
+  getParentRoute: () => AppServerIdRoute,
+} as any)
+const AppServerIdProjectsRoute = AppServerIdProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => AppServerIdRoute,
+} as any)
+const AppServerIdResourcesRoute = AppServerIdResourcesRouteImport.update({
+  id: '/resources',
+  path: '/resources',
+  getParentRoute: () => AppServerIdRoute,
+} as any)
+const AppServerIdSettingsRoute = AppServerIdSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppServerIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/$serverId': typeof AppServerIdRouteWithChildren
   '/activity': typeof AppActivityRoute
   '/domains': typeof AppDomainsRoute
   '/plans': typeof AppPlansRoute
   '/secrets': typeof AppSecretsRoute
   '/settings': typeof AppSettingsRoute
   '/sources': typeof AppSourcesRoute
+  '/$serverId/firewall': typeof AppServerIdFirewallRoute
+  '/$serverId/projects': typeof AppServerIdProjectsRoute
+  '/$serverId/resources': typeof AppServerIdResourcesRoute
+  '/$serverId/settings': typeof AppServerIdSettingsRoute
+  '/$serverId/': typeof AppServerIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/activity': typeof AppActivityRoute
@@ -75,10 +117,16 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/sources': typeof AppSourcesRoute
   '/': typeof AppIndexRoute
+  '/$serverId/firewall': typeof AppServerIdFirewallRoute
+  '/$serverId/projects': typeof AppServerIdProjectsRoute
+  '/$serverId/resources': typeof AppServerIdResourcesRoute
+  '/$serverId/settings': typeof AppServerIdSettingsRoute
+  '/$serverId': typeof AppServerIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/_app/$serverId': typeof AppServerIdRouteWithChildren
   '/_app/activity': typeof AppActivityRoute
   '/_app/domains': typeof AppDomainsRoute
   '/_app/plans': typeof AppPlansRoute
@@ -86,17 +134,28 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRoute
   '/_app/sources': typeof AppSourcesRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/$serverId/firewall': typeof AppServerIdFirewallRoute
+  '/_app/$serverId/projects': typeof AppServerIdProjectsRoute
+  '/_app/$serverId/resources': typeof AppServerIdResourcesRoute
+  '/_app/$serverId/settings': typeof AppServerIdSettingsRoute
+  '/_app/$serverId/': typeof AppServerIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$serverId'
     | '/activity'
     | '/domains'
     | '/plans'
     | '/secrets'
     | '/settings'
     | '/sources'
+    | '/$serverId/firewall'
+    | '/$serverId/projects'
+    | '/$serverId/resources'
+    | '/$serverId/settings'
+    | '/$serverId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/activity'
@@ -106,9 +165,15 @@ export interface FileRouteTypes {
     | '/settings'
     | '/sources'
     | '/'
+    | '/$serverId/firewall'
+    | '/$serverId/projects'
+    | '/$serverId/resources'
+    | '/$serverId/settings'
+    | '/$serverId'
   id:
     | '__root__'
     | '/_app'
+    | '/_app/$serverId'
     | '/_app/activity'
     | '/_app/domains'
     | '/_app/plans'
@@ -116,6 +181,11 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/sources'
     | '/_app/'
+    | '/_app/$serverId/firewall'
+    | '/_app/$serverId/projects'
+    | '/_app/$serverId/resources'
+    | '/_app/$serverId/settings'
+    | '/_app/$serverId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -136,6 +206,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/$serverId': {
+      id: '/_app/$serverId'
+      path: '/$serverId'
+      fullPath: '/$serverId'
+      preLoaderRoute: typeof AppServerIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/activity': {
@@ -180,10 +257,66 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSourcesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/$serverId/': {
+      id: '/_app/$serverId/'
+      path: '/'
+      fullPath: '/$serverId/'
+      preLoaderRoute: typeof AppServerIdIndexRouteImport
+      parentRoute: typeof AppServerIdRoute
+    }
+    '/_app/$serverId/firewall': {
+      id: '/_app/$serverId/firewall'
+      path: '/firewall'
+      fullPath: '/$serverId/firewall'
+      preLoaderRoute: typeof AppServerIdFirewallRouteImport
+      parentRoute: typeof AppServerIdRoute
+    }
+    '/_app/$serverId/projects': {
+      id: '/_app/$serverId/projects'
+      path: '/projects'
+      fullPath: '/$serverId/projects'
+      preLoaderRoute: typeof AppServerIdProjectsRouteImport
+      parentRoute: typeof AppServerIdRoute
+    }
+    '/_app/$serverId/resources': {
+      id: '/_app/$serverId/resources'
+      path: '/resources'
+      fullPath: '/$serverId/resources'
+      preLoaderRoute: typeof AppServerIdResourcesRouteImport
+      parentRoute: typeof AppServerIdRoute
+    }
+    '/_app/$serverId/settings': {
+      id: '/_app/$serverId/settings'
+      path: '/settings'
+      fullPath: '/$serverId/settings'
+      preLoaderRoute: typeof AppServerIdSettingsRouteImport
+      parentRoute: typeof AppServerIdRoute
+    }
   }
 }
 
+interface AppServerIdRouteChildren {
+  AppServerIdFirewallRoute: typeof AppServerIdFirewallRoute
+  AppServerIdProjectsRoute: typeof AppServerIdProjectsRoute
+  AppServerIdResourcesRoute: typeof AppServerIdResourcesRoute
+  AppServerIdSettingsRoute: typeof AppServerIdSettingsRoute
+  AppServerIdIndexRoute: typeof AppServerIdIndexRoute
+}
+
+const AppServerIdRouteChildren: AppServerIdRouteChildren = {
+  AppServerIdFirewallRoute: AppServerIdFirewallRoute,
+  AppServerIdProjectsRoute: AppServerIdProjectsRoute,
+  AppServerIdResourcesRoute: AppServerIdResourcesRoute,
+  AppServerIdSettingsRoute: AppServerIdSettingsRoute,
+  AppServerIdIndexRoute: AppServerIdIndexRoute,
+}
+
+const AppServerIdRouteWithChildren = AppServerIdRoute._addFileChildren(
+  AppServerIdRouteChildren,
+)
+
 interface AppRouteChildren {
+  AppServerIdRoute: typeof AppServerIdRouteWithChildren
   AppActivityRoute: typeof AppActivityRoute
   AppDomainsRoute: typeof AppDomainsRoute
   AppPlansRoute: typeof AppPlansRoute
@@ -194,6 +327,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppServerIdRoute: AppServerIdRouteWithChildren,
   AppActivityRoute: AppActivityRoute,
   AppDomainsRoute: AppDomainsRoute,
   AppPlansRoute: AppPlansRoute,
