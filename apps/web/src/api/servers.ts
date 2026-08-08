@@ -5,10 +5,14 @@ import { queryOptions } from '@tanstack/react-query'
 
 export type ServerStatus = 'enrolling' | 'connected' | 'disconnected' | 'draining'
 
+// The closed set from apps/plane/src/schema.ts's `CreateServerBody`/`ServerSchema`.
+export const PROVIDERS = ['hetzner', 'digitalocean', 'linode', 'other'] as const
+export type Provider = (typeof PROVIDERS)[number]
+
 export type Server = {
   id: string
   name: string
-  provider: 'hetzner' | 'digitalocean' | 'linode' | 'other'
+  provider: Provider
   addr: string | null
   arch: string | null
   status: ServerStatus
@@ -39,3 +43,40 @@ export const serversQueryOptions = queryOptions({
   queryKey: ['servers'],
   queryFn: fetchServers,
 })
+
+// Distinguished so the add-server form can say "that name is taken" rather than a generic
+// failure — apps/plane/src/routes/servers-create.ts's only documented failure mode.
+export class ServerNameConflictError extends Error {}
+
+export type CreateServerBody = { name: string; provider: Provider }
+export type CreateServerResponse = { server: Server; token: string; install_command: string }
+
+export async function createServer(body: CreateServerBody): Promise<CreateServerResponse> {
+  const res = await fetch('/servers', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ ...body, labels: {} }),
+  })
+
+  if (res.status === 409) throw new ServerNameConflictError(`A server named "${body.name}" already exists`)
+
+  // The plane's 400s carry a validation message (e.g. the name pattern) — "failed: 400"
+  // alone isn't actionable.
+  if (!res.ok) throw new Error(`POST /servers failed: ${res.status}${await errorDetail(res)}`)
+
+  const created = (await res.json()) as Partial<CreateServerResponse>
+
+  // Same standard as fetchServers above: a 2xx with the wrong shape must fail loudly here,
+  // not crash the panel at `created.install_command`.
+  if (!created.server || typeof created.install_command !== 'string' || typeof created.token !== 'string') {
+    throw new Error('POST /servers: unexpected response shape')
+  }
+
+  return created as CreateServerResponse
+}
+
+export async function errorDetail(res: Response): Promise<string> {
+  const text = await res.text().catch(() => '')
+
+  return text ? ` — ${text.slice(0, 200)}` : ''
+}

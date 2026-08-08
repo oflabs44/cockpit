@@ -77,6 +77,37 @@ async function redeem(app: ReturnType<typeof createApp>, code: string, ip: strin
 }
 
 describe("enrolment: token", () => {
+  it("POST /servers returns the install command with the token, and 409s a duplicate name", async () => {
+    const app = createApp(testDeps());
+    const res = await app.fetch(
+      new Request("http://plane.test/servers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "contract-box", provider: "hetzner", labels: {} }),
+      }),
+      env,
+    );
+    expect(res.status).toBe(201);
+
+    // The web's install terminal tokenizes this exact shape, and the token is shown exactly
+    // once — the command and the token field must never diverge.
+    const body = (await res.json()) as { token: string; install_command: string };
+    expect(body.install_command).toMatch(/^curl -fsSL \S+ \| sh -s -- --plane \S+ --token \S+$/);
+    expect(body.install_command.endsWith(`--token ${body.token}`)).toBe(true);
+
+    // The web maps this 409 to "that name is taken" — a changed status would silently
+    // degrade it to a generic failure.
+    const dup = await app.fetch(
+      new Request("http://plane.test/servers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "contract-box", provider: "hetzner", labels: {} }),
+      }),
+      env,
+    );
+    expect(dup.status).toBe(409);
+  });
+
   it("is single-use — burned in #handleHello, not at connect time", async () => {
     const deps = testDeps();
     const app = createApp(deps);

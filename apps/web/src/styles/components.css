@@ -379,3 +379,167 @@ button.card:hover {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
 }
+
+/* ---------------------------- terminal ---------------------------- */
+/* A copy-paste command block — enrolment's install command, later exec output
+   (docs/design.md §5.4). */
+.term {
+  border: 1px solid var(--color-ink-12);
+  background: var(--color-sheet);
+  overflow: hidden;
+}
+.term-head {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  height: 38px;
+  padding: 0 calc(var(--spacing) * 3);
+  border-bottom: 1px solid var(--color-ink-12);
+}
+.term-head .spacer {
+  flex: 1;
+}
+.term-head svg {
+  color: var(--color-ink-40);
+}
+.term-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-60);
+}
+.term-body {
+  display: block;
+  margin: 0;
+  padding: calc(var(--spacing) * 4) calc(var(--spacing) * 3);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-ink-60);
+  overflow-x: auto;
+}
+/* The command is the only thing at full ink — it's what you're being asked to run; flags and
+   values are qualification. */
+.term .t-prompt {
+  color: var(--color-ink-20);
+  user-select: none;
+}
+.term .t-cmd {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.term .t-flag {
+  color: var(--color-ink-60);
+}
+.term .t-str {
+  color: var(--color-ink-80);
+}
+.term .t-url {
+  color: var(--color-ink-80);
+  text-decoration: underline;
+  text-decoration-color: var(--color-ink-20);
+  text-underline-offset: 3px;
+}
+.term .t-op {
+  color: var(--color-ink-40);
+}
+/* A value you must keep — the token. Dashed underline says "this one's yours" without a
+   legend. */
+.term .t-slot {
+  color: var(--color-ink);
+  border-bottom: 1px dashed var(--color-ink-40);
+}
+.term-copy {
+  position: relative;
+}
+.term-copy[data-copied]::after {
+  content: 'copied';
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-40);
+  white-space: nowrap;
+}
+
+/* ---------------------------- form fields ---------------------------- */
+/* No prototype precedent — the enrolment forms are the first place cockpit needs a text
+   input or select. Sized and bordered to match `.btn`'s own scale (36px, ink-12 border, zero
+   radius) rather than inventing a second set of proportions. */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--spacing) * 2);
+}
+.field-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-40);
+}
+.input,
+.select {
+  height: 36px;
+  padding: 0 calc(var(--spacing) * 3);
+  border: 1px solid var(--color-ink-12);
+  border-radius: var(--radius);
+  background: var(--color-sheet);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+}
+.input:hover,
+.select:hover {
+  border-color: var(--color-ink-40);
+}
+.input:focus-visible,
+.select:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: -1px;
+}
+
+/* ---------------------------- panel ---------------------------- */
+/* An inline section, not a modal — the design system has no dialog/overlay component
+   (docs/design.md §5 lists none), and the prototype never opens one for this flow either. */
+.panel {
+  margin-bottom: calc(var(--spacing) * 5);
+}
+.panel-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: calc(var(--spacing) * 4);
+}
+.panel-actions {
+  display: flex;
+  gap: calc(var(--spacing) * 3);
+  margin-top: calc(var(--spacing) * 4);
+}
+
+/* ---------------------------- toolbar ---------------------------- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  margin-bottom: calc(var(--spacing) * 4);
+}
+.toolbar .spacer {
+  flex: 1;
+}
+
+/* Inline form failure — danger only tints the text, never a background or border (the
+   severity-tint rule from design.md §5.2; "failed" is danger's meaning per the §3 colour
+   table). Deliberate divergence: §5.2 calls Notice "the one message component", but a
+   Notice inside a field stack is a heavier surface than a one-line validation failure
+   needs — revisit if a second inline-error site appears. */
+.form-error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}

@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { createFileRoute, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { serversQueryOptions } from '#/api/servers'
 import { ServerCard } from '#/components/server-card'
+import { AddServerPanel } from '#/components/add-server-panel'
+import { RedeemPanel } from '#/components/redeem-panel'
 
 export const Route = createFileRoute('/_app/')({
   staticData: { title: 'Servers' },
@@ -44,6 +47,12 @@ function ServersScreen() {
   // `useSuspenseQuery` throws to the error boundary only when no data exists; a failed
   // background refetch keeps rendering cached data and surfaces here as `error` instead.
   const { data, error } = useSuspenseQuery(serversQueryOptions)
+  const [panel, setPanel] = useState<'add' | 'redeem' | null>(null)
+  const closePanel = () => setPanel(null)
+
+  if (panel === 'add') return <AddServerPanel onClose={closePanel} />
+
+  if (panel === 'redeem') return <RedeemPanel onClose={closePanel} />
 
   if (data.length === 0) {
     return (
@@ -57,10 +66,10 @@ function ServersScreen() {
           line on it and it enrols itself, with no SSH access handed over.
         </p>
         <div className="empty-actions">
-          <button type="button" className="btn btn-primary btn-lg">
+          <button type="button" className="btn btn-primary btn-lg" onClick={() => setPanel('add')}>
             Add server
           </button>
-          <button type="button" className="btn btn-ghost btn-lg">
+          <button type="button" className="btn btn-ghost btn-lg" onClick={() => setPanel('redeem')}>
             Redeem a claim code
           </button>
         </div>
@@ -75,6 +84,21 @@ function ServersScreen() {
           Plane unreachable since the last refresh &mdash; this list may be stale.
         </p>
       )}
+      {/* The prototype's header bar shows one primary action ("Add server") once the list is
+          populated, since the empty state's own actions are gone by then. Rendered here as a
+          content toolbar instead — the shell has no per-route bar-action mechanism yet.
+          "Redeem a claim code" has no bar equivalent in the prototype — kept reachable as a
+          second, non-primary action rather than dropped, since the daemon-prints-a-code path
+          is otherwise a dead end once a server already exists. */}
+      <div className="toolbar">
+        <span className="spacer" />
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPanel('redeem')}>
+          Redeem a claim code
+        </button>
+        <button type="button" className="btn btn-primary btn-sm" onClick={() => setPanel('add')}>
+          Add server
+        </button>
+      </div>
       <div className="servers-grid">
         {data.map((server) => (
           <ServerCard key={server.id} server={server} />
