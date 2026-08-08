@@ -234,19 +234,20 @@ button.card:hover {
 
 /* ---------------------------- server detail ---------------------------- */
 .summary {
-  padding: calc(var(--spacing) * 5);
+  padding: calc(var(--spacing) * 6);
 }
 
 /* A label, not a ruled divider — the table/card below already declares where it starts. */
 .sec {
-  padding: calc(var(--spacing) * 6) calc(var(--spacing) * 5) calc(var(--spacing) * 3);
+  /* Prototype: var(--s6) var(--s5) var(--s3) = 32 24 12. */
+  padding: calc(var(--spacing) * 8) calc(var(--spacing) * 6) calc(var(--spacing) * 3);
   display: flex;
   align-items: baseline;
   gap: calc(var(--spacing) * 3);
 }
 
 .detail-note {
-  padding: 0 calc(var(--spacing) * 5) calc(var(--spacing) * 5);
+  padding: 0 calc(var(--spacing) * 6) calc(var(--spacing) * 6);
   color: var(--color-ink-40);
   font-size: var(--text-sm);
 }
@@ -257,7 +258,7 @@ button.card:hover {
 .kv {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
-  gap: calc(var(--spacing) * 4) calc(var(--spacing) * 5);
+  gap: calc(var(--spacing) * 4) calc(var(--spacing) * 6);
 }
 
 .kv-item {
@@ -303,15 +304,17 @@ button.card:hover {
 }
 
 /* ---------------------------- tab strip ---------------------------- */
-/* Belongs to the deepest object that has sub-views (docs/design.md §4.3). Ported with no
-   horizontal padding, unlike the prototype's (which sits directly under the bar, outside any
-   padded region) — here it renders inside `.content-inner`'s own padding, so its column
-   already lines up with the cards below it without a second inset. */
+/* Belongs to the deepest object that has sub-views (docs/design.md §4.3). Rendered by
+   `_app.tsx` as a sibling of `.bar`/`.content` — same nesting as the prototype
+   (prototype/server.html: `.tabs` sits directly under `.bar`, outside any padded region) —
+   rather than inside `.content-inner`'s own padding, so the hairline runs the full content
+   width and there's no gap under the bar. Horizontal padding matches `.bar`'s own so the
+   first tab lines up with the breadcrumb above it. */
 .tabs {
   display: flex;
-  gap: calc(var(--spacing) * 5);
+  gap: calc(var(--spacing) * 6); /* --s5: 24px */
+  padding: 0 calc(var(--spacing) * 6);
   border-bottom: 1px solid var(--color-ink-12);
-  margin-bottom: calc(var(--spacing) * 2);
   flex: none;
 }
 .tabs a {
@@ -341,6 +344,15 @@ button.card:hover {
   height: 2px;
   background: var(--color-ink);
 }
+/* A routed click focuses the link natively (browser default), which must not leave a
+   persistent ring behind — only keyboard navigation should show one. */
+.tabs a:focus {
+  outline: none;
+}
+.tabs a:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
 
 /* ---------------------------- data table ---------------------------- */
 /* Divided rows, flush to its container — every cell carries the inset so the rule reaches
@@ -351,7 +363,9 @@ button.card:hover {
 }
 .table th {
   text-align: left;
-  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 5);
+  /* --s5 is 24px, not the *5 (20px) the naming pattern suggests — see .bar in frame.css for
+     the same fix and why. */
+  padding: calc(var(--spacing) * 2) calc(var(--spacing) * 6);
   border-bottom: 1px solid var(--color-ink-12);
   font-family: var(--font-mono);
   font-size: var(--text-micro);
@@ -361,7 +375,7 @@ button.card:hover {
   font-weight: 400;
 }
 .table td {
-  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 5);
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 6);
   border-bottom: 1px solid var(--color-ink-08);
   font-size: var(--text-base);
 }
@@ -378,6 +392,12 @@ button.card:hover {
   color: var(--color-ink-40);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
+}
+/* The age column: a short, right-hand value that must read as a column, never wrap, and
+   never crowd the name column next to it. */
+.table .col-age {
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* ---------------------------- terminal ---------------------------- */

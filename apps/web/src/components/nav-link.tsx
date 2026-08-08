@@ -6,6 +6,15 @@ import type { IconSvgElement } from '@hugeicons/react'
 type NavLinkInnerProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
   icon: IconSvgElement
   label: string
+  // Left undefined by the caller whenever there's nothing honest to show — data hasn't
+  // arrived yet, the query errored, or (for an `attention` badge) the real count is zero.
+  // `undefined` renders no badge at all; it is never coerced to a displayed "0".
+  count?: number
+  // Marks this as an attention badge — info-blue because the counted things are *pending*
+  // (design.md §2.3's info row), not the plain ink-40 count — and, when a count is
+  // present, the collapsed-rail dot (frame.css
+  // `[data-rail='collapsed'] .nav a[data-badge]::after`).
+  attention?: boolean
 }
 
 // `createLink` (docs: "Custom Link") wraps this as `_asChild` and renders it AS the anchor —
@@ -14,10 +23,15 @@ type NavLinkInnerProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
 // `to` prop stays checked against the generated route tree (`ComponentProps<typeof Link>`
 // would erase that — a typo'd route would only fail at runtime, not `tsc`).
 const NavLinkInner = forwardRef<HTMLAnchorElement, NavLinkInnerProps>(
-  ({ icon, label, ...anchorProps }, ref) => (
-    <a ref={ref} {...anchorProps}>
+  ({ icon, label, count, attention, ...anchorProps }, ref) => (
+    <a ref={ref} data-badge={(attention && count !== undefined) || undefined} {...anchorProps}>
       <HugeiconsIcon icon={icon} className="icon icon-lg" />
       <span>{label}</span>
+      {count !== undefined && (
+        <span className="count" data-attention={attention || undefined}>
+          {count}
+        </span>
+      )}
     </a>
   ),
 )

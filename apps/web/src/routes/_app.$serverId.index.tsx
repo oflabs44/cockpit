@@ -85,11 +85,21 @@ function ServerOverview() {
                 <>
                   <KvItem label="hostname">{host.identity.hostname || '—'}</KvItem>
                   <KvItem label="os">{host.identity.os || '—'}</KvItem>
+                  {/* mem_total and uptime_s come from parsing /proc/meminfo and /proc/uptime
+                      (daemon/internal/executor/oscli/host.go) — files that don't exist on
+                      macOS, so the daemon on xin-macbook reads nothing and both parse to Go's
+                      int64 zero. cpus (runtime.NumCPU) and kernel (`uname -r`) are genuinely
+                      cross-platform and stay real. A literal 0 here is indistinguishable from
+                      "this platform can't report it", so it's treated as not-reported rather
+                      than shown as a fact ("0.0 GB" of memory, "0m" of uptime). */}
                   <KvItem label="hardware">
-                    {host.capacity.cpus} vCPU / {formatBytes(host.capacity.mem_total)}
+                    {host.capacity.cpus} vCPU
+                    {host.capacity.mem_total > 0 && ` / ${formatBytes(host.capacity.mem_total)}`}
                     {host.capacity.disks[0] && ` / ${formatBytes(host.capacity.disks[0].size)}`}
                   </KvItem>
-                  <KvItem label="uptime">{formatDuration(host.identity.uptime_s)}</KvItem>
+                  <KvItem label="uptime">
+                    {host.identity.uptime_s > 0 ? formatDuration(host.identity.uptime_s) : '—'}
+                  </KvItem>
                   <KvItem label="load">{host.load.map((n) => n.toFixed(2)).join(' · ')}</KvItem>
                 </>
               )}
@@ -160,7 +170,7 @@ function ResourcesTable({ resources }: { resources: ObservedResource[] }) {
         <tr>
           <th style={{ width: 130 }}>kind</th>
           <th>name</th>
-          <th style={{ width: 88 }}>age</th>
+          <th className="col-age">age</th>
         </tr>
       </thead>
       <tbody>
@@ -199,7 +209,7 @@ function ResourceRow({ resource }: { resource: ObservedResource }) {
           {resource.name}
         </span>
       </td>
-      <td className="muted">{age}</td>
+      <td className="muted col-age">{age}</td>
     </tr>
   )
 }

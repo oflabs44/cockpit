@@ -382,6 +382,13 @@ describe("plan lifecycle", () => {
       env,
     );
     expect(again.status).toBe(409);
+
+    // The web rail's Plans badge counts `?status=pending` — the filter must actually
+    // exclude a decided plan, not just include fresh ones.
+    const pending = (await (
+      await app.fetch(new Request("http://plane.test/plans?status=pending"), env)
+    ).json()) as { plans: { id: string | null }[] };
+    expect(pending.plans.map((p) => p.id)).not.toContain(planId);
   });
 
   it("rejects a pending plan, terminally", async () => {

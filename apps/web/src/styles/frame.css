@@ -129,8 +129,22 @@
   justify-content: center;
   padding: 0;
 }
+[data-rail='collapsed'] .nav a {
+  position: relative;
+}
 [data-rail='collapsed'] .nav .count {
   display: none;
+}
+/* The count itself hides when collapsed, but an attention badge (Plans awaiting approval)
+   must still say so somehow — a small dot on the icon takes its place. */
+[data-rail='collapsed'] .nav a[data-badge]::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  width: 5px;
+  height: 5px;
+  background: var(--color-info);
 }
 
 /* ---------------------------- main ---------------------------- */
@@ -146,7 +160,11 @@
   align-items: center;
   gap: calc(var(--spacing) * 3);
   height: 56px;
-  padding: 0 calc(var(--spacing) * 5);
+  /* --s5 is 24px (docs/design.md §2.5's scale jumps past *4 at this step), not the *5 the
+     naming pattern suggests — this was ported as *5 (20px) and quietly under-padded the bar
+     relative to the prototype ever since; fixed here since .tabs (components.css) must align
+     with this same edge. */
+  padding: 0 calc(var(--spacing) * 6);
   border-bottom: 1px solid var(--color-ink-12);
   flex: none;
 }
@@ -181,6 +199,19 @@
   gap: calc(var(--spacing) * 2);
   min-width: 0;
 }
+.crumbs a {
+  color: var(--color-ink-40);
+  text-decoration: none;
+  font-size: var(--text-base);
+  white-space: nowrap;
+}
+.crumbs a:hover {
+  color: var(--color-ink);
+}
+.crumbs .sep {
+  color: var(--color-ink-20);
+  font-family: var(--font-mono);
+}
 .crumbs .here {
   font-size: var(--text-lg);
   font-weight: 600;
@@ -188,6 +219,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.crumbs .here .dot {
+  margin-right: calc(var(--spacing) * 2);
+  vertical-align: 1px;
 }
 
 .search {
@@ -249,7 +284,9 @@
   flex-direction: column;
 }
 .content-inner {
-  padding: calc(var(--spacing) * 5);
+  /* --s5 is 24px (* 6), not 20px — same mis-port the bar/tabs fix corrected; the content
+     column's left edge must sit on the same 24px line as the crumb and first tab. */
+  padding: calc(var(--spacing) * 6);
   flex: 1;
   display: flex;
   flex-direction: column;
