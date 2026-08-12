@@ -186,7 +186,7 @@ export class ServerDO extends DurableObject<Env> {
         await database.update(servers).set({ credentialHash }).where(eq(servers.id, session.serverId));
         const burned = await database
           .update(enrolments)
-          .set({ consumedAt: Date.now() }) // socket-driven timestamp, outside the replayable-plan
+          .set({ consumedAt: Date.now() }) // socket timestamp, outside replayable run logic
           // determinism rule (docs/type-design.md §1) — see the removed-`deps`-field note below.
           .where(and(eq(enrolments.secretHash, session.secretHash), isNull(enrolments.consumedAt)))
           .run();
@@ -277,7 +277,7 @@ export class ServerDO extends DurableObject<Env> {
   }
 
   /** Outcome of a direct op (type-design §3.1, added 2026-08-06). Nothing consumes this yet — a
-   *  later (plans) slice does — so it's just validated and logged; critically it must not fall
+   *  later operation slice does — so it's just validated and logged; critically it must not fall
    *  through to the unknown-frame close path. */
   #handleOpResult(session: Session, frame: Record<string, unknown>) {
     const opId = frame.op_id;
@@ -317,7 +317,7 @@ export class ServerDO extends DurableObject<Env> {
 // `state`/`hello` frame, a token's burn timestamp) call `Date.now()` directly, each with a
 // comment — they're observational timestamps about when the daemon happened to talk to us,
 // outside the "no Date.now() in plane logic" determinism rule (docs/type-design.md §1), which
-// is about replaying *plans*, not logging when a socket event arrived.
+// is about replaying deployments and operations, not logging when a socket event arrived.
 
 const POLICY_VIOLATION = 4003;
 

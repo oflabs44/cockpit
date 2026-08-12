@@ -57,8 +57,8 @@ Numbered so other docs can reference them as `(#n)`.
 3. **AI-first means peer access, not a chat box.**
    An agent driving cockpit over MCP and a human driving it in the UI are peers
    on the same control plane. Every agent action appears in the UI as a
-   first-class `Event` and `Plan`, attributable to the agent that made it.
-   cockpit ships no conversational surface of its own.
+   deployment, operation, or event with its actor. Cockpit ships no
+   conversational surface of its own.
 
 4. **The daemon is the only execution path. cockpit never uses SSH.**
    `cockpitd` runs on every managed server and dials **out** to the plane over
@@ -75,34 +75,36 @@ Numbered so other docs can reference them as `(#n)`.
    Hosting the control plane on the thing being controlled — Coolify's model —
    is rejected. See ADR-0002.
 
-6. **The `Plan` is the unit of change to desired state.**
-   Changing what a resource *is* — its spec — produces a `Plan`: a typed list
-   of changes, each with `before`, `after`, a declared `inverse`, and an
-   `impact`, approved then applied. Operations that leave the spec identical —
-   restart, stop, exec, logs, terminal — are direct, and recorded as `Event`s
-   with an actor. The test is whether the spec afterwards says something
-   different. Nothing mutates unattributably; not everything is a plan.
-   See ADR-0003.
+6. **A deployment is the unit of application delivery.**
+   A push to a configured branch, a manual deploy, a redeploy, or a rollback
+   starts a `Deployment` for one app resource. The deployment snapshots its
+   source revision and saved configuration. It records its steps, logs,
+   calculated changes, outcome, and release. The calculated changes are a
+   pipeline step, not a review queue. See ADR-0009.
 
-7. **Plans are computed against observed state, never last-known state.**
-   The daemon reports what is actually on the box; the planner diffs desired
-   against observed. Drift detection is therefore not a feature — a plan
-   containing changes nobody requested *is* drift.
+7. **The current release defines intended running state.**
+   Saving resource configuration does not change a server. The next deployment
+   or apply operation snapshots it. Drift is the difference between the current
+   release and the daemon's observed state. Saved but unapplied configuration is
+   not drift.
 
-8. **Every change declares an inverse, or declares itself irreversible.**
-   Rollback is mechanical, derived from `Plan.changes[].inverse`. No
-   hand-written rollback logic exists anywhere in the system.
+8. **Rollback restores a previous release.**
+   A release is an immutable successful result. App rollback starts a deployment
+   from an earlier release snapshot. A supported non-app restore starts an
+   operation. Cockpit does not depend on generated inverses because many stateful
+   changes have no honest inverse.
 
 9. **D1 is the truth. Git is a mirror.**
-   The reviewable-diff property comes from the `Plan` object, not from git being
-   the storage engine. Each applied plan may commit a config snapshot to a repo
-   for audit, `git log -p`, and disaster recovery — but nothing in cockpit ever
-   *reads* from git. See ADR-0004.
+   The reviewable diff comes from recorded deployment changes, not from git
+   being the storage engine. Each successful deployment can commit a snapshot
+   to a repository for audit and disaster recovery. Cockpit never reads from
+   that repository. See ADR-0004.
 
 10. **One polymorphic `Resource` table, not a table per kind.**
-    A resource is `{ kind, name, server_id, spec }`. Adding support for a new
-    kind is a new spec schema plus a new daemon handler — never a new table, new
-    API surface, or new UI page. Coolify's type-per-thing model is what makes it
+    A resource is `{ kind, name, server_id, configuration }`. Adding support for
+    a new kind requires one configuration schema and one daemon handler. It
+    never requires a new table, API surface, or UI page. Coolify's
+    type-per-thing model is what makes it
     rigid. See ADR-0006.
 
 11. **Every kind declares a scope: server or account.**
@@ -140,11 +142,10 @@ Numbered so other docs can reference them as `(#n)`.
     #2, now enforced by types. See ADR-0008.
 
 16. **`impact` is data, not documentation.**
-    Each change carries `none | reload | restart | replace | destructive`. The
-    UI renders by it, the approval gate branches on it, and the MCP server
-    surfaces it. This is the `/devops` skill's action card (its Rule #3),
-    promoted from a prose instruction an agent might forget into a field the
-    system cannot skip.
+    Each recorded change carries `none | reload | restart | replace |
+    destructive`. The deployment log and MCP response render it. Destructive
+    endpoints validate it before execution. This is the `/devops` skill's
+    action card as structured data the system cannot omit.
 
 17. **Builds run on the target server, for now.**
     v1 clones and builds on the box the app will run on — no registry
@@ -197,41 +198,45 @@ operator redeems in any client to bind the box to a `Server`.
 
 **Kind** — the type of a resource: `app`, `database`, `proxy`, `volume`,
 `network`, `cron`, `daemon`, `firewall_rule`, `dns_record`. Each kind has a Zod
-spec schema and a daemon handler, and nothing else.
+configuration schema and a daemon handler, and nothing else.
 
-**Spec** — the desired configuration of a resource. JSON, validated against its
-kind's schema. The operator's intent.
+**Project** — a server-scoped group of related resources. A project can contain
+multiple app resources that deploy independently.
+
+**Configuration** — saved input for a resource's next deployment or apply
+operation. Saving configuration does not change the server.
 
 **Observed state** — what the daemon actually found on the box. Never assumed,
 always reported.
 
-**Drift** — a difference between spec and observed state that no plan caused.
+**Drift** — a difference between the current release and observed state.
 
-**Plan** — a proposed, typed, reviewable set of changes. The unit of change
-(#6). Has a lifecycle: `pending → approved → applying → applied | failed`, plus
-`reverted`.
+**Deployment** — one app delivery run. It records a trigger, source revision,
+configuration snapshot, steps, logs, calculated changes, outcome, and release.
 
-**Change** — one entry in a plan: an op, a target, `before`, `after`,
-`inverse`, `impact`.
+**Operation** — an attributable non-deployment action against a resource. A
+configuration apply can create a release. A direct command such as restart does
+not create one.
+
+**Change** — one recorded effect inside a deployment or operation: an action, a
+target, `before`, `after`, `impact`, and result.
 
 **Impact** — how disruptive a change is: `none | reload | restart | replace |
-destructive` (#15).
+destructive` (#16).
 
-**Apply** — executing an approved plan. Runs as a Cloudflare Workflow, one
-durable step per change.
-
-**Release** — an immutable record written on each successful apply against a
-resource: the full spec snapshot, image digest, and originating plan. Rollback
-is re-applying release *N-1* (#8).
+**Release** — an immutable successful result for a resource. It contains the
+configuration and resolved runtime snapshots. The current release defines the
+intended running state. Rollback restores an earlier release snapshot through a
+deployment or supported operation (#8).
 
 **Link** — a stored relationship between two resources (#11).
 
-**Event** — an append-only record of something that happened: a plan applied, a
-container died, disk pressure, an alert fired, an agent connected. The audit log
-and the activity feed are both views over this.
+**Event** — an append-only record of something that happened: a deployment
+succeeded, a container died, disk pressure, an alert fired, or an agent
+connected. The audit log and activity feed are views over this.
 
 **Actor** — who caused something: `{ kind: "human" | "agent" | "system", id }`.
-Every plan and event carries one.
+Every deployment, operation, and event carries one.
 
 **Secret ref** — a provider-scheme string standing in for a secret (`op://…`),
 resolved by the daemon on the box and never held by the plane (#15, ADR-0008).
@@ -247,7 +252,7 @@ resolved by the daemon on the box and never held by the plane (#15, ADR-0008).
   parsing, and UI form shapes all derive from them. A kind defined twice is a
   bug.
 - **Determinism**: no `Date.now()` or `Math.random()` in plane logic — clock and
-  ID generation are injected, so plans and workflows are replayable and
+  ID generation are injected, so deployments and workflows are replayable and
   testable.
 - **Design language**: paper-and-ink, inherited from `postern`. Monochrome
   canvas, one ink foreground at varying alpha, zero border radius, Schibsted

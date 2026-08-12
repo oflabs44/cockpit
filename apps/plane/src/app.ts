@@ -15,15 +15,36 @@ import { listServersRoute, listServersHandler } from "./routes/servers-list";
 import { getServerRoute, getServerHandler } from "./routes/servers-detail";
 import { listEnrolmentsRoute, listEnrolmentsHandler } from "./routes/enrolments-list";
 import { redeemEnrolmentRoute, redeemEnrolmentHandler } from "./routes/enrolments-redeem";
-import { upsertResourceRoute, upsertResourceHandler } from "./routes/resources-upsert";
 import {
   listServerResourcesRoute,
   listServerResourcesHandler,
 } from "./routes/servers-resources-list";
-import { listPlansRoute, listPlansHandler } from "./routes/plans-list";
-import { getPlanRoute, getPlanHandler } from "./routes/plans-detail";
-import { approvePlanRoute, approvePlanHandler } from "./routes/plans-approve";
-import { rejectPlanRoute, rejectPlanHandler } from "./routes/plans-reject";
+import { createProjectRoute, createProjectHandler } from "./routes/projects-create";
+import { listProjectsRoute, listProjectsHandler } from "./routes/projects-list";
+import { getProjectRoute, getProjectHandler } from "./routes/projects-detail";
+import {
+  createProjectResourceRoute,
+  createProjectResourceHandler,
+} from "./routes/project-resources-create";
+import {
+  listProjectDeploymentsRoute,
+  listProjectDeploymentsHandler,
+} from "./routes/project-deployments-list";
+import { getResourceRoute, getResourceHandler } from "./routes/resources-detail";
+import {
+  updateResourceConfigurationRoute,
+  updateResourceConfigurationHandler,
+} from "./routes/resources-configuration-update";
+import {
+  listResourceDeploymentsRoute,
+  listResourceDeploymentsHandler,
+} from "./routes/resource-deployments-list";
+import {
+  createResourceDeploymentRoute,
+  createResourceDeploymentHandler,
+} from "./routes/resource-deployments-create";
+import { getDeploymentRoute, getDeploymentHandler } from "./routes/deployments-detail";
+import { getOperationRoute, getOperationHandler } from "./routes/operations-detail";
 import { daemonWsHandler } from "./routes/daemon-ws";
 import type { ServerDO } from "./durable-objects/server-do";
 
@@ -49,7 +70,12 @@ export type AppRouteHandler<R extends RouteConfig> = RouteHandler<R, AppEnv>;
  * global, per docs/type-design.md §1 — no `Date.now()`/`Math.random()` in plane logic.
  */
 export function createApp(deps: Deps = realDeps) {
-  const app = new OpenAPIHono<AppEnv>();
+  const app = new OpenAPIHono<AppEnv>({
+    defaultHook: (result, c) => {
+
+      if (!result.success) return c.json({ error: result.error.message }, 400);
+    },
+  });
 
   // `/daemon`'s 101 response carries a live `webSocket` with headers the runtime makes
   // immutable — `secureHeaders()`/`requestId()` mutating them after `next()` throws
@@ -87,23 +113,27 @@ export function createApp(deps: Deps = realDeps) {
     await next();
   });
 
-  // SECURITY: none of the operator routes below (`/servers*`, `/enrolments*`) authenticate the
-  // caller yet. That's deliberate — Cloudflare Access fronts the UI/API in a later slice
-  // (docs/architecture.md §2.1's auth row) — but undocumented until now: anyone who can reach
-  // this Worker can create servers, list pending enrolments, and redeem claim codes. `/daemon`
-  // is exempt from this note; it authenticates the daemon's own secret independently, above.
+  // SECURITY: the operator routes do not authenticate the caller yet. Cloudflare Access will
+  // add authentication in a later slice. Anyone who reaches this Worker can change stored state
+  // and queue a deployment. `/daemon` authenticates its own secret independently.
   app.openapi(healthRoute, healthHandler);
   app.openapi(createServerRoute, createServerHandler);
   app.openapi(listServersRoute, listServersHandler);
   app.openapi(getServerRoute, getServerHandler);
   app.openapi(listEnrolmentsRoute, listEnrolmentsHandler);
   app.openapi(redeemEnrolmentRoute, redeemEnrolmentHandler);
-  app.openapi(upsertResourceRoute, upsertResourceHandler);
   app.openapi(listServerResourcesRoute, listServerResourcesHandler);
-  app.openapi(listPlansRoute, listPlansHandler);
-  app.openapi(getPlanRoute, getPlanHandler);
-  app.openapi(approvePlanRoute, approvePlanHandler);
-  app.openapi(rejectPlanRoute, rejectPlanHandler);
+  app.openapi(createProjectRoute, createProjectHandler);
+  app.openapi(listProjectsRoute, listProjectsHandler);
+  app.openapi(getProjectRoute, getProjectHandler);
+  app.openapi(createProjectResourceRoute, createProjectResourceHandler);
+  app.openapi(listProjectDeploymentsRoute, listProjectDeploymentsHandler);
+  app.openapi(getResourceRoute, getResourceHandler);
+  app.openapi(updateResourceConfigurationRoute, updateResourceConfigurationHandler);
+  app.openapi(listResourceDeploymentsRoute, listResourceDeploymentsHandler);
+  app.openapi(createResourceDeploymentRoute, createResourceDeploymentHandler);
+  app.openapi(getDeploymentRoute, getDeploymentHandler);
+  app.openapi(getOperationRoute, getOperationHandler);
   app.get("/daemon", daemonWsHandler);
 
   // `run_worker_first: ["/*", ...]` (apps/plane/wrangler.jsonc) routes every request through

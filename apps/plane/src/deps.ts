@@ -1,6 +1,6 @@
 // docs/type-design.md §1 — "No Date.now() or Math.random() in plane logic": clock and id
-// generation are injected so plans and workflows are replayable and testable. This is the
-// one seam where real time/randomness is allowed to exist, for wiring at the edge.
+// generation are injected so deployments and operations are replayable and testable. This is
+// the one seam where real time and randomness exist for edge wiring.
 
 export interface Deps {
   clock: { now(): number };

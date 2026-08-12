@@ -158,7 +158,7 @@ function ServerOverview() {
 // prototype/server.html's Overview table has five columns: kind, name, exposed at, release,
 // age. Two are dropped: "exposed at" has no wire field (the only candidate is Docker
 // Desktop's own debug labels, absent on Linux Docker), and "release" belongs to the
-// Plan/Release model, which ObservedResource doesn't carry.
+// current-release model, which ObservedResource does not carry.
 function ResourcesTable({ resources }: { resources: ObservedResource[] }) {
   if (resources.length === 0) {
     return <p className="detail-note">No resources reported.</p>

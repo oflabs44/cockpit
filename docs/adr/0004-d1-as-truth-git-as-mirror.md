@@ -2,19 +2,19 @@
 
 Status: accepted
 
-Desired state lives in D1 and is mutated through the API via Plans (ADR-0003). Each
-applied plan optionally commits a configuration snapshot to a git repository the operator
-controls. Nothing in cockpit ever reads from git.
+Configuration, deployments, operations, and releases live in D1. Each successful
+configuration apply can commit a snapshot to a git repository the operator controls.
+Nothing in Cockpit ever reads from git.
 
 The rejected alternative was git-as-truth with a reconciler — a repo of resource specs,
 converged onto servers, in the manner of Flux or Terraform.
 
 ## Why
 
-**The property we wanted from git, the Plan already gives us.** Git-as-truth is
-attractive because it yields reviewable diffs, `git log` as an audit trail, and revert as
-rollback. All three come from the Plan directly (ADR-0003), without making a git
-repository the read path of a dashboard.
+**Deployment records provide the useful git properties.** Git-as-truth is attractive
+because it yields reviewable diffs, `git log` as an audit trail, and revert as rollback.
+Cockpit records changes and immutable release snapshots directly (ADR-0009), without
+making a git repository the read path of a dashboard.
 
 **A UI over a git repo is a bad UI.** Every list view becomes a clone-parse-walk.
 Cross-cutting queries — "every app on prod using db-jerry", "everything unhealthy",
@@ -44,6 +44,6 @@ be on the critical path or a source of consistency bugs.
   so this follows automatically — but snapshot serialisation must be tested for it, since
   the mirror is the most likely place for a leak to become permanent and public.
 - **D1 needs its own backup discipline** independent of the mirror, since the mirror holds
-  configuration but not plans, releases, events, or links.
+  configuration but not deployments, operations, releases, events, or links.
 - **A future GitOps mode stays possible.** Nothing here forecloses accepting the repo as
-  an input later; it would be an additional planner source, not a storage change.
+  an input later; it would be an additional deployment trigger, not a storage change.

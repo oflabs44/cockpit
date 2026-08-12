@@ -1,6 +1,9 @@
 # The Plan is the unit of change to desired state
 
-Status: accepted (amended — direct operations carved out)
+Status: superseded by [ADR-0009](./0009-deployments-record-changes-without-a-review-gate.md)
+
+This document records the former design. Cockpit no longer uses a Plan as a review gate.
+See ADR-0009 for the deployment and operation model.
 
 A `Plan` is required whenever **desired state** changes: a typed list of changes, each
 carrying `before`, `after`, a declared `inverse`, and an `impact`, computed against

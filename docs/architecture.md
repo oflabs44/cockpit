@@ -54,8 +54,8 @@ everything else depends on them:
 |---|---|---|
 | runtime | Cloudflare Workers, TypeScript | request-scoped; no module-level mutable state |
 | HTTP | Hono + `@hono/zod-openapi` | one `createRoute` definition per endpoint yields request validation, the OpenAPI document, and RPC types together |
-| relational state | D1 + Drizzle | servers, resources, plans, releases, events, links |
-| long-running work | Workflows | one instance per apply; one durable step per change |
+| relational state | D1 + Drizzle | servers, projects, resources, deployments, operations, releases, events, links |
+| long-running work | Workflows | one instance per deployment or long operation; durable pipeline steps |
 | fan-out / scheduled | Queues + Cron Triggers | health sweeps, backups, notification dispatch |
 | live connections | Durable Objects | `ServerDO` (one per server, holds the daemon WSS), `StreamDO` (per resource log/metric stream). WebSocket hibernation so idle connections cost nothing |
 | blobs | R2 | log archives, build logs, backup artifacts |
@@ -116,7 +116,8 @@ while keeping the socket open, so quiet boxes cost nothing.
 
 `ServerDO` is not the only one — `StreamDO` is per log/metric stream and the MCP server is
 DO-backed. The pattern is one DO per thing needing identity and continuity. Note what a DO
-is **not**: truth. D1 holds servers, resources, plans, releases, and events (ADR-0004); the
+is **not**: truth. D1 holds servers, projects, resources, deployments, operations, releases, and events
+(ADR-0004); the
 DO holds the connection and the latest snapshot. Putting the audit trail inside a
 per-server object would make it unqueryable across the fleet.
 
@@ -160,8 +161,8 @@ healthy, and pending — so a healthy box read as an alert. Reserved for subject
 status of their own: avatars, log-line gutters, graph series.
 
 Components: local `components/ui/*` in postern's style (`Button`, `Input`, `IconButton`,
-`Avatar`), plus cockpit-specific — `StatusDot`, `ResourceRow`, `PlanDiff`, `LogPane`,
-`MetricSpark`, `FleetGraph`.
+`Avatar`), plus Cockpit-specific components such as `StatusDot`, `ResourceRow`,
+`DeploymentChanges`, `LogPane`, `MetricSpark`, and `FleetGraph`.
 
 The command palette is load-bearing, not decoration: `⌘K` → "deploy jerry", "logs prod",
 "restart db-jerry". For a terminal-first operator it is the cheapest large UX win over
@@ -180,8 +181,8 @@ Four jobs, and only four:
 
 1. **Observe** — enumerate containers, volumes, networks, UFW rules, systemd units, and
    cron entries, and report them as a `state` snapshot.
-2. **Execute** — apply `task` frames (plan-bound) and `op` frames (event-bound) with
-   ensure-semantics, reporting `create | in_place | replace | no_op`.
+2. **Execute** — apply `task` frames bound to deployments or operations, and direct
+   operation frames, with ensure-semantics. Report `create | in_place | replace | no_op`.
 3. **Stream** — pump logs, build output, and metrics up the connection it already holds.
 4. **Enrol** — once, at the start.
 
@@ -198,8 +199,8 @@ makes a task re-sent after a reconnect safe — every op is idempotent, so re-ru
 dial ──▶ hello/auth ──▶ full state snapshot ──▶ serve
                                                   │
    ┌──────────────────────────────────────────────┤
-   │  task  → run changes in order, task_progress per change
-   │  op    → run one operation, emit Event, re-sync state
+   │  task  → run deployment or operation changes, report progress
+   │  op    → run one direct operation, emit Event, re-sync state
    │  stream→ start/stop a tail, pump stream_data
    │  probe → sample host or resource, reply
    └──▶ on disconnect: exponential backoff, redial, resend full state
@@ -255,7 +256,7 @@ cockpit/
   apps/plane/         Worker: Hono API + MCP server + Workflows + Durable Objects
   apps/web/           TanStack Start UI (bundled into the plane Worker)
   daemon/             Go: cockpitd, plus install.sh
-  packages/schema/    Zod: resource kinds, ops, plan/entity types   ← the spine
+  packages/schema/    Zod: resource, deployment, operation, release types
   packages/client/    Generated typed API client
   packages/types/     Shared TS types with zero runtime deps
   docs/
@@ -284,7 +285,20 @@ server and not a scope of its own (ADR-0007). A resource in no project is shared
 whole server, and *shared* is derived rather than declared: anything two projects use, or
 none do, is shared by definition.
 
-The project's own view is its **dependency graph**, rendered from `Link` — see §3.6.
+Every app belongs to one project. Non-app resources can remain outside a project when they
+are shared across the server. The project's own view is its **dependency graph**, rendered
+from `Link` — see §3.6.
+
+```text
+Server
+└── Project
+    ├── Overview
+    ├── Resources
+    ├── Deployments
+    └── Settings
+```
+
+`Deployments` aggregates runs from the project's apps. It is not a global destination.
 
 ---
 
@@ -332,44 +346,55 @@ and re-enrols. That is the trade for holding no standing fleet-wide credential a
 
 ### 3.2 Deploy an app
 
-```
-  intent ────▶ PLAN ────▶ approve ────▶ APPLY (Workflow) ────▶ RELEASE + EVENTS
-```
+One project can contain multiple app resources. Each app deploys independently. The
+project deployment page aggregates their runs.
 
-1. Operator or agent submits an app spec (repo, branch, build, domain, ports, env refs,
-   resource limits).
-2. Plane diffs spec against the daemon's **observed** state (#7) and produces a `Plan`
-   with per-change `impact`.
-3. Client renders the plan. Approval is required; auto-approval is possible by policy for
-   `impact: none | reload` only (ADR-0003).
-4. Apply starts a Workflow. One durable step per change; the daemon executes each with
-   ensure-semantics returning `create | in_place | replace | no_op` (#13).
-5. For an app build, the daemon clones and builds **on the target server** (#16), under
-   the spec's build limits, streaming build logs to a `StreamDO`.
-6. Container starts with Traefik labels; Traefik reconfigures itself (#17). Healthcheck
-   polls until healthy or the step fails.
-7. On success, a `Release` row records the spec snapshot, image digest, and plan id.
-   Events are emitted throughout. The git mirror commit is fired best-effort (ADR-0004).
-
-Rollback is applying release *N-1*: a plan whose changes are the recorded inverses (#8).
-
-### 3.3 Direct operations
-
-Not every mutation is a plan (ADR-0003). Restart, stop, start, exec, and terminal leave the
-spec identical, so they execute immediately:
-
-```
-  client ──▶ POST /resources/:id/restart
-         ──▶ plane records an Event with the actor
-         ──▶ ServerDO sends an `op` frame to the daemon
-         ──▶ daemon executes, reports, and re-syncs observed state
+```text
+push or Deploy -> fetch -> build -> calculate changes -> apply -> health -> release
 ```
 
-The daemon accepts exactly two kinds of write frame: `task`, bound to a plan in
-`applying`, and `op`, bound to a recorded event. An `op` may never carry a spec change —
-that is what keeps the carve-out from becoming a loophole. Every operation forces a state
-re-sync on completion, because an exec or a terminal session can leave the box diverged
-from its spec.
+1. A source webhook matches an app's configured repository and deployment branch. A
+   manual Deploy, Redeploy, or Rollback action can start the same pipeline.
+2. The plane creates a `Deployment` and snapshots the exact source revision and saved app
+   configuration. A later configuration edit cannot alter the running deployment.
+3. A Workflow asks the daemon to clone and build **on the target server** (#17), under the
+   configuration's build limits. Build logs stream to a `StreamDO`.
+4. After the build resolves the image digest, the plane calculates `before`, `after`, and
+   `impact` against the daemon's observed state. It stores the change set on the
+   deployment and continues automatically (ADR-0009).
+5. The daemon applies each change with ensure-semantics and reports `create | in_place |
+   replace | no_op` (#14).
+6. The container starts with Traefik labels. Health checks run until the deployment
+   succeeds or fails.
+7. On success, a `Release` records the configuration snapshot, runtime snapshot, source
+   revision, image digest, and deployment id. Events are emitted throughout. The git
+   mirror commit runs best-effort (ADR-0004).
+
+A push to a configured branch is already authorized. It does not wait for approval.
+Rollback starts a new deployment from an earlier release snapshot (#8).
+
+### 3.3 Resource operations
+
+Saving configuration does not change a server. An app uses a deployment to apply saved
+configuration. A non-app resource uses an `Operation`:
+
+```text
+Save configuration -> Apply -> Operation -> Release
+```
+
+Restart, stop, start, and exec also create operations, but they do not create releases
+because they leave configuration unchanged.
+
+```text
+client -> POST /resources/:id/restart
+       -> plane records the Operation and actor
+       -> ServerDO sends an `op` frame to the daemon
+       -> daemon executes, reports, and re-syncs observed state
+```
+
+The daemon accepts mutation frames only when they reference a persisted deployment or
+operation. Destructive actions use separate endpoints with confirmation at request time.
+They do not enter a general approval queue (ADR-0009).
 
 ### 3.4 Log streaming
 
@@ -384,10 +409,10 @@ cockpit cannot.
 
 ### 3.5 Observation and drift
 
-The daemon sends a full `state` message on connect and on an interval, plus `event`
-messages in real time (container died, health changed, disk pressure). The plane stores
-observed state per resource. A scheduled sweep plans every resource against its observed
-state; any plan with changes nobody requested is surfaced as **drift** (#7).
+The daemon sends a full `state` message on connect and on an interval, plus real-time
+`event` messages. The plane stores observed state per resource. A scheduled sweep compares
+that state with the resource's current release. A difference is **drift** (#7). Saved but
+unapplied configuration is not drift.
 
 ### 3.6 The project canvas
 
@@ -398,14 +423,15 @@ consequence. This is Railway's split too, where connections come from reference 
 rather than a gesture. Node positions are persisted per project, since they are the
 operator's mental map and cannot be recomputed on load.
 
-### 3.7 An agent operating cockpit
+### 3.7 An agent operating Cockpit
 
-Read side: one call returns a resource with its logs, metrics, recent events, recent
-plans, and links — enough to diagnose an outage without fifteen round-trips (ADR-0005).
+Read side: one call returns a resource with its logs, metrics, recent events, deployments,
+current release, saved configuration, and links. This is enough to diagnose an outage
+without many round trips (ADR-0005).
 
-Write side: the agent proposes a `Plan`. It appears in the UI attributed to that agent,
-with its diff and impact. The operator approves it in the UI. The agent cannot mutate
-a server unilaterally, by construction (#3, ADR-0003).
+Write side: the agent uses the same deployment and operation endpoints as the UI. Actor
+permissions control which triggers it can invoke. The UI attributes every deployment,
+operation, change set, and event to that actor (#3, ADR-0009).
 
 ---
 
@@ -427,9 +453,10 @@ a server unilaterally, by construction (#3, ADR-0003).
   before use. The plane never holds a value — giving it one would restore the blast radius
   that holding no SSH keys removes. The cost, accepted knowingly: a scoped provider
   credential lives on each server.
-- **Every mutation is attributable.** Plans and events carry an `Actor`
-  (`human | agent | system`).
-- **Destructive changes are typed as such** (#15), so the gate cannot be forgotten.
+- **Every mutation is attributable.** Deployments, operations, and events carry an
+  `Actor` (`human | agent | system`).
+- **Destructive changes are typed as such** (#16). Their endpoints require confirmation
+  before execution.
 - **The operator's own SSH remains theirs.** It is how they reach their box out-of-band,
   and cockpit neither uses it, stores it, nor needs to know it exists.
 
@@ -439,9 +466,9 @@ a server unilaterally, by construction (#3, ADR-0003).
 
 Deliberately unresolved; each will get its own ADR when forced.
 
-0. **Drift, in the UI.** The plane detects drift for free — plans are computed against
-   observed state (#7), so a plan containing changes nobody requested *is* drift. It is
-   deliberately **not surfaced in v1's interface**: it needs a third status colour and a
+0. **Drift, in the UI.** The plane detects drift by comparing the current release with
+   observed state (#7). It is deliberately **not surfaced in v1's interface**: it needs a
+   third status colour and a
    distinction ("running fine, but the record is no longer true") that is hard to explain
    before an operator has hit it. The capability stays; the presentation is deferred until
    there is evidence of how often it actually happens.
@@ -460,7 +487,7 @@ Deliberately unresolved; each will get its own ADR when forced.
    defined.
 5. **Multi-server orchestration.** Private networking between boxes, and resources that
    span servers, are out of scope for v1.
-6. **Build placement.** Building on the target server is v1 (#16). Moving to a dedicated
+6. **Build placement.** Building on the target server is v1 (#17). Moving to a dedicated
    builder or laptop-buildx-plus-registry is a later optimisation.
 7. **Interactive terminals.** The transport already supports it — the daemon dials out, so
    a PTY works behind NAT with no inbound port, which is better than SSH-based platforms

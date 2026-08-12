@@ -14,9 +14,9 @@ Status: accepted (amended — projects added inside a server)
 An app belongs to exactly one server and cannot span servers.
 
 **Projects group resources inside a server.** A project is a named grouping of the
-resources on one box — an app plus the database, volume, and cron that serve it. It is a
-label on resources, not a level above them, and a resource may belong to at most one
-project. Resources on a server that belong to no project are shared with the whole server.
+resources on one box — apps plus the databases, volumes, and cron jobs that serve them. It
+is a label on resources, not a level above them. Every app belongs to one project. Other
+resources can remain outside a project when they are shared with the whole server.
 
 ## Why
 
@@ -34,8 +34,9 @@ the domain *points at* an app that is. The same holds for a GitHub connection, a
 namespace, and a backup bucket, all of which are per-account by construction and useless
 if they die with a host.
 
-**A scope field costs nothing and needs no new concept.** One table, one plan engine, one
-release history, one audit log, one generic UI — all unchanged. `Link` already spans the
+**A scope field costs nothing and needs no new concept.** One resource table, one
+operation path, one release history, one audit log, and one generic UI remain unchanged.
+`Link` already spans the
 boundary (`domain --routes_to--> app`), so the relationship is data rather than a special
 case.
 

@@ -12,10 +12,9 @@ capability from both.
   survives their failure.
 - **`cockpitd`**, a Go daemon on each server, dialling **out** over WSS. cockpit never
   uses SSH: onboarding is a one-line install script you run on the box.
-- **Changes to desired state are `Plan`s** — typed, diffable, with a declared inverse and
-  an impact level. Propose, review, apply. Rollback, audit, drift detection, and agent
-  safety all fall out of that one object. Operations that leave the spec identical —
-  restart, exec, logs — are direct and recorded as events.
+- **App delivery runs as a `Deployment`** — a push, manual deploy, redeploy, or rollback
+  records its source revision, configuration snapshot, logs, calculated changes, outcome,
+  and release. Normal authorized deployments do not wait for a second approval.
 - **AI-first means peer access**, not a chat box: an agent over MCP and a human in the UI
   are peers on the same API, and every agent action lands in the UI attributed to it.
 
@@ -30,7 +29,7 @@ capability from both.
 | [`docs/development.md`](./docs/development.md) | Dogfooding on a real box: two planes, three tiers, the loop |
 | [`docs/prototype-reality-check.md`](./docs/prototype-reality-check.md) | Every rendered value traced to what produces it |
 | [`docs/adr/`](./docs/adr/) | Rationale for the load-bearing decisions |
-| [`docs/kickoff-foundation.md`](./docs/kickoff-foundation.md) | Prompt to start the first build session |
+| [`docs/kickoff-foundation.md`](./docs/kickoff-foundation.md) | Archived prompt from the first build session |
 
 ## Decisions
 
@@ -38,12 +37,13 @@ capability from both.
 |---|---|
 | [ADR-0001](./docs/adr/0001-daemon-only-execution-no-ssh.md) | The daemon is the only execution path; cockpit never uses SSH |
 | [ADR-0002](./docs/adr/0002-serverless-control-plane-on-cloudflare.md) | Serverless control plane on Cloudflare, decoupled from managed servers |
-| [ADR-0003](./docs/adr/0003-plan-as-sole-unit-of-change.md) | The Plan is the sole unit of change |
+| [ADR-0003](./docs/adr/0003-plan-as-sole-unit-of-change.md) | Superseded: the Plan was the sole unit of change |
 | [ADR-0004](./docs/adr/0004-d1-as-truth-git-as-mirror.md) | D1 is the truth; git is an export mirror |
 | [ADR-0005](./docs/adr/0005-strict-client-parity.md) | Strict client parity: every client over one API |
 | [ADR-0006](./docs/adr/0006-polymorphic-resource-model.md) | One polymorphic Resource entity, with Links as first-class relationships |
 | [ADR-0007](./docs/adr/0007-resource-scope-server-or-account.md) | Every kind declares its scope: server or account |
 | [ADR-0008](./docs/adr/0008-secrets-resolved-on-the-box.md) | Secrets are resolved on the box, by the daemon |
+| [ADR-0009](./docs/adr/0009-deployments-record-changes-without-a-review-gate.md) | Deployments record changes without a review gate |
 
 ## Lineage
 

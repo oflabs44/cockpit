@@ -105,8 +105,8 @@ reconnect and backoff logic, and the observation model — and every later featu
 top of it. A daemon that can only observe is already useful: it makes the servers list and
 the resource table real, which is most of the UI.
 
-Deliberately not first: applying plans, builds, streaming. Each of those assumes the
-connection and the observation model already work.
+Deliberately not first: deployments, operations, builds, and streaming. Each assumes the
+connection and observation model already work.
 
 ---
 

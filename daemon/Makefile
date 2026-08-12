@@ -3,6 +3,7 @@ PKG     := ./cmd/cockpitd
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 GOFLAGS := -trimpath
+TOKEN_ARG = $(if $(TOKEN),--token $(TOKEN),)
 
 # Where make daemon-push sends the binary (docs/development.md section 3).
 BOX ?= lab-nbg1
@@ -41,7 +42,7 @@ push: dist ## copy the linux/$(ARCH) binary to $(BOX) over your own ssh, not coc
 	scp dist/$(BIN)-linux-$(ARCH) $(BOX):~/$(BIN)
 
 run: build ## run in the foreground against a plane: make run PLANE=... TOKEN=...
-	./bin/$(BIN) --foreground --plane $(PLANE) --token $(TOKEN)
+	./bin/$(BIN) --foreground --plane $(PLANE) $(TOKEN_ARG)
 
 clean:
 	rm -rf bin dist

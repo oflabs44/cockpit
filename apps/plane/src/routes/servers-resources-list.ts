@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import type { AppRouteHandler } from "../app";
 import { db, resources, servers } from "../db";
 import { ResourceListResponse } from "../schema";
-import { safeJsonParse } from "../json";
+import { resourceResponse } from "./entity-response";
 
 export const listServerResourcesRoute = createRoute({
   method: "get",
@@ -33,16 +33,5 @@ export const listServerResourcesHandler: AppRouteHandler<
 
   const rows = await database.select().from(resources).where(eq(resources.serverId, id)).all();
 
-  return c.json({
-    resources: rows.map((row) => ({
-      id: row.id,
-      server_id: row.serverId,
-      project_id: row.projectId,
-      kind: row.kind,
-      name: row.name,
-      spec: safeJsonParse<Record<string, unknown>>(row.spec, {}, `resources.spec (${row.id})`),
-      created_at: row.createdAt,
-      updated_at: row.updatedAt,
-    })),
-  });
+  return c.json({ resources: rows.map(resourceResponse) });
 };

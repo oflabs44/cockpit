@@ -5,8 +5,10 @@ prototype invents data very easily — a plausible-looking field costs nothing t
 type and can cost weeks to source — so this is the list of places where the
 screens are ahead of the system.
 
-Reviewed against `docs/type-design.md` (entities, daemon protocol) and
-`docs/architecture.md` (topology, open questions).
+Reviewed against `docs/type-design.md` and `docs/architecture.md`.
+
+The static prototypes still contain the superseded Plans flow. See `prototype/README.md`.
+The rows below use the ADR-0009 deployment model.
 
 ---
 
@@ -18,15 +20,15 @@ Reviewed against `docs/type-design.md` (entities, daemon protocol) and
 | `cpu %`, `memory %`, `disk %` | daemon `metrics` frame |
 | `uptime` | daemon reads the host |
 | resource counts, kinds, names, health | `Resource` rows plus `Observed` |
-| `exposed at`, ports | `AppSpec.domains`, `ports` |
+| `exposed at`, ports | `AppConfiguration.domains`, `ports` |
 | `release`, `age` | `Release.rev`, `created_at` |
-| commit sha, message, branch | daemon reports `HEAD` after clone |
-| step names, durations, failure step | the apply Workflow — one durable step per change |
+| commit sha, message, branch | `Deployment.source_revision` from the source trigger |
+| step names, durations, failure step | `Deployment.steps` and the deployment Workflow |
 | build output | daemon `stream_data` frames |
-| `by: you / claude-code` | `Plan.created_by` (`Actor`) |
+| `by: you / claude-code` | `Deployment.triggered_by` (`Actor`) |
 | enrolment state, token age | `Enrolment` |
 | `shared` on a canvas node | count of inbound `Link`s ≥ 2 |
-| plan pending, impact | `Plan.status`, `Change.impact` |
+| deployment status, impact | `Deployment.status`, `ChangeSet.max_impact` |
 
 ---
 
@@ -66,7 +68,7 @@ real check to build and schedule, not a field to read.
 ### 4. Unread notifications
 
 The bell carries an unread badge. `Event` has no read state
-(`type-design.md §2.8`) — there is no `read_at`, and no notion of which events
+(`type-design.md §2.11`) — there is no `read_at`, and no notion of which events
 are notifications rather than log entries. Small to add, but currently the badge
 is drawn over nothing.
 

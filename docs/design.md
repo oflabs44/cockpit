@@ -5,8 +5,12 @@ it. Every rule here was arrived at by building the thing, looking at it, and usu
 rejecting a first attempt — the rejections are recorded because they are the part most
 likely to be repeated.
 
-The prototype is the reference implementation. Where this document and
-`prototype/assets/css/theme.css` disagree, the prototype wins and this file is stale.
+The prototype is the visual reference implementation. Where visual tokens disagree,
+`prototype/assets/css/theme.css` wins.
+
+> Model warning: the static prototypes predate ADR-0009 and still show the removed global
+> Plans flow. `CONTEXT.md`, `docs/type-design.md`, and ADR-0009 win for domain terms,
+> navigation ownership, and behavior. Do not implement a Plans screen from those files.
 
 ---
 
@@ -148,8 +152,9 @@ does. Every screen is a content region, and nothing may restructure the chrome a
 
 ### 4.1 Rail
 
-Global destinations only, never contextual. Three groups: the containment spine (Servers,
-Plans, Activity), account-scoped things (Domains, Sources, Secrets), then Settings.
+Global destinations only, never contextual. Three groups: the containment spine (Servers
+and Activity), account-scoped things (Domains, Sources, Secrets), then Settings.
+Deployments stay inside their project.
 
 The active item is **contrast alone** — `ink-40` to full ink plus weight 500. No rule, no
 fill, no pill: those are the default moves and they add chrome to a system whose premise is
@@ -157,8 +162,8 @@ that emphasis comes from contrast.
 
 **The mark doubles as fleet health** — it banks and turns `danger` when something is wrong,
 so the chrome itself tells you before you read a word. It is the one place the logo carries
-colour. On mobile the rail becomes a bottom bar (four destinations is what a bottom bar is
-for) and the mark moves into the top bar, since that is where you glance rather than work.
+colour. On mobile the rail becomes a bottom bar. The mark moves into the top bar, since
+that is where you glance rather than work.
 
 Collapsed rail: labels vanish, hit targets and icons stay put, counts become a dot — a
 number in 52px lies.
@@ -218,7 +223,8 @@ what makes it stop registering where it matters.
 
 ### 5.2 Notice
 
-The one message component — sign-in errors, failed applies, disconnects, disk pressure.
+The one message component — sign-in errors, failed deployments, disconnects, disk
+pressure.
 
 Shaped as a **printed ledger entry**: the machine's classification and error code in a mono
 gutter, the human sentence in sans beside it. That makes the mono/sans rule structural, and
@@ -241,11 +247,11 @@ that would tire).
 ### 5.3 Stamp
 
 A solid classification chip. A stamp labels a *thing*; a notice says a *sentence*. Its home
-is plan `impact`, where severity is a typed field the UI must not be able to forget.
+is deployment change `impact`, where severity is a typed field the UI must not omit.
 
 Only the two impacts that can hurt you take colour — `destructive` and `replace`. `none`
-and `reload` are outlined, `restart` is solid ink. A plan of harmless changes carries no
-colour at all, and one destructive change is unmissable.
+and `reload` are outlined, `restart` is solid ink. A deployment with harmless changes
+carries no colour. One destructive change is unmissable.
 
 ### 5.4 Terminal
 
@@ -274,9 +280,10 @@ command, a docs link, a filter to clear.
 type. It is a gap in a page, not a page.
 
 **Illustrations follow one rule so they generate rather than get invented: solid hairline
-is what exists, dashed is what is absent.** No servers is an empty rack; no plans is a
-ledger with dashed rows; no activity is a flat trace. Flat elevations, **never isometric** —
-blueprint drawing sits closer to paper-and-ink, and soft tinted isometric spot art is the
+is what exists, dashed is what is absent.** No servers is an empty rack; no deployments
+is a pipeline with dashed steps; no activity is a flat trace. Flat elevations, **never
+isometric** — blueprint drawing sits closer to paper-and-ink, and soft tinted isometric
+spot art is the
 house style of every other platform's empty state.
 
 ### 5.6 Card, key/value, table

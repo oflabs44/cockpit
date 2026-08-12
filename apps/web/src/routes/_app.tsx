@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ServerStack01Icon,
-  Layers01Icon,
   Activity01Icon,
   GlobeIcon,
   Package01Icon,
@@ -16,7 +15,6 @@ import {
 } from '@hugeicons/core-free-icons'
 import { NavLink, NavSep } from '#/components/nav-link'
 import { serversQueryOptions } from '#/api/servers'
-import { plansQueryOptions } from '#/api/plans'
 
 // Pathless layout route (docs/architecture.md §2.2, prototype/frame.html): the frame wraps
 // every app section, but a route with no shell — an auth screen, say — would sit outside
@@ -25,11 +23,18 @@ export const Route = createFileRoute('/_app')({ component: AppShell })
 
 const activeProps = { 'aria-current': 'page' as const }
 
-// One segment of the bar's breadcrumb (docs/design.md §4.2: the last crumb IS the page
-// title — no separate <h1>). `dot` mirrors server-card.tsx's `DOT_CLASS`: `undefined` means
-// "not applicable" (most routes), `null` means "applicable status, deliberately no dot"
-// (an enrolling server), and a class string draws one.
-export type CrumbSegment = { label: string; dot?: string | null }
+export type CrumbLink =
+  | { kind: 'servers' }
+  | { kind: 'server'; serverId: string }
+  | { kind: 'project'; serverId: string; projectId: string }
+
+// The final crumb is the page title. Earlier crumbs keep the containment path navigable.
+export type CrumbSegment = {
+  label: string
+  dot?: string | null
+  scope?: 'project'
+  link?: CrumbLink
+}
 
 function useCrumbs(): CrumbSegment[] {
   const matches = useMatches()
@@ -47,29 +52,38 @@ function useCrumbs(): CrumbSegment[] {
   return []
 }
 
+function CrumbAnchor({ crumb }: { crumb: CrumbSegment }) {
+  if (crumb.link?.kind === 'servers') return <Link to="/">{crumb.label}</Link>
+
+  if (crumb.link?.kind === 'server') {
+    return <Link to="/$serverId" params={{ serverId: crumb.link.serverId }}>{crumb.label}</Link>
+  }
+
+  if (crumb.link?.kind === 'project') {
+    return (
+      <Link
+        to="/$serverId/projects/$projectId"
+        params={{ serverId: crumb.link.serverId, projectId: crumb.link.projectId }}
+      >
+        {crumb.label}
+      </Link>
+    )
+  }
+
+  return <span>{crumb.label}</span>
+}
+
 function AppShell() {
   const [rail, setRail] = useState<'open' | 'collapsed'>('open')
   const crumbs = useCrumbs()
   const leafCrumb = crumbs.at(-1)
-  // Every server route (the layout and all its tabs) shares this param — used only to decide
-  // whether the tab strip renders, not to read anything about the server itself.
-  const { serverId } = useParams({ strict: false })
+  const { serverId, projectId } = useParams({ strict: false })
+  const projectWorkspace = crumbs.some((crumb) => crumb.scope === 'project')
   const contentId = useId()
 
-  // Plain `useQuery`, not `useSuspenseQuery`: the rail renders on every route, so a badge
-  // must never block or suspend the page around it — it just appears once real data has
-  // arrived. `undefined` (still loading, or errored) renders no badge at all rather than a
-  // false "0". The interval is the badges' only recovery path: `AppShell` never unmounts
-  // and nothing else consumes `['plans','pending']`, so without it one failed fetch (or a
-  // plan created after load) would leave the badge wrong until a window-refocus.
+  // Plain `useQuery`, not `useSuspenseQuery`: the rail renders on every route, so its
+  // count must never block or suspend the page around it.
   const serverCount = useQuery({ ...serversQueryOptions, refetchInterval: 60_000 }).data?.length
-  const pendingPlanCount = useQuery({ ...plansQueryOptions, refetchInterval: 60_000 }).data?.length
-  // The prototype has no zero-count example for the Plans badge (every page hardcodes a
-  // non-zero demo value). The badge is info-blue because pending plans are *pending* —
-  // §2.3's info row — and a real zero is nothing pending, so it renders no badge at all
-  // rather than a neutral "0", consistent with how the rest of the app treats "nothing to
-  // flag" (e.g. an enrolling server's card gets no status dot at all).
-  const plansBadgeCount = pendingPlanCount || undefined
 
   return (
     <div className="frame" data-rail={rail}>
@@ -92,14 +106,6 @@ function AppShell() {
             icon={ServerStack01Icon}
             label="Servers"
             count={serverCount}
-          />
-          <NavLink
-            to="/plans"
-            activeProps={activeProps}
-            icon={Layers01Icon}
-            label="Plans"
-            count={plansBadgeCount}
-            attention
           />
           <NavLink to="/activity" activeProps={activeProps} icon={Activity01Icon} label="Activity" />
 
@@ -132,15 +138,12 @@ function AppShell() {
           </button>
 
           <div className="crumbs">
-            {/* A parent crumb only ever appears alongside a leaf (2 segments today: Servers /
-                {name}) — it always links back to the root list, the one container every
-                multi-level trail in this app currently has. */}
-            {crumbs.length > 1 && (
-              <>
-                <Link to="/">{crumbs[0]?.label}</Link>
+            {crumbs.slice(0, -1).map((crumb, index) => (
+              <span className="crumb-part" key={`${crumb.label}:${index}`}>
+                <CrumbAnchor crumb={crumb} />
                 <span className="sep">/</span>
-              </>
-            )}
+              </span>
+            ))}
             <span className="here">
               {leafCrumb?.dot && <span className={`dot ${leafCrumb.dot}`} />}
               {leafCrumb?.label}
@@ -160,16 +163,40 @@ function AppShell() {
           </button>
         </header>
 
-        {/* Sibling of `.bar`/`.content`, matching prototype/server.html's nesting — flush
-            under the bar with a full-width hairline, rather than inside `.content-inner`'s
-            padded column. Hardcoded to the one section that has tabs today rather than a
-            generic per-route mechanism: a second tabbed section can generalise this then.
-            Gated on the detail loader having resolved (a multi-segment crumb trail exists
-            only then), not on the URL param alone — the param is set during pending AND
-            error states, and tabs over a "No such server" screen are dead controls
-            presented as navigation. */}
-        {serverId && crumbs.length > 1 && (
-          <nav className="tabs">
+        {serverId && projectId && projectWorkspace ? (
+          <nav className="tabs" aria-label="Project">
+            <Link
+              to="/$serverId/projects/$projectId"
+              params={{ serverId, projectId }}
+              activeOptions={{ exact: true }}
+              activeProps={activeProps}
+            >
+              Overview
+            </Link>
+            <Link
+              to="/$serverId/projects/$projectId/resources"
+              params={{ serverId, projectId }}
+              activeProps={activeProps}
+            >
+              Resources
+            </Link>
+            <Link
+              to="/$serverId/projects/$projectId/deployments"
+              params={{ serverId, projectId }}
+              activeProps={activeProps}
+            >
+              Deployments
+            </Link>
+            <Link
+              to="/$serverId/projects/$projectId/settings"
+              params={{ serverId, projectId }}
+              activeProps={activeProps}
+            >
+              Settings
+            </Link>
+          </nav>
+        ) : serverId && crumbs.length > 1 ? (
+          <nav className="tabs" aria-label="Server">
             <Link
               to="/$serverId"
               params={{ serverId }}
@@ -178,9 +205,6 @@ function AppShell() {
             >
               Overview
             </Link>
-            {/* Projects and Resources are siblings inside the server, which is what makes the
-                scoping legible: a database is a thing on THIS box, and a project binds to it.
-                Neither floats free of the machine (prototype/server.html). */}
             <Link to="/$serverId/projects" params={{ serverId }} activeProps={activeProps}>
               Projects
             </Link>
@@ -194,7 +218,7 @@ function AppShell() {
               Settings
             </Link>
           </nav>
-        )}
+        ) : null}
 
         <main id={contentId} className="content">
           <div className="content-inner">

@@ -14,7 +14,6 @@ import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AppServerIdRouteImport } from './routes/_app.$serverId'
 import { Route as AppActivityRouteImport } from './routes/_app.activity'
 import { Route as AppDomainsRouteImport } from './routes/_app.domains'
-import { Route as AppPlansRouteImport } from './routes/_app.plans'
 import { Route as AppSecretsRouteImport } from './routes/_app.secrets'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppSourcesRouteImport } from './routes/_app.sources'
@@ -23,6 +22,16 @@ import { Route as AppServerIdFirewallRouteImport } from './routes/_app.$serverId
 import { Route as AppServerIdProjectsRouteImport } from './routes/_app.$serverId.projects'
 import { Route as AppServerIdResourcesRouteImport } from './routes/_app.$serverId.resources'
 import { Route as AppServerIdSettingsRouteImport } from './routes/_app.$serverId.settings'
+import { Route as AppServerIdProjectsIndexRouteImport } from './routes/_app.$serverId.projects.index'
+import { Route as AppServerIdProjectsProjectIdRouteImport } from './routes/_app.$serverId.projects.$projectId'
+import { Route as AppServerIdProjectsProjectIdIndexRouteImport } from './routes/_app.$serverId.projects.$projectId.index'
+import { Route as AppServerIdProjectsProjectIdDeploymentsRouteImport } from './routes/_app.$serverId.projects.$projectId.deployments'
+import { Route as AppServerIdProjectsProjectIdResourcesRouteImport } from './routes/_app.$serverId.projects.$projectId.resources'
+import { Route as AppServerIdProjectsProjectIdSettingsRouteImport } from './routes/_app.$serverId.projects.$projectId.settings'
+import { Route as AppServerIdProjectsProjectIdDeploymentsIndexRouteImport } from './routes/_app.$serverId.projects.$projectId.deployments.index'
+import { Route as AppServerIdProjectsProjectIdDeploymentsDeploymentIdRouteImport } from './routes/_app.$serverId.projects.$projectId.deployments.$deploymentId'
+import { Route as AppServerIdProjectsProjectIdResourcesIndexRouteImport } from './routes/_app.$serverId.projects.$projectId.resources.index'
+import { Route as AppServerIdProjectsProjectIdResourcesResourceIdRouteImport } from './routes/_app.$serverId.projects.$projectId.resources.$resourceId'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -46,11 +55,6 @@ const AppActivityRoute = AppActivityRouteImport.update({
 const AppDomainsRoute = AppDomainsRouteImport.update({
   id: '/domains',
   path: '/domains',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppPlansRoute = AppPlansRouteImport.update({
-  id: '/plans',
-  path: '/plans',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSecretsRoute = AppSecretsRouteImport.update({
@@ -93,35 +97,109 @@ const AppServerIdSettingsRoute = AppServerIdSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppServerIdRoute,
 } as any)
+const AppServerIdProjectsIndexRoute =
+  AppServerIdProjectsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppServerIdProjectsRoute,
+  } as any)
+const AppServerIdProjectsProjectIdRoute =
+  AppServerIdProjectsProjectIdRouteImport.update({
+    id: '/$projectId',
+    path: '/$projectId',
+    getParentRoute: () => AppServerIdProjectsRoute,
+  } as any)
+const AppServerIdProjectsProjectIdIndexRoute =
+  AppServerIdProjectsProjectIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppServerIdProjectsProjectIdRoute,
+  } as any)
+const AppServerIdProjectsProjectIdDeploymentsRoute =
+  AppServerIdProjectsProjectIdDeploymentsRouteImport.update({
+    id: '/deployments',
+    path: '/deployments',
+    getParentRoute: () => AppServerIdProjectsProjectIdRoute,
+  } as any)
+const AppServerIdProjectsProjectIdResourcesRoute =
+  AppServerIdProjectsProjectIdResourcesRouteImport.update({
+    id: '/resources',
+    path: '/resources',
+    getParentRoute: () => AppServerIdProjectsProjectIdRoute,
+  } as any)
+const AppServerIdProjectsProjectIdSettingsRoute =
+  AppServerIdProjectsProjectIdSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AppServerIdProjectsProjectIdRoute,
+  } as any)
+const AppServerIdProjectsProjectIdDeploymentsIndexRoute =
+  AppServerIdProjectsProjectIdDeploymentsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppServerIdProjectsProjectIdDeploymentsRoute,
+  } as any)
+const AppServerIdProjectsProjectIdDeploymentsDeploymentIdRoute =
+  AppServerIdProjectsProjectIdDeploymentsDeploymentIdRouteImport.update({
+    id: '/$deploymentId',
+    path: '/$deploymentId',
+    getParentRoute: () => AppServerIdProjectsProjectIdDeploymentsRoute,
+  } as any)
+const AppServerIdProjectsProjectIdResourcesIndexRoute =
+  AppServerIdProjectsProjectIdResourcesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppServerIdProjectsProjectIdResourcesRoute,
+  } as any)
+const AppServerIdProjectsProjectIdResourcesResourceIdRoute =
+  AppServerIdProjectsProjectIdResourcesResourceIdRouteImport.update({
+    id: '/$resourceId',
+    path: '/$resourceId',
+    getParentRoute: () => AppServerIdProjectsProjectIdResourcesRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/$serverId': typeof AppServerIdRouteWithChildren
   '/activity': typeof AppActivityRoute
   '/domains': typeof AppDomainsRoute
-  '/plans': typeof AppPlansRoute
   '/secrets': typeof AppSecretsRoute
   '/settings': typeof AppSettingsRoute
   '/sources': typeof AppSourcesRoute
   '/$serverId/firewall': typeof AppServerIdFirewallRoute
-  '/$serverId/projects': typeof AppServerIdProjectsRoute
+  '/$serverId/projects': typeof AppServerIdProjectsRouteWithChildren
   '/$serverId/resources': typeof AppServerIdResourcesRoute
   '/$serverId/settings': typeof AppServerIdSettingsRoute
   '/$serverId/': typeof AppServerIdIndexRoute
+  '/$serverId/projects/$projectId': typeof AppServerIdProjectsProjectIdRouteWithChildren
+  '/$serverId/projects/': typeof AppServerIdProjectsIndexRoute
+  '/$serverId/projects/$projectId/deployments': typeof AppServerIdProjectsProjectIdDeploymentsRouteWithChildren
+  '/$serverId/projects/$projectId/resources': typeof AppServerIdProjectsProjectIdResourcesRouteWithChildren
+  '/$serverId/projects/$projectId/settings': typeof AppServerIdProjectsProjectIdSettingsRoute
+  '/$serverId/projects/$projectId/': typeof AppServerIdProjectsProjectIdIndexRoute
+  '/$serverId/projects/$projectId/deployments/$deploymentId': typeof AppServerIdProjectsProjectIdDeploymentsDeploymentIdRoute
+  '/$serverId/projects/$projectId/resources/$resourceId': typeof AppServerIdProjectsProjectIdResourcesResourceIdRoute
+  '/$serverId/projects/$projectId/deployments/': typeof AppServerIdProjectsProjectIdDeploymentsIndexRoute
+  '/$serverId/projects/$projectId/resources/': typeof AppServerIdProjectsProjectIdResourcesIndexRoute
 }
 export interface FileRoutesByTo {
   '/activity': typeof AppActivityRoute
   '/domains': typeof AppDomainsRoute
-  '/plans': typeof AppPlansRoute
   '/secrets': typeof AppSecretsRoute
   '/settings': typeof AppSettingsRoute
   '/sources': typeof AppSourcesRoute
   '/': typeof AppIndexRoute
   '/$serverId/firewall': typeof AppServerIdFirewallRoute
-  '/$serverId/projects': typeof AppServerIdProjectsRoute
   '/$serverId/resources': typeof AppServerIdResourcesRoute
   '/$serverId/settings': typeof AppServerIdSettingsRoute
   '/$serverId': typeof AppServerIdIndexRoute
+  '/$serverId/projects': typeof AppServerIdProjectsIndexRoute
+  '/$serverId/projects/$projectId/settings': typeof AppServerIdProjectsProjectIdSettingsRoute
+  '/$serverId/projects/$projectId': typeof AppServerIdProjectsProjectIdIndexRoute
+  '/$serverId/projects/$projectId/deployments/$deploymentId': typeof AppServerIdProjectsProjectIdDeploymentsDeploymentIdRoute
+  '/$serverId/projects/$projectId/resources/$resourceId': typeof AppServerIdProjectsProjectIdResourcesResourceIdRoute
+  '/$serverId/projects/$projectId/deployments': typeof AppServerIdProjectsProjectIdDeploymentsIndexRoute
+  '/$serverId/projects/$projectId/resources': typeof AppServerIdProjectsProjectIdResourcesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -129,16 +207,25 @@ export interface FileRoutesById {
   '/_app/$serverId': typeof AppServerIdRouteWithChildren
   '/_app/activity': typeof AppActivityRoute
   '/_app/domains': typeof AppDomainsRoute
-  '/_app/plans': typeof AppPlansRoute
   '/_app/secrets': typeof AppSecretsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/sources': typeof AppSourcesRoute
   '/_app/': typeof AppIndexRoute
   '/_app/$serverId/firewall': typeof AppServerIdFirewallRoute
-  '/_app/$serverId/projects': typeof AppServerIdProjectsRoute
+  '/_app/$serverId/projects': typeof AppServerIdProjectsRouteWithChildren
   '/_app/$serverId/resources': typeof AppServerIdResourcesRoute
   '/_app/$serverId/settings': typeof AppServerIdSettingsRoute
   '/_app/$serverId/': typeof AppServerIdIndexRoute
+  '/_app/$serverId/projects/$projectId': typeof AppServerIdProjectsProjectIdRouteWithChildren
+  '/_app/$serverId/projects/': typeof AppServerIdProjectsIndexRoute
+  '/_app/$serverId/projects/$projectId/deployments': typeof AppServerIdProjectsProjectIdDeploymentsRouteWithChildren
+  '/_app/$serverId/projects/$projectId/resources': typeof AppServerIdProjectsProjectIdResourcesRouteWithChildren
+  '/_app/$serverId/projects/$projectId/settings': typeof AppServerIdProjectsProjectIdSettingsRoute
+  '/_app/$serverId/projects/$projectId/': typeof AppServerIdProjectsProjectIdIndexRoute
+  '/_app/$serverId/projects/$projectId/deployments/$deploymentId': typeof AppServerIdProjectsProjectIdDeploymentsDeploymentIdRoute
+  '/_app/$serverId/projects/$projectId/resources/$resourceId': typeof AppServerIdProjectsProjectIdResourcesResourceIdRoute
+  '/_app/$serverId/projects/$projectId/deployments/': typeof AppServerIdProjectsProjectIdDeploymentsIndexRoute
+  '/_app/$serverId/projects/$projectId/resources/': typeof AppServerIdProjectsProjectIdResourcesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -147,7 +234,6 @@ export interface FileRouteTypes {
     | '/$serverId'
     | '/activity'
     | '/domains'
-    | '/plans'
     | '/secrets'
     | '/settings'
     | '/sources'
@@ -156,27 +242,41 @@ export interface FileRouteTypes {
     | '/$serverId/resources'
     | '/$serverId/settings'
     | '/$serverId/'
+    | '/$serverId/projects/$projectId'
+    | '/$serverId/projects/'
+    | '/$serverId/projects/$projectId/deployments'
+    | '/$serverId/projects/$projectId/resources'
+    | '/$serverId/projects/$projectId/settings'
+    | '/$serverId/projects/$projectId/'
+    | '/$serverId/projects/$projectId/deployments/$deploymentId'
+    | '/$serverId/projects/$projectId/resources/$resourceId'
+    | '/$serverId/projects/$projectId/deployments/'
+    | '/$serverId/projects/$projectId/resources/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/activity'
     | '/domains'
-    | '/plans'
     | '/secrets'
     | '/settings'
     | '/sources'
     | '/'
     | '/$serverId/firewall'
-    | '/$serverId/projects'
     | '/$serverId/resources'
     | '/$serverId/settings'
     | '/$serverId'
+    | '/$serverId/projects'
+    | '/$serverId/projects/$projectId/settings'
+    | '/$serverId/projects/$projectId'
+    | '/$serverId/projects/$projectId/deployments/$deploymentId'
+    | '/$serverId/projects/$projectId/resources/$resourceId'
+    | '/$serverId/projects/$projectId/deployments'
+    | '/$serverId/projects/$projectId/resources'
   id:
     | '__root__'
     | '/_app'
     | '/_app/$serverId'
     | '/_app/activity'
     | '/_app/domains'
-    | '/_app/plans'
     | '/_app/secrets'
     | '/_app/settings'
     | '/_app/sources'
@@ -186,6 +286,16 @@ export interface FileRouteTypes {
     | '/_app/$serverId/resources'
     | '/_app/$serverId/settings'
     | '/_app/$serverId/'
+    | '/_app/$serverId/projects/$projectId'
+    | '/_app/$serverId/projects/'
+    | '/_app/$serverId/projects/$projectId/deployments'
+    | '/_app/$serverId/projects/$projectId/resources'
+    | '/_app/$serverId/projects/$projectId/settings'
+    | '/_app/$serverId/projects/$projectId/'
+    | '/_app/$serverId/projects/$projectId/deployments/$deploymentId'
+    | '/_app/$serverId/projects/$projectId/resources/$resourceId'
+    | '/_app/$serverId/projects/$projectId/deployments/'
+    | '/_app/$serverId/projects/$projectId/resources/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -227,13 +337,6 @@ declare module '@tanstack/react-router' {
       path: '/domains'
       fullPath: '/domains'
       preLoaderRoute: typeof AppDomainsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/plans': {
-      id: '/_app/plans'
-      path: '/plans'
-      fullPath: '/plans'
-      preLoaderRoute: typeof AppPlansRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/secrets': {
@@ -292,12 +395,156 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppServerIdSettingsRouteImport
       parentRoute: typeof AppServerIdRoute
     }
+    '/_app/$serverId/projects/': {
+      id: '/_app/$serverId/projects/'
+      path: '/'
+      fullPath: '/$serverId/projects/'
+      preLoaderRoute: typeof AppServerIdProjectsIndexRouteImport
+      parentRoute: typeof AppServerIdProjectsRoute
+    }
+    '/_app/$serverId/projects/$projectId': {
+      id: '/_app/$serverId/projects/$projectId'
+      path: '/$projectId'
+      fullPath: '/$serverId/projects/$projectId'
+      preLoaderRoute: typeof AppServerIdProjectsProjectIdRouteImport
+      parentRoute: typeof AppServerIdProjectsRoute
+    }
+    '/_app/$serverId/projects/$projectId/': {
+      id: '/_app/$serverId/projects/$projectId/'
+      path: '/'
+      fullPath: '/$serverId/projects/$projectId/'
+      preLoaderRoute: typeof AppServerIdProjectsProjectIdIndexRouteImport
+      parentRoute: typeof AppServerIdProjectsProjectIdRoute
+    }
+    '/_app/$serverId/projects/$projectId/deployments': {
+      id: '/_app/$serverId/projects/$projectId/deployments'
+      path: '/deployments'
+      fullPath: '/$serverId/projects/$projectId/deployments'
+      preLoaderRoute: typeof AppServerIdProjectsProjectIdDeploymentsRouteImport
+      parentRoute: typeof AppServerIdProjectsProjectIdRoute
+    }
+    '/_app/$serverId/projects/$projectId/resources': {
+      id: '/_app/$serverId/projects/$projectId/resources'
+      path: '/resources'
+      fullPath: '/$serverId/projects/$projectId/resources'
+      preLoaderRoute: typeof AppServerIdProjectsProjectIdResourcesRouteImport
+      parentRoute: typeof AppServerIdProjectsProjectIdRoute
+    }
+    '/_app/$serverId/projects/$projectId/settings': {
+      id: '/_app/$serverId/projects/$projectId/settings'
+      path: '/settings'
+      fullPath: '/$serverId/projects/$projectId/settings'
+      preLoaderRoute: typeof AppServerIdProjectsProjectIdSettingsRouteImport
+      parentRoute: typeof AppServerIdProjectsProjectIdRoute
+    }
+    '/_app/$serverId/projects/$projectId/deployments/': {
+      id: '/_app/$serverId/projects/$projectId/deployments/'
+      path: '/'
+      fullPath: '/$serverId/projects/$projectId/deployments/'
+      preLoaderRoute: typeof AppServerIdProjectsProjectIdDeploymentsIndexRouteImport
+      parentRoute: typeof AppServerIdProjectsProjectIdDeploymentsRoute
+    }
+    '/_app/$serverId/projects/$projectId/deployments/$deploymentId': {
+      id: '/_app/$serverId/projects/$projectId/deployments/$deploymentId'
+      path: '/$deploymentId'
+      fullPath: '/$serverId/projects/$projectId/deployments/$deploymentId'
+      preLoaderRoute: typeof AppServerIdProjectsProjectIdDeploymentsDeploymentIdRouteImport
+      parentRoute: typeof AppServerIdProjectsProjectIdDeploymentsRoute
+    }
+    '/_app/$serverId/projects/$projectId/resources/': {
+      id: '/_app/$serverId/projects/$projectId/resources/'
+      path: '/'
+      fullPath: '/$serverId/projects/$projectId/resources/'
+      preLoaderRoute: typeof AppServerIdProjectsProjectIdResourcesIndexRouteImport
+      parentRoute: typeof AppServerIdProjectsProjectIdResourcesRoute
+    }
+    '/_app/$serverId/projects/$projectId/resources/$resourceId': {
+      id: '/_app/$serverId/projects/$projectId/resources/$resourceId'
+      path: '/$resourceId'
+      fullPath: '/$serverId/projects/$projectId/resources/$resourceId'
+      preLoaderRoute: typeof AppServerIdProjectsProjectIdResourcesResourceIdRouteImport
+      parentRoute: typeof AppServerIdProjectsProjectIdResourcesRoute
+    }
   }
 }
 
+interface AppServerIdProjectsProjectIdDeploymentsRouteChildren {
+  AppServerIdProjectsProjectIdDeploymentsDeploymentIdRoute: typeof AppServerIdProjectsProjectIdDeploymentsDeploymentIdRoute
+  AppServerIdProjectsProjectIdDeploymentsIndexRoute: typeof AppServerIdProjectsProjectIdDeploymentsIndexRoute
+}
+
+const AppServerIdProjectsProjectIdDeploymentsRouteChildren: AppServerIdProjectsProjectIdDeploymentsRouteChildren =
+  {
+    AppServerIdProjectsProjectIdDeploymentsDeploymentIdRoute:
+      AppServerIdProjectsProjectIdDeploymentsDeploymentIdRoute,
+    AppServerIdProjectsProjectIdDeploymentsIndexRoute:
+      AppServerIdProjectsProjectIdDeploymentsIndexRoute,
+  }
+
+const AppServerIdProjectsProjectIdDeploymentsRouteWithChildren =
+  AppServerIdProjectsProjectIdDeploymentsRoute._addFileChildren(
+    AppServerIdProjectsProjectIdDeploymentsRouteChildren,
+  )
+
+interface AppServerIdProjectsProjectIdResourcesRouteChildren {
+  AppServerIdProjectsProjectIdResourcesResourceIdRoute: typeof AppServerIdProjectsProjectIdResourcesResourceIdRoute
+  AppServerIdProjectsProjectIdResourcesIndexRoute: typeof AppServerIdProjectsProjectIdResourcesIndexRoute
+}
+
+const AppServerIdProjectsProjectIdResourcesRouteChildren: AppServerIdProjectsProjectIdResourcesRouteChildren =
+  {
+    AppServerIdProjectsProjectIdResourcesResourceIdRoute:
+      AppServerIdProjectsProjectIdResourcesResourceIdRoute,
+    AppServerIdProjectsProjectIdResourcesIndexRoute:
+      AppServerIdProjectsProjectIdResourcesIndexRoute,
+  }
+
+const AppServerIdProjectsProjectIdResourcesRouteWithChildren =
+  AppServerIdProjectsProjectIdResourcesRoute._addFileChildren(
+    AppServerIdProjectsProjectIdResourcesRouteChildren,
+  )
+
+interface AppServerIdProjectsProjectIdRouteChildren {
+  AppServerIdProjectsProjectIdDeploymentsRoute: typeof AppServerIdProjectsProjectIdDeploymentsRouteWithChildren
+  AppServerIdProjectsProjectIdResourcesRoute: typeof AppServerIdProjectsProjectIdResourcesRouteWithChildren
+  AppServerIdProjectsProjectIdSettingsRoute: typeof AppServerIdProjectsProjectIdSettingsRoute
+  AppServerIdProjectsProjectIdIndexRoute: typeof AppServerIdProjectsProjectIdIndexRoute
+}
+
+const AppServerIdProjectsProjectIdRouteChildren: AppServerIdProjectsProjectIdRouteChildren =
+  {
+    AppServerIdProjectsProjectIdDeploymentsRoute:
+      AppServerIdProjectsProjectIdDeploymentsRouteWithChildren,
+    AppServerIdProjectsProjectIdResourcesRoute:
+      AppServerIdProjectsProjectIdResourcesRouteWithChildren,
+    AppServerIdProjectsProjectIdSettingsRoute:
+      AppServerIdProjectsProjectIdSettingsRoute,
+    AppServerIdProjectsProjectIdIndexRoute:
+      AppServerIdProjectsProjectIdIndexRoute,
+  }
+
+const AppServerIdProjectsProjectIdRouteWithChildren =
+  AppServerIdProjectsProjectIdRoute._addFileChildren(
+    AppServerIdProjectsProjectIdRouteChildren,
+  )
+
+interface AppServerIdProjectsRouteChildren {
+  AppServerIdProjectsProjectIdRoute: typeof AppServerIdProjectsProjectIdRouteWithChildren
+  AppServerIdProjectsIndexRoute: typeof AppServerIdProjectsIndexRoute
+}
+
+const AppServerIdProjectsRouteChildren: AppServerIdProjectsRouteChildren = {
+  AppServerIdProjectsProjectIdRoute:
+    AppServerIdProjectsProjectIdRouteWithChildren,
+  AppServerIdProjectsIndexRoute: AppServerIdProjectsIndexRoute,
+}
+
+const AppServerIdProjectsRouteWithChildren =
+  AppServerIdProjectsRoute._addFileChildren(AppServerIdProjectsRouteChildren)
+
 interface AppServerIdRouteChildren {
   AppServerIdFirewallRoute: typeof AppServerIdFirewallRoute
-  AppServerIdProjectsRoute: typeof AppServerIdProjectsRoute
+  AppServerIdProjectsRoute: typeof AppServerIdProjectsRouteWithChildren
   AppServerIdResourcesRoute: typeof AppServerIdResourcesRoute
   AppServerIdSettingsRoute: typeof AppServerIdSettingsRoute
   AppServerIdIndexRoute: typeof AppServerIdIndexRoute
@@ -305,7 +552,7 @@ interface AppServerIdRouteChildren {
 
 const AppServerIdRouteChildren: AppServerIdRouteChildren = {
   AppServerIdFirewallRoute: AppServerIdFirewallRoute,
-  AppServerIdProjectsRoute: AppServerIdProjectsRoute,
+  AppServerIdProjectsRoute: AppServerIdProjectsRouteWithChildren,
   AppServerIdResourcesRoute: AppServerIdResourcesRoute,
   AppServerIdSettingsRoute: AppServerIdSettingsRoute,
   AppServerIdIndexRoute: AppServerIdIndexRoute,
@@ -319,7 +566,6 @@ interface AppRouteChildren {
   AppServerIdRoute: typeof AppServerIdRouteWithChildren
   AppActivityRoute: typeof AppActivityRoute
   AppDomainsRoute: typeof AppDomainsRoute
-  AppPlansRoute: typeof AppPlansRoute
   AppSecretsRoute: typeof AppSecretsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppSourcesRoute: typeof AppSourcesRoute
@@ -330,7 +576,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppServerIdRoute: AppServerIdRouteWithChildren,
   AppActivityRoute: AppActivityRoute,
   AppDomainsRoute: AppDomainsRoute,
-  AppPlansRoute: AppPlansRoute,
   AppSecretsRoute: AppSecretsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppSourcesRoute: AppSourcesRoute,

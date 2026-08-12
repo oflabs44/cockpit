@@ -41,3 +41,21 @@ export function formatBytes(bytes: number): string {
 
   return `${(bytes / 1024 ** 3).toFixed(1)} GB`
 }
+
+/** A local exact time for immutable records. */
+export function formatTimestamp(timestampMs: number | null): string {
+  if (timestampMs === null) return 'Not recorded'
+
+  return new Intl.DateTimeFormat('en', {
+    dateStyle: 'medium',
+    timeStyle: 'medium',
+  }).format(timestampMs)
+}
+
+/** A recorded interval. Both boundaries must exist. */
+export function formatTiming(startedAt: number | null, finishedAt: number | null): string {
+  if (startedAt === null) return 'Not started'
+  if (finishedAt === null) return 'Not finished'
+
+  return formatDuration((finishedAt - startedAt) / 1000)
+}

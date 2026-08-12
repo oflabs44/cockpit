@@ -10,12 +10,15 @@ from them. They are written here as TypeScript for readability; the Zod schema i
 artifact, and it is the single definition from which REST validation, MCP tool schemas,
 CLI flags, and UI forms all derive (#2, ADR-0005).
 
+> ADR-0009 migrated `apps/plane` from the earlier Plan prototype to the entities and
+> flows below. Add execution against this model.
+
 ---
 
 ## 1. Primitives
 
 ```ts
-type Id<P extends string> = `${P}_${string}`   // srv_, res_, pln_, rel_, evt_, lnk_
+type Id<P extends string> = `${P}_${string}`   // srv_, prj_, res_, dep_, opn_, rel_, evt_, lnk_
 
 type Actor =
   | { kind: 'human';  id: string }             // operator identity
@@ -34,12 +37,12 @@ type SecretRef =
 
 type Health = 'healthy' | 'degraded' | 'unhealthy' | 'stopped' | 'unknown'
 
-/** Result of any ensure-semantics op (#13). Inherited from yoke. */
+/** Result of any ensure-semantics operation (#14). Inherited from yoke. */
 type Changed = 'create' | 'in_place' | 'replace' | 'no_op'
 ```
 
 No `Date.now()` or `Math.random()` in plane logic: clock and id generation are injected,
-so plans and workflows are replayable and testable (CONTEXT conventions).
+so deployments, operations, and workflows are replayable and testable.
 
 ---
 
@@ -89,9 +92,25 @@ Both directions converge on the same exchange: the daemon presents a secret, the
 validates it, issues a long-lived per-server credential, and burns the enrolment. Claim
 codes are additionally rate-limited by IP and globally, being short enough to guess.
 
-### 2.2 Resource
+### 2.2 Project
 
-One polymorphic entity for everything managed on a server (ADR-0006).
+A project groups related resources on one server. It is a navigation and ownership
+boundary, not an execution unit. One project can contain multiple apps that deploy
+independently.
+
+```ts
+interface Project {
+  id: Id<'prj'>
+  server_id: Id<'srv'>
+  name: string
+  created_at: number
+  updated_at: number
+}
+```
+
+### 2.3 Resource
+
+One polymorphic entity for everything Cockpit manages (ADR-0006).
 
 ```ts
 type Scope = 'server' | 'account'
@@ -113,14 +132,18 @@ interface Resource {
   /** Null for account-scoped kinds — domain, dns_record, source, secret,
    *  backup_destination. Those have no box (#11, ADR-0007). */
   server_id: Id<'srv'> | null
+  /** Required for apps. Null for account-scoped or server-shared resources. */
+  project_id: Id<'prj'> | null
   kind: Kind
   name: string                       // unique per (server_id, kind)
-  spec: Spec                         // desired state, validated by the kind's schema
-  spec_version: number               // schema version of `spec` (ADR-0006)
+  configuration: Configuration       // saved input for the next deployment or apply
+  configuration_version: number      // schema version of `configuration`
 
-  // promoted from spec/observed for querying — never dug out of JSON at read time
+  // The current release, not editable configuration, defines intended running state.
+  current_release_id: Id<'rel'> | null
+
+  // promoted for querying — never dug out of JSON at read time
   health: Health
-  current_release: Id<'rel'> | null
   exposed_at: string | null          // primary domain, if any
   drifted: boolean
 
@@ -133,25 +156,29 @@ interface Resource {
 }
 ```
 
-`spec` is JSON in SQL, so relational constraints cannot police it. Zod at the API
-boundary is the only validator, and every write path must pass through it (ADR-0006).
+Saving `configuration` does not change the server. A deployment or configuration apply
+takes an immutable snapshot before execution. `has_unapplied_changes` is derived by
+comparing the saved configuration with the current release's configuration snapshot.
 
-### 2.3 Spec, per kind
+Configuration is JSON in SQL, so relational constraints cannot police it. Zod at the API
+boundary is the validator, and every write path must pass through it (ADR-0006).
 
-Each kind contributes one schema. This is the whole extension surface: **a new kind is a
-spec schema plus a daemon handler, nothing else** (ADR-0006).
+### 2.4 Configuration, per kind
+
+Each kind contributes one schema. A new kind is a configuration schema plus a daemon
+handler (ADR-0006).
 
 ```ts
-interface AppSpec {
+interface AppConfiguration {
   source:
     | { type: 'repo'; url: string; ref: string; path?: string }
     | { type: 'image'; image: string; digest?: string }
   build?: {
     dockerfile?: string
     args?: Record<string, string>
-    limits: { cpu: string; memory: string }     // required (#16) — builds run on the
+    limits: { cpu: string; memory: string }     // required (#17) — builds run on the
                                                 // target server and must be bounded
-    prune: { keep_layers: number }              // required (#16) — disk protection
+    prune: { keep_layers: number }              // required (#17) — disk protection
   }
   domains: string[]                             // Traefik labels derive from these (#17)
   ports: { container: number; protocol: 'tcp' | 'udp' }[]
@@ -162,7 +189,7 @@ interface AppSpec {
   restart: 'always' | 'unless-stopped' | 'on-failure'
 }
 
-interface DatabaseSpec {
+interface DatabaseConfiguration {
   engine: 'postgres' | 'redis'
   version: string
   volume: string                                // Link to a volume resource
@@ -172,7 +199,7 @@ interface DatabaseSpec {
   backup?: { schedule: string; retain: number; destination: 'r2' }
 }
 
-interface CronSpec {
+interface CronConfiguration {
   schedule: string                              // cron expression
   timezone: string
   command: string
@@ -180,7 +207,7 @@ interface CronSpec {
   on_failure: 'ignore' | 'alert'
 }
 
-interface FirewallRuleSpec {
+interface FirewallRuleConfiguration {
   port: number
   protocol: 'tcp' | 'udp'
   source: string                                // CIDR
@@ -188,7 +215,7 @@ interface FirewallRuleSpec {
   purpose: string                               // required: why this rule exists
 }
 
-interface DnsRecordSpec {
+interface DnsRecordConfiguration {
   zone: string
   name: string
   type: 'A' | 'AAAA' | 'CNAME' | 'TXT'
@@ -196,14 +223,22 @@ interface DnsRecordSpec {
   proxied: boolean
 }
 
-// VolumeSpec, NetworkSpec, ProxySpec, DaemonSpec follow the same shape.
-type Spec = AppSpec | DatabaseSpec | CronSpec | FirewallRuleSpec | DnsRecordSpec /* … */
+// VolumeConfiguration, NetworkConfiguration, ProxyConfiguration, and
+// DaemonConfiguration follow the same shape.
+type Configuration =
+  | AppConfiguration
+  | DatabaseConfiguration
+  | CronConfiguration
+  | FirewallRuleConfiguration
+  | DnsRecordConfiguration
+  /* … */
 ```
 
-`FirewallRuleSpec.purpose` is required by design: the `/devops` playbooks learned that an
+`FirewallRuleConfiguration.purpose` is required by design: the `/devops` playbooks
+learned that an
 undocumented open port is unauditable a month later.
 
-### 2.4 Observed
+### 2.5 Observed
 
 What the daemon actually found. Never assumed (#7).
 
@@ -217,75 +252,154 @@ interface Observed {
 }
 ```
 
-### 2.5 Plan
+### 2.6 Recorded changes
 
-The sole unit of change (#6, ADR-0003).
+A change is evidence inside a deployment or operation. It has no approval lifecycle.
 
 ```ts
 type Impact = 'none' | 'reload' | 'restart' | 'replace' | 'destructive'
 
-type Op =
-  | 'server.enrol'   | 'server.drain'    | 'server.forget'
-  | 'resource.create'| 'resource.update' | 'resource.delete'
-  | 'resource.start' | 'resource.stop'   | 'resource.restart'
-  | 'release.rollback'
-  | 'link.create'    | 'link.delete'
-  | 'daemon.upgrade'
+type ChangeAction = 'create' | 'update' | 'replace' | 'delete'
 
 interface Change {
-  op: Op
+  action: ChangeAction
   target: Id<'res'> | Id<'srv'> | Id<'lnk'>
   before: unknown | null             // null for creates
   after: unknown | null              // null for deletes
   impact: Impact
-  /** The change that undoes this one. Required unless `irreversible` (#8). */
-  inverse: Omit<Change, 'inverse' | 'irreversible'> | null
-  irreversible?: { reason: string }  // data loss, resource destruction
-  status: 'pending' | 'applied' | 'failed' | 'skipped'
+  result: 'pending' | 'applied' | 'failed' | 'skipped'
   error?: { kind: string; message: string }
 }
 
-interface Plan {
-  id: Id<'pln'>
-  /** `rejected` added 2026-08-06: a refused proposal is kept, with its deciding
-   *  actor and decided_at — the audit log records turned-down plans too. */
-  status: 'pending' | 'approved' | 'applying' | 'applied' | 'failed' | 'reverted' | 'rejected'
-  changes: Change[]
-  /** Observed revisions this plan was computed against; apply revalidates (ADR-0003). */
+interface ChangeSet {
+  /** Observed revisions used to calculate `before`. */
   basis: Record<Id<'res'>, number>
-  summary: string                    // one line, human-readable
-  max_impact: Impact                 // derived; drives the approval gate (#15)
-  created_by: Actor
-  approved_by: Actor | null
-  workflow_id: string | null         // the Cloudflare Workflow instance
-  created_at: number
-  approved_at: number | null
-  applied_at: number | null
+  changes: Change[]
+  max_impact: Impact                 // derived; never supplied by a client
+  calculated_at: number
 }
 ```
 
-Invariants: every `Change` has an `inverse` or an `irreversible`; `max_impact` is derived,
-never supplied by a client; `basis` is captured at plan time and revalidated at apply.
+The planning step calculates the change set immediately before apply. The server Durable
+Object serializes writes. If observed state changes before execution, Cockpit recalculates
+inside the same run instead of creating a stale review object.
 
-### 2.6 Release
+### 2.7 Deployment
+
+A deployment belongs to one app resource. A project page aggregates the deployments from
+all app resources in that project.
+
+```ts
+interface SourceRevision {
+  ref: string
+  commit: string
+  message: string | null
+}
+
+type DeploymentTrigger =
+  | { kind: 'git_push'; source_id: Id<'res'>; revision: SourceRevision
+      delivery_id: string }
+  | { kind: 'manual'; commit: string | null }
+  | { kind: 'redeploy'; deployment_id: Id<'dep'> }
+  | { kind: 'rollback'; release_id: Id<'rel'> }
+
+type DeploymentStatus =
+  | 'queued' | 'fetching' | 'building' | 'planning'
+  | 'deploying' | 'checking'
+  | 'succeeded' | 'failed' | 'cancelled'
+
+type DeploymentStepName =
+  | 'source' | 'build' | 'changes' | 'apply' | 'healthcheck'
+
+interface DeploymentStep {
+  name: DeploymentStepName
+  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped'
+  started_at: number | null
+  finished_at: number | null
+  error: { kind: string; message: string } | null
+}
+
+interface Deployment {
+  id: Id<'dep'>
+  project_id: Id<'prj'>
+  app_id: Id<'res'>
+  server_id: Id<'srv'>
+  trigger: DeploymentTrigger
+  triggered_by: Actor
+  status: DeploymentStatus
+  source_revision: SourceRevision | null
+  configuration_snapshot: AppConfiguration
+  configuration_version: number
+  steps: DeploymentStep[]
+  changes: ChangeSet | null
+  workflow_id: string
+  release_id: Id<'rel'> | null
+  created_at: number
+  started_at: number | null
+  finished_at: number | null
+}
+```
+
+A push webhook starts a deployment when its source and ref match an app configuration.
+The deployment snapshots configuration at creation. A later edit cannot alter that run.
+
+### 2.8 Operation
+
+An operation records a non-deployment action. Resource configuration applies create a
+release. Commands that leave configuration unchanged do not.
+
+```ts
+type OperationKind =
+  | 'resource.apply' | 'resource.rollback' | 'resource.delete'
+  | 'resource.start' | 'resource.stop' | 'resource.restart' | 'resource.exec'
+  | 'server.drain' | 'server.forget' | 'daemon.upgrade'
+
+interface Operation {
+  id: Id<'opn'>
+  server_id: Id<'srv'>
+  project_id: Id<'prj'> | null
+  resource_id: Id<'res'> | null
+  kind: OperationKind
+  actor: Actor
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+  configuration_snapshot: Configuration | null
+  changes: ChangeSet | null
+  workflow_id: string | null
+  release_id: Id<'rel'> | null
+  created_at: number
+  started_at: number | null
+  finished_at: number | null
+}
+```
+
+Destructive operation endpoints require explicit confirmation in their request. They fail
+before execution when confirmation or authorization is absent.
+
+### 2.9 Release
 
 ```ts
 interface Release {
   id: Id<'rel'>
   resource_id: Id<'res'>
   rev: number                        // monotonic per resource
-  spec_snapshot: Spec                // full spec as applied
+  deployment_id: Id<'dep'> | null
+  operation_id: Id<'opn'> | null
+  configuration_snapshot: Configuration
+  runtime_snapshot: Record<string, unknown>
+  source_revision: SourceRevision | null
   image_digest: string | null
-  plan_id: Id<'pln'>
-  status: 'active' | 'superseded' | 'rolled_back'
+  restored_from_release_id: Id<'rel'> | null
+  status: 'active' | 'superseded'
   created_at: number
 }
 ```
 
-Rollback to *N-1* is a plan whose changes restore that release's `spec_snapshot` (#8).
-No bespoke rollback code exists.
+A release is written only after successful apply and health checks. The current release
+is the intended running state. App rollback starts a deployment from an earlier release.
+A supported non-app restore starts an operation. Both write a new release with
+`restored_from_release_id` set (#8).
 
-### 2.7 Link
+### 2.10 Link
 
 Stored relationships (#11, ADR-0006). A closed vocabulary, so the graph stays queryable.
 
@@ -301,10 +415,10 @@ interface Link {
 }
 ```
 
-Deleting a resource with inbound links produces a `destructive` plan that names every
+Deleting a resource with inbound links creates a destructive operation that names every
 dependant. Dangling links are a tested bug class.
 
-### 2.8 Event
+### 2.11 Event
 
 Append-only. The audit log and the activity feed are both views over this.
 
@@ -312,9 +426,11 @@ Append-only. The audit log and the activity feed are both views over this.
 interface Event {
   id: Id<'evt'>
   server_id: Id<'srv'> | null
+  project_id: Id<'prj'> | null
   resource_id: Id<'res'> | null
-  plan_id: Id<'pln'> | null
-  type: string                       // 'plan.applied', 'container.died',
+  deployment_id: Id<'dep'> | null
+  operation_id: Id<'opn'> | null
+  type: string                       // 'deployment.succeeded', 'container.died',
                                      // 'health.changed', 'disk.pressure',
                                      // 'daemon.connected', 'drift.detected', …
   actor: Actor
@@ -350,7 +466,7 @@ type Up =
                         host?: ObservedHost
                         /** Per-probe outcome, added 2026-08-06. Soft degradation means a
                          *  failed probe otherwise looks identical to an empty box — and a
-                         *  planner diffing against it would read "every firewall rule was
+                         *  change calculation would read "every firewall rule was
                          *  deleted". `unavailable` tells the plane to treat that kind's
                          *  absence as unknown, not as deletion. */
                         probes?: Record<'docker'|'firewall'|'systemd'|'cron'|'host',
@@ -395,18 +511,20 @@ interface ObservedHost {
 
 ```ts
 type Down =
-  /** Bound to a plan in `applying`. Changes desired state. */
-  | { type: 'task';   task_id: string; plan_id: Id<'pln'>; changes: Change[] }
-  /** Bound to a recorded Event. A direct operation — restart, stop, start —
-   *  that leaves the spec identical (ADR-0003). May NEVER carry a spec change;
-   *  that restriction is what keeps the carve-out from being a loophole. */
-  | { type: 'op';     op_id: string; event_id: Id<'evt'>
+  /** Bound to a running deployment or configuration-apply operation. */
+  | { type: 'task';   task_id: string
+                      run: { kind: 'deployment'; id: Id<'dep'> }
+                         | { kind: 'operation'; id: Id<'opn'> }
+                      changes: Change[] }
+  /** Bound to a recorded operation that leaves configuration unchanged. */
+  | { type: 'op';     op_id: Id<'opn'>
                       action: 'restart' | 'stop' | 'start'
                       resource_id: Id<'res'> }
+  | { type: 'op';     op_id: Id<'opn'>; action: 'exec'
+                      resource_id: Id<'res'>; command: string[] }
   | { type: 'stream'; stream_id: string; action: 'start' | 'stop'
                       resource_id: Id<'res'>; source: 'logs' | 'stats' | 'build' }
   | { type: 'probe';  probe_id: string; kind: 'host' | 'resource'; target?: Id<'res'> }
-  | { type: 'exec';   exec_id: string; resource_id: Id<'res'>; command: string[] }
   | { type: 'ping' }
   /** The mandatory first frame answering a `hello`. `credential` is present only
    *  when the hello carried an enrolment secret (or a claim code was redeemed):
@@ -418,13 +536,13 @@ type Down =
 
 ### 3.3 Rules
 
-- The daemon accepts exactly two write frames and nothing else: `task`, only for changes
-  belonging to a plan in `applying`, and `op`, only bound to a recorded `Event`. This is
-  the enforcement point for "nothing mutates unattributably" (ADR-0003) and must be
-  covered by tests.
+- The daemon accepts exactly two write frames and nothing else: `task`, only for a running
+  deployment or configuration-apply operation, and `op`, only for a recorded direct
+  operation. This is the enforcement point for "nothing mutates unattributably"
+  (ADR-0009) and must be covered by tests.
 - An `op` completing triggers a fresh `state` snapshot. A restart is harmless, but `exec`
-  and terminals can leave the box diverged from its spec, so the divergence is detected
-  immediately rather than at the next planner run.
+  can leave the box different from its current release, so Cockpit detects divergence
+  immediately rather than at the next drift sweep.
 - The daemon's authority is scoped to its own server; it can neither read nor act on
   another server's resources.
 - `hello.auth` with `kind: 'enrolment'` is exchanged once for a long-lived per-server
@@ -454,36 +572,40 @@ tool derives from the same definitions (ADR-0005). Listed by shape, not exhausti
   GET    /servers                        list, with connection + health rollup
   GET    /servers/:id                    detail, observed state, resources
   PATCH  /servers/:id                    direct  — name, labels; no box change
-  POST   /servers/:id/drain              plan
-  DELETE /servers/:id                    plan    — destructive
+  POST   /servers/:id/drain              Operation
+  DELETE /servers/:id                    destructive Operation with confirmation
   GET    /enrolments                     pending, incl. claim codes awaiting redemption
   POST   /enrolments/:code/redeem        direct  — bind a claim-code daemon to a Server
 
   GET    /resources                      ?server= &kind= &project= &health=
   GET    /resources/:id                  detail + links + current release
-  GET    /resources/:id/deployments
+  PATCH  /resources/:id/configuration    save only; does not change the server
+  GET    /resources/:id/deployments      app resources only
+  POST   /resources/:id/deployments      manual deploy, redeploy, or rollback
+  POST   /resources/:id/apply            apply non-app configuration → Operation
   GET    /resources/:id/links
   GET    /resources/:id/logs             SSE/WS stream, or historical from R2
   GET    /resources/:id/metrics
-  POST   /resources/:id/restart          op      → Event
-  POST   /resources/:id/stop             op      → Event
-  POST   /resources/:id/start            op      → Event
-  POST   /resources/:id/exec             op      → Event
+  POST   /resources/:id/restart          direct Operation
+  POST   /resources/:id/stop             direct Operation
+  POST   /resources/:id/start            direct Operation
+  POST   /resources/:id/exec             direct Operation
 
   GET    /projects                       ?server=
   GET    /projects/:id
   POST   /projects                       direct  — grouping metadata only
   PATCH  /projects/:id/layout            direct  — canvas node positions
-
-  POST   /plans                          propose: desired specs → Plan (never applies)
-  GET    /plans                          filter by status, actor, server
-  GET    /plans/:id
-  POST   /plans/:id/approve
-  POST   /plans/:id/apply                starts the Workflow
-  POST   /plans/:id/revert               → a new plan of inverses
+  GET    /projects/:id/deployments       aggregate deployments from project apps
 
   GET    /deployments/:id
-  GET    /deployments/:id/logs           live while applying, archived after
+  POST   /deployments/:id/cancel
+  POST   /deployments/:id/retry
+  GET    /deployments/:id/logs           live during the run, archived after
+
+  GET    /operations/:id
+  GET    /operations/:id/logs
+
+  POST   /hooks/sources/:id              source-provider webhook; starts matching apps
 
   GET    /domains  /sources  /secrets  /secret-providers
   POST   /domains  /sources  /secrets  /secret-providers    direct — account-scoped
@@ -506,19 +628,19 @@ response schemas. That single definition produces the validation, the OpenAPI en
 the RPC types the web client infers — which is what makes ADR-0005 mechanical rather than
 a convention.
 
-Note the asymmetry, which is the design (ADR-0003): **there is no
-`PATCH /resources/:id`.** Every change to a resource's spec goes through `POST /plans`.
-That absence is the architecture.
+`PATCH /resources/:id/configuration` changes stored input only. It does not send a daemon
+frame. An app deployment or non-app apply operation snapshots that configuration before it
+changes the server (ADR-0009).
 
-The direct endpoints — `restart`, `stop`, `start`, `exec` — are the carve-out: they leave
-the spec identical, so they execute immediately and are recorded as `Event`s. Anything that
-would change what a resource *is* has no direct path at all.
+A configured source webhook is an authorized deployment trigger. Manual Deploy, Redeploy,
+and Rollback actions call the same deployment endpoint. Direct commands such as restart
+and exec create attributable operations but no release.
 
 ### MCP tools
 
 Generated from the same schemas. Write tools mirror the API one-to-one. Read tools may be
 grouped for agent ergonomics — for example one `resource.context` tool returning a
-resource with its logs, metrics, recent events, recent plans, and links — but a read
+resource with its logs, metrics, recent events, deployments, and links — but a read
 grouping may never become a write path that composes what the API cannot express
 (ADR-0005).
 
@@ -529,38 +651,37 @@ grouping may never become a write path that composes what the API cannot express
 These are the properties that make the design true rather than aspirational. Each should
 have a test that fails loudly if it erodes.
 
-1. **Nothing mutates unattributably.** The daemon accepts `task` frames bound to a plan in
-   `applying`, and `op` frames bound to a recorded `Event`. It accepts nothing else, and
-   an `op` may never carry a change to spec — that is what makes the carve-out safe rather
-   than a loophole (ADR-0003).
-2. **Inverse coverage.** Every `Change` produced by the planner carries an `inverse` or an
-   `irreversible` with a reason. Property-test across all ops.
-3. **Plans diff observed, not desired-last-known** (#7). A resource changed out-of-band
-   produces a plan describing the difference — that is the drift test.
-4. **Stale plans are rejected.** Apply revalidates `basis` against current `observed_rev`
-   and refuses rather than force-applying.
-5. **Idempotence.** Re-sending a task after reconnect produces `no_op`, not a duplicate
+1. **Nothing mutates unattributably.** The daemon accepts `task` frames bound to a running
+   deployment or operation, and `op` frames bound to a recorded direct operation. It
+   accepts nothing else (ADR-0009).
+2. **Immutable run input.** A deployment or configuration apply snapshots the source
+   revision and saved configuration before execution. Later edits cannot alter the run.
+3. **Authorized pushes continue.** A valid webhook for a configured branch starts a
+   deployment without creating a pending approval state.
+4. **Drift uses the current release.** Saved but unapplied configuration does not mark a
+   resource as drifted. An out-of-band runtime change does.
+5. **Fresh changes.** The planning step calculates against observed state immediately
+   before apply. If the basis changes, Cockpit recalculates inside the same serialized run.
+6. **Idempotence.** Re-sending a task after reconnect produces `no_op`, not a duplicate
    resource.
-6. **No secret values anywhere.** Assert that no `Spec`, `Release.spec_snapshot`, `Event`
+7. **No secret values anywhere.** Assert that no `Configuration`, release snapshot, event
    payload, git snapshot, or API response contains anything but `SecretRef` in a secret
-   position — and that the plane has no code path that dereferences one (ADR-0008). The
-   second half matters more: the first is a data check, the second is what stops the
-   easy-but-wrong implementation.
-7. **Client parity.** For every write operation in `packages/schema`, assert that a REST
-   route and an MCP tool exist and are generated from the same definition. With no CLI,
-   this test is the *only* mechanical guard on ADR-0005, so it is not optional.
-8. **`max_impact` is derived**, never accepted from a client; `destructive` plans always
-   require explicit approval and are never auto-approved.
-9. **Links never dangle.** Deleting a linked resource either fails or produces a plan that
-   removes the links, and always names the dependants.
-10. **Determinism.** Plane logic contains no `Date.now()` or `Math.random()`; clock and id
+   position. The plane has no code path that dereferences one (ADR-0008).
+8. **Client parity.** For every write operation in `packages/schema`, assert that a REST
+   route and an MCP tool exist and derive from the same definition.
+9. **Impact is derived.** Clients cannot supply `max_impact`. Destructive endpoints require
+   explicit confirmation before they create an operation.
+10. **Links never dangle.** Deleting a linked resource either fails or records removal of
+    its links and names the dependants.
+11. **Deployment ownership.** Every app belongs to one project. A deployment targets one
+    app and copies that app's project and server ids.
+12. **Determinism.** Plane logic contains no `Date.now()` or `Math.random()`; clock and id
     generation are injected.
-11. **Kind extensibility.** Adding a kind touches exactly two places: a spec schema and a
-    daemon handler. A test asserts the generic API, plan, release, and event paths need no
-    change.
-12. **The git mirror is never read.** No code path in the plane reads from the mirror
+13. **Kind extensibility.** Adding a kind touches one configuration schema and one daemon
+    handler. Generic operation, release, event, and API paths need no change.
+14. **The git mirror is never read.** No code path in the plane reads from the mirror
     repository (ADR-0004).
-13. **Enrolment secrets are single-use and expiring.** A consumed or expired token or claim
+15. **Enrolment secrets are single-use and expiring.** A consumed or expired token or claim
     code is rejected; an unenrolled connection can perform no operation but enrolment.
-14. **cockpit never opens an outbound connection to a managed server** (#4). Assert no SSH
-    client, no raw socket to `Server.addr`, anywhere in the plane or the CLI.
+16. **Cockpit never opens an outbound connection to a managed server** (#4). Assert no SSH
+    client and no raw socket to `Server.addr` anywhere in the plane or clients.

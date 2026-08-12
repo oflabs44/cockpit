@@ -1,3 +1,5 @@
+PLANE_DEV_ARGS = $(if $(PLANE_PORT),--port $(PLANE_PORT),)
+
 .PHONY: help install plane-dev plane-test plane-typecheck plane-migrate web-dev web-build web-typecheck
 
 help:
@@ -7,7 +9,7 @@ install: ## install workspace dependencies
 	pnpm install
 
 plane-dev: web-build ## run the plane Worker in dev mode (serves the built UI via the assets binding)
-	pnpm --filter @oflabs44/cockpit-plane dev
+	pnpm --filter @oflabs44/cockpit-plane dev $(PLANE_DEV_ARGS)
 
 plane-test: ## run the plane's test suite
 	pnpm --filter @oflabs44/cockpit-plane test

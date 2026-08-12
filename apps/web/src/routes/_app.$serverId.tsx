@@ -14,7 +14,10 @@ export const Route = createFileRoute('/_app/$serverId')({
     // one per tab.
     const detail = await context.queryClient.ensureQueryData(serverDetailQueryOptions(params.serverId))
     return {
-      crumbs: [{ label: 'Servers' }, { label: detail.server.name, dot: DOT_CLASS[detail.server.status] }],
+      crumbs: [
+        { label: 'Servers', link: { kind: 'servers' } },
+        { label: detail.server.name, dot: DOT_CLASS[detail.server.status] },
+      ],
     }
   },
   pendingComponent: ServerDetailPending,

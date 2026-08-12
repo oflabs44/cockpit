@@ -1,8 +1,14 @@
-// Zod payload schemas for the enrolment slice. docs/type-design.md §0: these belong in
-// `packages/schema` as the single definition REST/MCP/UI all derive from — TODO: extract
-// once a second consumer (MCP tools, web forms) needs them. Kept local for now.
+// Zod schemas define the plane's public model. REST and MCP routes must derive from these
+// schemas so that each capability has one boundary definition (ADR-0005).
 
 import { z } from "@hono/zod-openapi";
+
+export const ActorSchema = z.object({
+  kind: z.enum(["human", "agent", "system"]),
+  id: z.string(),
+});
+
+export type Actor = z.infer<typeof ActorSchema>;
 
 export const ServerStatus = z.enum(["enrolling", "connected", "disconnected", "draining"]);
 
@@ -31,9 +37,8 @@ export const CreateServerResponse = z.object({
   install_command: z.string(),
 });
 
-// docs/type-design.md §3.1 `ObservedHost` (added 2026-08-06) — raw host-level facts, mirrored
-// from daemon/internal/protocol/protocol.go's ObservedHost. No thresholds here: what counts as
-// "full" or "unsafe" is plane policy, a later slice.
+// docs/type-design.md §3.1 `ObservedHost` contains raw host facts. Plane policy applies health
+// thresholds later. This schema must not interpret a value from the daemon.
 export const ObservedHostSchema = z.object({
   identity: z.object({
     os: z.string(),
@@ -65,8 +70,6 @@ export const ObservedHostSchema = z.object({
 
 const ProbeKind = z.enum(["docker", "firewall", "systemd", "cron", "host"]);
 const ProbeStatus = z.enum(["ok", "unavailable"]);
-// Not every kind is necessarily reported every snapshot (type-design §3.1: absence reads as
-// unknown, not deletion) — `partialRecord`, not `record`, so the schema doesn't demand all five.
 export const ProbesSchema = z.partialRecord(ProbeKind, ProbeStatus);
 
 export const ServerDetailResponse = z.object({
@@ -101,101 +104,245 @@ export const RedeemResponse = z.object({
   server: ServerSchema,
 });
 
-// docs/type-design.md §2.2 / §2.5 — resources and plans.
-
-export const ActorSchema = z.object({
-  kind: z.enum(["human", "agent", "system"]),
+export const ProjectSchema = z.object({
   id: z.string(),
-});
-
-export const ResourceSchema = z.object({
-  id: z.string(),
-  server_id: z.string().nullable(),
-  project_id: z.string().nullable(),
-  kind: z.string(),
+  server_id: z.string(),
   name: z.string(),
-  spec: z.record(z.string(), z.unknown()),
   created_at: z.number(),
   updated_at: z.number(),
 });
 
-const TargetSchema = z.object({
-  kind: z.string(),
-  name: z.string(),
-  spec: z.record(z.string(), z.unknown()),
+export type Project = z.infer<typeof ProjectSchema>;
+
+export const HealthSchema = z.enum([
+  "healthy",
+  "degraded",
+  "unhealthy",
+  "stopped",
+  "unknown",
+]);
+
+export const ResourceKindSchema = z.enum([
+  "app",
+  "database",
+  "proxy",
+  "volume",
+  "network",
+  "cron",
+  "daemon",
+  "firewall_rule",
+  "domain",
+  "dns_record",
+  "source",
+  "secret",
+  "secret_provider",
+  "backup_destination",
+]);
+
+export const ConfigurationSchema = z.record(z.string(), z.unknown());
+
+export const ObservedSchema = z.object({
+  exists: z.boolean(),
+  health: HealthSchema,
+  detail: z.record(z.string(), z.unknown()),
+  observed_at: z.number(),
 });
+
+export const ResourceSchema = z
+  .object({
+    id: z.string(),
+    server_id: z.string().nullable(),
+    project_id: z.string().nullable(),
+    kind: ResourceKindSchema,
+    name: z.string(),
+    configuration: ConfigurationSchema,
+    configuration_version: z.number().int().positive(),
+    current_release_id: z.string().nullable(),
+    health: HealthSchema,
+    exposed_at: z.string().nullable(),
+    drifted: z.boolean(),
+    observed: ObservedSchema.nullable(),
+    observed_rev: z.number().int().nonnegative(),
+    observed_at: z.number().nullable(),
+    created_at: z.number(),
+    updated_at: z.number(),
+  })
+  .refine(
+    (resource) => resource.project_id === null || resource.server_id !== null,
+    { message: "a project-owned resource must belong to a server" },
+  )
+  .refine(
+    (resource) =>
+      resource.kind !== "app" ||
+      (resource.server_id !== null && resource.project_id !== null),
+    { message: "an app must belong to a server and project" },
+  );
+
+export type Resource = z.infer<typeof ResourceSchema>;
+
+export const SourceRevisionSchema = z.object({
+  ref: z.string(),
+  commit: z.string(),
+  message: z.string().nullable(),
+});
+
+export type SourceRevision = z.infer<typeof SourceRevisionSchema>;
 
 export const ImpactSchema = z.enum(["none", "reload", "restart", "replace", "destructive"]);
 
-const InverseChangeSchema = z.object({
-  op: z.enum(["resource.create", "resource.update", "resource.delete"]),
+export const ChangeSchema = z.object({
+  action: z.enum(["create", "update", "replace", "delete"]),
   target: z.string(),
-  before: TargetSchema.nullable(),
-  after: TargetSchema.nullable(),
+  before: z.unknown().nullable(),
+  after: z.unknown().nullable(),
   impact: ImpactSchema,
+  result: z.enum(["pending", "applied", "failed", "skipped"]),
+  error: z.object({ kind: z.string(), message: z.string() }).optional(),
 });
 
-export const ChangeSchema = InverseChangeSchema.extend({
-  inverse: InverseChangeSchema.nullable(),
-  irreversible: z.object({ reason: z.string() }).optional(),
-  status: z.enum(["pending", "applied", "failed", "skipped"]),
+export const ChangeSetSchema = z.object({
+  basis: z.record(z.string(), z.number().int().nonnegative()),
+  changes: z.array(ChangeSchema),
+  max_impact: ImpactSchema,
+  calculated_at: z.number(),
 });
 
-export const PlanStatus = z.enum([
-  "pending",
-  "approved",
-  "rejected",
-  "applying",
-  "applied",
-  "failed",
-  "reverted",
+export type ChangeSet = z.infer<typeof ChangeSetSchema>;
+
+export const DeploymentTriggerSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("git_push"),
+    source_id: z.string(),
+    revision: SourceRevisionSchema,
+    delivery_id: z.string(),
+  }),
+  z.object({ kind: z.literal("manual"), commit: z.string().nullable() }),
+  z.object({ kind: z.literal("redeploy"), deployment_id: z.string() }),
+  z.object({ kind: z.literal("rollback"), release_id: z.string() }),
 ]);
 
-export const PlanSchema = z.object({
-  // Null for a no-op plan: an empty diff is returned transiently and never persisted, so it
-  // has no id to give (see src/routes/resources-upsert.ts).
-  id: z.string().nullable(),
-  server_id: z.string(),
-  resource_id: z.string(),
-  status: PlanStatus,
-  changes: z.array(ChangeSchema),
-  basis: z.object({ observed_rev: z.number(), observed_at: z.number().nullable() }),
-  summary: z.string(),
-  max_impact: ImpactSchema, // derived, never accepted from a client (invariant 8)
-  created_by: ActorSchema,
-  decided_by: ActorSchema.nullable(),
-  /** Spec keys that differ from the stored spec but that this kind cannot observe, so they
-   *  produced no change. Empty is the normal case; non-empty means "you asked for something
-   *  cockpit cannot yet see, and therefore cannot plan". */
-  undiffable_keys: z.array(z.string()),
-  created_at: z.number(),
-  decided_at: z.number().nullable(),
-  approved_at: z.number().nullable(),
+export type DeploymentTrigger = z.infer<typeof DeploymentTriggerSchema>;
+
+export const DeploymentStatusSchema = z.enum([
+  "queued",
+  "fetching",
+  "building",
+  "planning",
+  "deploying",
+  "checking",
+  "succeeded",
+  "failed",
+  "cancelled",
+]);
+
+export const DeploymentStepSchema = z.object({
+  name: z.enum(["source", "build", "changes", "apply", "healthcheck"]),
+  status: z.enum(["pending", "running", "succeeded", "failed", "skipped"]),
+  started_at: z.number().nullable(),
+  finished_at: z.number().nullable(),
+  error: z.object({ kind: z.string(), message: z.string() }).nullable(),
 });
 
-/** A plan whose stored record could not be trusted. Deliberately carries no changes, basis, or
- *  actor: a corrupt audit record must read as unreadable, never as an empty, harmless plan. */
-export const CorruptPlanSchema = z.object({
+export type DeploymentStep = z.infer<typeof DeploymentStepSchema>;
+
+export const DeploymentSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  app_id: z.string(),
+  server_id: z.string(),
+  trigger: DeploymentTriggerSchema,
+  triggered_by: ActorSchema,
+  status: DeploymentStatusSchema,
+  source_revision: SourceRevisionSchema.nullable(),
+  configuration_snapshot: ConfigurationSchema,
+  configuration_version: z.number().int().positive(),
+  steps: z.array(DeploymentStepSchema),
+  changes: ChangeSetSchema.nullable(),
+  workflow_id: z.string(),
+  release_id: z.string().nullable(),
+  created_at: z.number(),
+  started_at: z.number().nullable(),
+  finished_at: z.number().nullable(),
+});
+
+export type Deployment = z.infer<typeof DeploymentSchema>;
+
+export const OperationKindSchema = z.enum([
+  "resource.apply",
+  "resource.rollback",
+  "resource.delete",
+  "resource.start",
+  "resource.stop",
+  "resource.restart",
+  "resource.exec",
+  "server.drain",
+  "server.forget",
+  "daemon.upgrade",
+]);
+
+export const OperationStatusSchema = z.enum([
+  "queued",
+  "running",
+  "succeeded",
+  "failed",
+  "cancelled",
+]);
+
+export const OperationSchema = z.object({
   id: z.string(),
   server_id: z.string(),
-  resource_id: z.string(),
-  corrupt: z.literal(true),
-  summary: z.string(),
+  project_id: z.string().nullable(),
+  resource_id: z.string().nullable(),
+  kind: OperationKindSchema,
+  actor: ActorSchema,
+  status: OperationStatusSchema,
+  configuration_snapshot: ConfigurationSchema.nullable(),
+  changes: ChangeSetSchema.nullable(),
+  workflow_id: z.string().nullable(),
+  release_id: z.string().nullable(),
   created_at: z.number(),
+  started_at: z.number().nullable(),
+  finished_at: z.number().nullable(),
 });
 
-export const UpsertResourceBody = z.object({
-  // Optional, not defaulted to null: an absent field must not silently clear a resource's
-  // project on every subsequent PUT.
-  project_id: z.string().nullable().optional(),
-  // Validated against the kind's schema from the registry, not here: one definition per kind
-  // (ADR-0006). This route-level schema only says "an object arrived".
-  spec: z.record(z.string(), z.unknown()),
+export type Operation = z.infer<typeof OperationSchema>;
+
+export const ReleaseSchema = z
+  .object({
+    id: z.string(),
+    resource_id: z.string(),
+    rev: z.number().int().positive(),
+    deployment_id: z.string().nullable(),
+    operation_id: z.string().nullable(),
+    configuration_snapshot: ConfigurationSchema,
+    runtime_snapshot: z.record(z.string(), z.unknown()),
+    source_revision: SourceRevisionSchema.nullable(),
+    image_digest: z.string().nullable(),
+    restored_from_release_id: z.string().nullable(),
+    status: z.enum(["active", "superseded"]),
+    created_at: z.number(),
+  })
+  .refine(
+    (release) => (release.deployment_id === null) !== (release.operation_id === null),
+    { message: "a release must have exactly one deployment or operation origin" },
+  );
+
+export type Release = z.infer<typeof ReleaseSchema>;
+
+export const EventSchema = z.object({
+  id: z.string(),
+  server_id: z.string().nullable(),
+  project_id: z.string().nullable(),
+  resource_id: z.string().nullable(),
+  deployment_id: z.string().nullable(),
+  operation_id: z.string().nullable(),
+  type: z.string(),
+  actor: ActorSchema,
+  payload: z.record(z.string(), z.unknown()),
+  at: z.number(),
 });
 
-export const PlanResponse = z.object({ plan: PlanSchema });
-export const PlanListResponse = z.object({
-  plans: z.array(z.union([PlanSchema, CorruptPlanSchema])),
-});
+export type Event = z.infer<typeof EventSchema>;
+
 export const ResourceListResponse = z.object({ resources: z.array(ResourceSchema) });
 export const ErrorResponse = z.object({ error: z.string() });

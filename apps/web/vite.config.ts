@@ -10,7 +10,18 @@ import tailwindcss from '@tailwindcss/vite'
 // `wrangler dev` without CORS. Independent of wrangler.jsonc's `run_worker_first` (that list is
 // inverted — everything but built assets — because it decides Worker-vs-ASSETS inside the
 // deployed Worker; this one is dev-only routing between two separate local servers).
-const API_PATHS = ['/servers', '/plans', '/enrolments', '/daemon', '/doc', '/health']
+const API_PATHS = [
+  '/servers',
+  '/projects',
+  '/resources',
+  '/deployments',
+  '/operations',
+  '/hooks',
+  '/enrolments',
+  '/daemon',
+  '/doc',
+  '/health',
+]
 const PLANE_URL = process.env.PLANE_URL ?? 'http://localhost:8787'
 
 const config = defineConfig({

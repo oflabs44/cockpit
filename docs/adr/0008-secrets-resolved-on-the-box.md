@@ -79,9 +79,10 @@ is obviously a pointer, where an opaque id would not be.
   value in the vault does not affect a running container. This must be stated in the UI
   where a secret is shown, because it is the single most likely misunderstanding — the same
   property Laravel Cloud documents as "redeploy affected environments."
-- **Changing which secrets a resource uses is a spec change**, so it is a `Plan`, not a
-  direct operation (ADR-0003). Rotating the *value* behind an unchanged ref is not a spec
-  change at all — the spec still says `op://Personal/jerry/key`.
+- **Changing which secrets a resource uses changes saved configuration.** The next
+  deployment or configuration apply uses the new reference (ADR-0009). Rotating the value
+  behind an unchanged reference requires a redeploy because the running environment does
+  not update itself.
 - **A precedence rule is now required.** When a resource-level env var and a linked secret
   share a key, the resource-level value wins, and the UI must show that one is shadowing
   the other rather than silently dropping it.
