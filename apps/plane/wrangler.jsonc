@@ -38,7 +38,9 @@
   // Neither value is a credential — an AUD tag is public — so both are vars, not secrets.
   "vars": {
     "ACCESS_TEAM_DOMAIN": "oflabs.cloudflareaccess.com",
-    "ACCESS_AUD": "cd4c8fcfaece3b66cebad0379e19a70ba19c3cf829d8672b4cf9a69900ef8b71"
+    "ACCESS_AUD": "cd4c8fcfaece3b66cebad0379e19a70ba19c3cf829d8672b4cf9a69900ef8b71",
+    "GITHUB_APP_ID": "4598911",
+    "GITHUB_APP_SLUG": "cockpit-oflabs"
   },
   //
   // COCKPIT_DEV_NO_AUTH=1 turns authentication off entirely and warns on every request. It
