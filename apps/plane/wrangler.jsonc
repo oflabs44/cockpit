@@ -25,6 +25,28 @@
   //   "vars": { "GITHUB_APP_ID": "...", "GITHUB_APP_SLUG": "..." }
   //   wrangler secret put GITHUB_APP_PRIVATE_KEY   (PKCS#8 PEM — convert GitHub's PKCS#1
   //   download with `openssl pkcs8 -topk8 -nocrypt`)
+  //
+  // The custom domain is not cosmetic: a Zero Trust application can only cover a hostname in
+  // a zone on this account, so Access cannot sit in front of a workers.dev URL. Without this
+  // route there is no Access, no JWT on any request, and every operator route answers 401.
+  "routes": [{ "pattern": "cockpit.oflabs.dev", "custom_domain": true }],
+  // Cloudflare Access. The plane REFUSES to serve any operator route (503) until both of
+  // these are set — an unconfigured plane is unusable rather than open. The AUD belongs to
+  // the "cockpit" application covering cockpit.oflabs.dev; a second application covers
+  // cockpit.oflabs.dev/daemon with a Bypass policy, because cockpitd holds a per-server
+  // credential and cannot perform an interactive login. That AUD is never verified here.
+  // Neither value is a credential — an AUD tag is public — so both are vars, not secrets.
+  "vars": {
+    "ACCESS_TEAM_DOMAIN": "oflabs.cloudflareaccess.com",
+    "ACCESS_AUD": "cd4c8fcfaece3b66cebad0379e19a70ba19c3cf829d8672b4cf9a69900ef8b71"
+  },
+  //
+  // COCKPIT_DEV_NO_AUTH=1 turns authentication off entirely and warns on every request. It
+  // is for `wrangler dev`, which has no Access in front of it, and must never appear in this
+  // file or in a deployed environment. Set it in `.dev.vars` (gitignored; copy
+  // .dev.vars.example) or as `wrangler dev --var COCKPIT_DEV_NO_AUTH:1`. Exporting it in the
+  // shell does nothing: wrangler does not pass the host environment into the Worker unless
+  // CLOUDFLARE_INCLUDE_PROCESS_ENV is set.
   "d1_databases": [
     {
       "binding": "DB",

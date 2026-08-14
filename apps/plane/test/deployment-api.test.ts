@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createApp, type Bindings } from "../src/app";
+import { OPERATOR_EMAIL, authedApp, authedRequest } from "./access";
 import { db, deployments, operations, resources } from "../src/db";
 import type { Deps } from "../src/deps";
 
@@ -51,7 +52,7 @@ function testDeps(): Deps {
 type App = ReturnType<typeof createApp>;
 
 function jsonRequest(path: string, method: "POST" | "PATCH", body: unknown) {
-  return new Request(`http://plane.test${path}`, {
+  return authedRequest(`http://plane.test${path}`, {
     method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -144,7 +145,7 @@ async function createDeployment(
 
 describe("project API", () => {
   it("creates, lists, and fetches server-owned projects", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const firstServer = await createServer(app, `project-server-${idCounter}`);
     const secondServer = await createServer(app, `project-server-${idCounter}`);
     const first = await createProject(app, firstServer.server.id, "jerry");
@@ -159,14 +160,14 @@ describe("project API", () => {
     expect(first.project.id).toMatch(/^prj_/);
 
     const list = await app.fetch(
-      new Request(`http://plane.test/projects?server=${firstServer.server.id}`),
+      authedRequest(`http://plane.test/projects?server=${firstServer.server.id}`),
       env,
     );
     expect(list.status).toBe(200);
     expect((await list.json()) as unknown).toEqual({ projects: [first.project] });
 
     const detail = await app.fetch(
-      new Request(`http://plane.test/projects/${first.project.id}`),
+      authedRequest(`http://plane.test/projects/${first.project.id}`),
       env,
     );
     expect(detail.status).toBe(200);
@@ -174,7 +175,7 @@ describe("project API", () => {
   });
 
   it("reports project ownership and identity errors", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const server = await createServer(app, `project-errors-${idCounter}`);
     await createProject(app, server.server.id, "jerry");
 
@@ -199,7 +200,7 @@ describe("project API", () => {
     expect((await invalid.json()) as unknown).toEqual({ error: expect.any(String) });
 
     const missingDetail = await app.fetch(
-      new Request("http://plane.test/projects/prj_missing"),
+      authedRequest("http://plane.test/projects/prj_missing"),
       env,
     );
     expect(missingDetail.status).toBe(404);
@@ -208,7 +209,7 @@ describe("project API", () => {
 
 describe("project resource API", () => {
   it("creates versioned project resources without accessing the daemon", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const server = await createServer(app, `resource-create-${idCounter}`);
     const { project } = await createProject(app, server.server.id, "jerry");
     const bindings = noDaemonBindings("the resource create route accessed the daemon namespace");
@@ -253,7 +254,7 @@ describe("project resource API", () => {
   });
 
   it("rejects invalid, unsupported, duplicate, and unowned project resources", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const server = await createServer(app, `resource-create-errors-${idCounter}`);
     const { project } = await createProject(app, server.server.id, "jerry");
 
@@ -310,7 +311,7 @@ describe("project resource API", () => {
     ).toBe(404);
 
     const wrongContentType = await app.fetch(
-      new Request(`http://plane.test/projects/${project.id}/resources`, {
+      authedRequest(`http://plane.test/projects/${project.id}/resources`, {
         method: "POST",
         headers: { "content-type": "text/plain", origin: "http://plane.test" },
         body: JSON.stringify({
@@ -328,7 +329,7 @@ describe("project resource API", () => {
 
 describe("resource configuration API", () => {
   it("saves validated configuration without accessing the daemon or creating a run", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const server = await createServer(app, `configuration-server-${idCounter}`);
     const { project } = await createProject(app, server.server.id, "jerry");
     const resourceId = await insertResource(server.server.id, project.id);
@@ -367,13 +368,13 @@ describe("resource configuration API", () => {
   });
 
   it("fetches resource detail and rejects missing or invalid configuration", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const server = await createServer(app, `resource-errors-${idCounter}`);
     const { project } = await createProject(app, server.server.id, "jerry");
     const resourceId = await insertResource(server.server.id, project.id);
 
     const detail = await app.fetch(
-      new Request(`http://plane.test/resources/${resourceId}`),
+      authedRequest(`http://plane.test/resources/${resourceId}`),
       env,
     );
     expect(detail.status).toBe(200);
@@ -413,14 +414,14 @@ describe("resource configuration API", () => {
     );
     expect(missing.status).toBe(404);
     expect(
-      (await app.fetch(new Request("http://plane.test/resources/res_missing"), env)).status,
+      (await app.fetch(authedRequest("http://plane.test/resources/res_missing"), env)).status,
     ).toBe(404);
   });
 });
 
 describe("deployment API", () => {
   it("copies app ownership and keeps an immutable queued snapshot without approval", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const server = await createServer(app, `deployment-server-${idCounter}`);
     const { project } = await createProject(app, server.server.id, "jerry");
     const resourceId = await insertResource(server.server.id, project.id);
@@ -451,7 +452,7 @@ describe("deployment API", () => {
       server_id: server.server.id,
       status: "queued",
       trigger: { kind: "manual", commit: "abc123" },
-      triggered_by: { kind: "human", id: "operator" },
+      triggered_by: { kind: "human", id: OPERATOR_EMAIL },
       source_revision: { ref: "main", commit: "abc123", message: null },
       configuration_snapshot: CONFIGURATION,
       started_at: null,
@@ -474,7 +475,7 @@ describe("deployment API", () => {
     expect(saved.status).toBe(200);
 
     const detail = await app.fetch(
-      new Request(`http://plane.test/deployments/${body.deployment.id}`),
+      authedRequest(`http://plane.test/deployments/${body.deployment.id}`),
       env,
     );
     expect(detail.status).toBe(200);
@@ -489,7 +490,7 @@ describe("deployment API", () => {
     });
 
     const appList = await app.fetch(
-      new Request(`http://plane.test/resources/${resourceId}/deployments`),
+      authedRequest(`http://plane.test/resources/${resourceId}/deployments`),
       env,
     );
     expect(appList.status).toBe(200);
@@ -498,7 +499,7 @@ describe("deployment API", () => {
     ).toEqual([body.deployment.id]);
 
     const projectList = await app.fetch(
-      new Request(`http://plane.test/projects/${project.id}/deployments`),
+      authedRequest(`http://plane.test/projects/${project.id}/deployments`),
       env,
     );
     expect(projectList.status).toBe(200);
@@ -508,7 +509,9 @@ describe("deployment API", () => {
       ),
     ).toEqual([body.deployment.id]);
 
-    const document = (await (await createApp().request("/doc")).json()) as {
+    const document = (await (
+      await authedApp().fetch(authedRequest("http://plane.test/doc"), env)
+    ).json()) as {
       paths: Record<
         string,
         Record<
@@ -548,7 +551,7 @@ describe("deployment API", () => {
   });
 
   it("requires repository commits and keeps image deployments revisionless", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const server = await createServer(app, `deployment-source-${idCounter}`);
     const { project } = await createProject(app, server.server.id, "jerry");
     const repoApp = await insertResource(server.server.id, project.id);
@@ -581,7 +584,7 @@ describe("deployment API", () => {
   });
 
   it("rejects resources that do not have valid app ownership", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const server = await createServer(app, `ownership-server-${idCounter}`);
     const { project } = await createProject(app, server.server.id, "jerry");
     const nonApp = await insertResource(server.server.id, project.id, "database", {});
@@ -591,7 +594,7 @@ describe("deployment API", () => {
     expect(
       (
         await app.fetch(
-          new Request(`http://plane.test/resources/${nonApp}/deployments`),
+          authedRequest(`http://plane.test/resources/${nonApp}/deployments`),
           env,
         )
       ).status,
@@ -601,7 +604,7 @@ describe("deployment API", () => {
 
 describe("operation detail API", () => {
   it("fetches an attributable operation and reports missing aggregate records", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const server = await createServer(app, `operation-server-${idCounter}`);
     const { project } = await createProject(app, server.server.id, "jerry");
     const resourceId = await insertResource(server.server.id, project.id);
@@ -618,7 +621,7 @@ describe("operation detail API", () => {
     });
 
     const detail = await app.fetch(
-      new Request(`http://plane.test/operations/${operationId}`),
+      authedRequest(`http://plane.test/operations/${operationId}`),
       env,
     );
     expect(detail.status).toBe(200);
@@ -631,15 +634,15 @@ describe("operation detail API", () => {
     });
 
     expect(
-      (await app.fetch(new Request("http://plane.test/deployments/dep_missing"), env)).status,
+      (await app.fetch(authedRequest("http://plane.test/deployments/dep_missing"), env)).status,
     ).toBe(404);
     expect(
-      (await app.fetch(new Request("http://plane.test/operations/opn_missing"), env)).status,
+      (await app.fetch(authedRequest("http://plane.test/operations/opn_missing"), env)).status,
     ).toBe(404);
     expect(
       (
         await app.fetch(
-          new Request("http://plane.test/projects/prj_missing/deployments"),
+          authedRequest("http://plane.test/projects/prj_missing/deployments"),
           env,
         )
       ).status,

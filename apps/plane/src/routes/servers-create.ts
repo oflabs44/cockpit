@@ -59,7 +59,7 @@ export const createServerHandler: AppRouteHandler<typeof createServerRoute> = as
     presented: null,
     expiresAt: now + ENROLMENT_TTL_MS,
     consumedAt: null,
-    createdBy: JSON.stringify({ kind: "human", id: "operator" }),
+    createdBy: JSON.stringify({ kind: "human", id: c.var.identity.email }),
     createdAt: now,
   });
 

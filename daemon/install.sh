@@ -330,7 +330,11 @@ write_file() {
 	wf_mode="$2"
 	wf_tmp=$(mktemp)
 
-	trap 'rm -f "$wf_tmp"' EXIT INT TERM
+	trap 'rm -f "$wf_tmp"' EXIT
+	# Signal handlers exit rather than fall through: without the exit, POSIX sh resumes the
+	# script after the handler and install(1) runs against the file just deleted.
+	trap 'rm -f "$wf_tmp"; exit 130' INT
+	trap 'rm -f "$wf_tmp"; exit 143' TERM
 
 	cat >"$wf_tmp"
 	install -m "$wf_mode" "$wf_tmp" "$wf_path"
@@ -354,7 +358,9 @@ install_binary() {
 
 	url="$BASE_URL/$COCKPITD_VERSION/cockpitd-linux-$ARCH"
 	tmp=$(mktemp)
-	trap 'rm -f "$tmp"' EXIT INT TERM
+	trap 'rm -f "$tmp"' EXIT
+	trap 'rm -f "$tmp"; exit 130' INT
+	trap 'rm -f "$tmp"; exit 143' TERM
 
 	log "downloading cockpitd $COCKPITD_VERSION ($ARCH)"
 
@@ -666,7 +672,13 @@ EOF
 	# After the last write_file, which clears traps of its own. From here a
 	# failure must not leave a single-use secret on disk, or a drop-in that
 	# restarts cockpitd against it for ever.
-	trap 'clear_enrolment_dropin' EXIT INT TERM
+	#
+	# The signal handlers exit. Without that, POSIX sh resumes the script after
+	# the handler has removed the token file, and it goes on to start cockpitd
+	# with --token-file pointing at nothing.
+	trap 'clear_enrolment_dropin' EXIT
+	trap 'clear_enrolment_dropin; exit 130' INT
+	trap 'clear_enrolment_dropin; exit 143' TERM
 
 	# umask rather than a later chmod: the token must never exist
 	# world-readable, even briefly.

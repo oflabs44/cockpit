@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { createApp } from "../src/app";
+import { authedApp, authedRequest } from "./access";
 import type { Deps } from "../src/deps";
 
 // docs/type-design.md §3.1 (amended 2026-08-06): `state` gained `host`/`probes`, the up-frames
@@ -25,16 +25,16 @@ function tick(ms = 10): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function connect(app: ReturnType<typeof createApp>, secret: string) {
+async function connect(app: ReturnType<typeof authedApp>, secret: string) {
   return app.fetch(
-    new Request("http://plane.test/daemon", { headers: { upgrade: "websocket", authorization: `Bearer ${secret}` } }),
+    authedRequest("http://plane.test/daemon", { headers: { upgrade: "websocket", authorization: `Bearer ${secret}` } }),
     env,
   );
 }
 
-async function createServer(app: ReturnType<typeof createApp>, name: string) {
+async function createServer(app: ReturnType<typeof authedApp>, name: string) {
   const res = await app.fetch(
-    new Request("http://plane.test/servers", {
+    authedRequest("http://plane.test/servers", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name, provider: "hetzner", labels: {} }),
@@ -44,7 +44,7 @@ async function createServer(app: ReturnType<typeof createApp>, name: string) {
   return (await res.json()) as { token: string; server: { id: string } };
 }
 
-async function enrol(app: ReturnType<typeof createApp>, name: string) {
+async function enrol(app: ReturnType<typeof authedApp>, name: string) {
   const { token, server } = await createServer(app, name);
   const upgrade = await connect(app, token);
   const ws = upgrade.webSocket;
@@ -81,7 +81,7 @@ const PROBES_FRAME = { docker: "ok", firewall: "ok", systemd: "unavailable" };
 
 describe("observe: state host + probes", () => {
   it("round-trips a full daemon-shaped state frame through the DO and out of GET /servers/:id", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const { ws, server } = await enrol(app, "obs-full");
 
     ws.send(
@@ -95,7 +95,7 @@ describe("observe: state host + probes", () => {
     );
     await tick();
 
-    const detail = await app.fetch(new Request(`http://plane.test/servers/${server.id}`), env);
+    const detail = await app.fetch(authedRequest(`http://plane.test/servers/${server.id}`), env);
     expect(detail.status).toBe(200);
     const body = (await detail.json()) as {
       observed: { rev: number; resources: unknown[] } | null;
@@ -110,7 +110,7 @@ describe("observe: state host + probes", () => {
   });
 
   it("drops a malformed host field but still accepts the rest of the frame", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const { ws, server } = await enrol(app, "obs-malformed-host");
 
     ws.send(
@@ -124,7 +124,7 @@ describe("observe: state host + probes", () => {
     );
     await tick();
 
-    const detail = await app.fetch(new Request(`http://plane.test/servers/${server.id}`), env);
+    const detail = await app.fetch(authedRequest(`http://plane.test/servers/${server.id}`), env);
     const body = (await detail.json()) as {
       observed: { rev: number } | null;
       host: unknown;
@@ -138,7 +138,7 @@ describe("observe: state host + probes", () => {
   });
 
   it("drops malformed probes without rejecting the frame", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const { ws, server } = await enrol(app, "obs-malformed-probes");
 
     ws.send(
@@ -152,7 +152,7 @@ describe("observe: state host + probes", () => {
     );
     await tick();
 
-    const detail = await app.fetch(new Request(`http://plane.test/servers/${server.id}`), env);
+    const detail = await app.fetch(authedRequest(`http://plane.test/servers/${server.id}`), env);
     const body = (await detail.json()) as { observed: { rev: number } | null; host: unknown; probes: unknown };
 
     expect(body.observed?.rev).toBe(1);
@@ -161,7 +161,7 @@ describe("observe: state host + probes", () => {
   });
 
   it("skips an unrecognized probe kind (forward-compat) but keeps the known-good entries", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const { ws, server } = await enrol(app, "obs-unknown-probe-kind");
 
     ws.send(
@@ -175,7 +175,7 @@ describe("observe: state host + probes", () => {
     );
     await tick();
 
-    const detail = await app.fetch(new Request(`http://plane.test/servers/${server.id}`), env);
+    const detail = await app.fetch(authedRequest(`http://plane.test/servers/${server.id}`), env);
     const body = (await detail.json()) as { observed: { rev: number } | null; probes: typeof PROBES_FRAME | null };
 
     expect(body.observed?.rev).toBe(1);
@@ -185,10 +185,10 @@ describe("observe: state host + probes", () => {
 
 describe("observe: hello populates arch/agent_version", () => {
   it("stores arch and agent_version from the hello frame onto the server row", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const { server } = await enrol(app, "obs-hello-identity");
 
-    const detail = await app.fetch(new Request(`http://plane.test/servers/${server.id}`), env);
+    const detail = await app.fetch(authedRequest(`http://plane.test/servers/${server.id}`), env);
     const body = (await detail.json()) as { server: { arch: string | null; agent_version: string | null } };
 
     expect(body.server.arch).toBe("arm64");
@@ -198,7 +198,7 @@ describe("observe: hello populates arch/agent_version", () => {
 
 describe("observe: op_result", () => {
   it("is accepted without closing the socket", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const { ws } = await enrol(app, "obs-op-result");
 
     ws.send(JSON.stringify({ type: "op_result", op_id: "op_123", changed: "in_place" }));

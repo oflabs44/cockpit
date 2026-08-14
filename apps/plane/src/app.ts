@@ -56,9 +56,11 @@ import {
   githubSourceCallbackHandler,
 } from "./routes/sources-github-callback";
 import { daemonWsHandler } from "./routes/daemon-ws";
+import { accessAuth } from "./access";
+import type { AccessOptions, Identity } from "./access";
 import type { ServerDO } from "./durable-objects/server-do";
 
-export type Variables = { deps: Deps };
+export type Variables = { deps: Deps; identity: Identity };
 // `wrangler types` cannot know SERVER_DO's RPC surface, so it generates a bare
 // `DurableObjectNamespace`. Declared fresh (not `Omit<Env, ...> & {...}`) rather than derived
 // from the generated `Env` — deriving via `Omit` on a binding set that includes a
@@ -76,6 +78,16 @@ export interface Bindings {
   GITHUB_APP_ID?: string;
   GITHUB_APP_SLUG?: string;
   GITHUB_APP_PRIVATE_KEY?: string;
+  // Cloudflare Access. Optional at the type level because `wrangler types` cannot know
+  // whether they are set, but operator routes refuse to serve (503) unless both are —
+  // src/access.ts. ACCESS_TEAM_DOMAIN is `<team>.cloudflareaccess.com`; ACCESS_AUD is the
+  // Access application's AUD tag. Both are vars, not secrets: neither is a credential.
+  ACCESS_TEAM_DOMAIN?: string;
+  ACCESS_AUD?: string;
+  // The single deliberate way past authentication, for `wrangler dev`, which has no Access
+  // in front of it. Set it in .dev.vars or with `wrangler dev --var COCKPIT_DEV_NO_AUTH:1` —
+  // the host shell's environment does not reach the Worker. Never set it on a deployed plane.
+  COCKPIT_DEV_NO_AUTH?: string;
 }
 export type AppEnv = { Bindings: Bindings; Variables: Variables };
 
@@ -86,7 +98,7 @@ export type AppRouteHandler<R extends RouteConfig> = RouteHandler<R, AppEnv>;
  * App factory: `deps` (clock, id generation) is injected rather than reached for as a
  * global, per docs/type-design.md §1 — no `Date.now()`/`Math.random()` in plane logic.
  */
-export function createApp(deps: Deps = realDeps) {
+export function createApp(deps: Deps = realDeps, access: AccessOptions = {}) {
   const app = new OpenAPIHono<AppEnv>({
     defaultHook: (result, c) => {
 
@@ -130,9 +142,12 @@ export function createApp(deps: Deps = realDeps) {
     await next();
   });
 
-  // SECURITY: the operator routes do not authenticate the caller yet. Cloudflare Access will
-  // add authentication in a later slice. Anyone who reaches this Worker can change stored state
-  // and queue a deployment. `/daemon` authenticates its own secret independently.
+  // Every operator route is authenticated, and `/daemon` is the only exception: a daemon
+  // holds a per-server credential and cannot perform an Access login, so daemon-ws.ts
+  // authenticates that credential itself. Mounted after `deps` so a 401 still carries the
+  // request id, and before the routes so nothing can be added below it unprotected.
+  app.use("*", exceptDaemon(accessAuth(access)));
+
   app.openapi(healthRoute, healthHandler);
   app.openapi(createServerRoute, createServerHandler);
   app.openapi(listServersRoute, listServersHandler);

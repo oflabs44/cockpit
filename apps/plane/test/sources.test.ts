@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { createApp } from "../src/app";
+import { authedApp, authedRequest } from "./access";
 import { db, sources } from "../src/db";
 import type { Deps } from "../src/deps";
 import type { Source } from "../src/schema";
@@ -28,23 +28,23 @@ function nextInstallationId(): number {
 }
 
 async function callback(
-  app: ReturnType<typeof createApp>,
+  app: ReturnType<typeof authedApp>,
   query: string,
   overrides: Record<string, string> = {},
 ) {
   return app.fetch(
-    new Request(`http://plane.test/source-connections/github/callback?${query}`),
+    authedRequest(`http://plane.test/source-connections/github/callback?${query}`),
     { ...env, ...overrides },
   );
 }
 
 describe("sources: github connect", () => {
   it("fails loudly when the GitHub app is not configured", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     // content-type: json so `csrf()` doesn't treat the body-less POST as form-capable —
     // a browser's same-origin fetch passes via its Origin header instead.
     const res = await app.fetch(
-      new Request("http://plane.test/source-connections/github/connect", {
+      authedRequest("http://plane.test/source-connections/github/connect", {
         method: "POST",
         headers: { "content-type": "application/json" },
       }),
@@ -60,9 +60,9 @@ describe("sources: github connect", () => {
   });
 
   it("points at github.com when the app is fully configured", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const res = await app.fetch(
-      new Request("http://plane.test/source-connections/github/connect", {
+      authedRequest("http://plane.test/source-connections/github/connect", {
         method: "POST",
         headers: { "content-type": "application/json" },
       }),
@@ -84,9 +84,9 @@ describe("sources: github connect", () => {
   it("fails loudly on partial config instead of sending the operator through real GitHub", async () => {
     // Slug alone would produce a real github.com install URL whose callback could only be
     // mocked — a source that looks connected and is not. Must refuse up front.
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const res = await app.fetch(
-      new Request("http://plane.test/source-connections/github/connect", {
+      authedRequest("http://plane.test/source-connections/github/connect", {
         method: "POST",
         headers: { "content-type": "application/json" },
       }),
@@ -106,7 +106,7 @@ describe("sources: github connect", () => {
 // with a redirect back into the SPA, never JSON — facts are asserted against the DB.
 describe("sources: github callback", () => {
   it("does not create a local mock source when config is absent", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const installationId = nextInstallationId();
 
     const res = await callback(app, `installation_id=${installationId}&setup_action=install`);
@@ -124,7 +124,7 @@ describe("sources: github callback", () => {
   });
 
   it("never stores facts under partial config — redirects with a misconfig hint", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const installationId = nextInstallationId();
 
     const res = await callback(app, `installation_id=${installationId}`, {
@@ -144,13 +144,13 @@ describe("sources: github callback", () => {
   });
 
   it("rejects a callback without an installation_id", async () => {
-    const res = await callback(createApp(testDeps()), "setup_action=install");
+    const res = await callback(authedApp(testDeps()), "setup_action=install");
     expect(res.status).toBe(400);
   });
 
   it("rejects an unknown setup_action", async () => {
     const res = await callback(
-      createApp(testDeps()),
+      authedApp(testDeps()),
       `installation_id=${nextInstallationId()}&setup_action=install_all`,
     );
     expect(res.status).toBe(400);
@@ -159,13 +159,13 @@ describe("sources: github callback", () => {
   it("sends the operator back with a notice when the install awaits owner approval", async () => {
     // GitHub's request flow: the installer cannot install the app themselves, so the
     // callback arrives with setup_action=request and no installation id at all.
-    const res = await callback(createApp(testDeps()), "setup_action=request");
+    const res = await callback(authedApp(testDeps()), "setup_action=request");
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/sources?notice=pending-approval");
   });
 
   it("redirects with a generic code when the connect fails outside GitHub's own errors", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const installationId = nextInstallationId();
 
     // Config is complete, so nothing throws GitHubConfigError — but the key is PKCS#1,
@@ -190,7 +190,7 @@ describe("sources: github callback", () => {
 
 describe("sources: list and detail", () => {
   it("lists a connected source and serves its detail", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const deps = testDeps();
     const installationId = nextInstallationId();
     const id = deps.ids.id("src");
@@ -208,7 +208,7 @@ describe("sources: list and detail", () => {
       updatedAt: deps.clock.now(),
     });
 
-    const list = await app.fetch(new Request("http://plane.test/source-connections"), env);
+    const list = await app.fetch(authedRequest("http://plane.test/source-connections"), env);
     expect(list.status).toBe(200);
     const listBody = (await list.json()) as { sources: Source[] };
     const listed = listBody.sources.find((s) => s.id === id);
@@ -216,14 +216,14 @@ describe("sources: list and detail", () => {
     expect(listed!.github_installation_id).toBe(installationId);
     expect(listed!.github_login).toBe(`fixture-account-${installationId}`);
 
-    const detail = await app.fetch(new Request(`http://plane.test/source-connections/${id}`), env);
+    const detail = await app.fetch(authedRequest(`http://plane.test/source-connections/${id}`), env);
     expect(detail.status).toBe(200);
     expect(((await detail.json()) as { source: Source }).source).toEqual(listed);
   });
 
   it("404s an unknown source id", async () => {
-    const res = await createApp(testDeps()).fetch(
-      new Request("http://plane.test/source-connections/src_does_not_exist"),
+    const res = await authedApp(testDeps()).fetch(
+      authedRequest("http://plane.test/source-connections/src_does_not_exist"),
       env,
     );
     expect(res.status).toBe(404);

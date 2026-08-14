@@ -105,8 +105,7 @@ export const createResourceDeploymentHandler: AppRouteHandler<
     appId: app.id,
     serverId: app.serverId,
     trigger,
-    // Authentication is not wired yet. app.ts documents this single operator identity.
-    triggeredBy: { kind: "human" as const, id: "operator" },
+    triggeredBy: { kind: "human" as const, id: c.var.identity.email },
     status: "queued",
     sourceRevision,
     configurationSnapshot: structuredClone(app.configuration),

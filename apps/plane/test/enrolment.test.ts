@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { createApp } from "../src/app";
+import { authedApp, authedRequest } from "./access";
 import { db, enrolments, servers } from "../src/db";
 import type { Deps } from "../src/deps";
 import { sha256Hex } from "../src/secrets";
@@ -44,18 +44,18 @@ function tick(ms = 10): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function connect(app: ReturnType<typeof createApp>, secret: string, extraHeaders: Record<string, string> = {}) {
+async function connect(app: ReturnType<typeof authedApp>, secret: string, extraHeaders: Record<string, string> = {}) {
   return app.fetch(
-    new Request("http://plane.test/daemon", {
+    authedRequest("http://plane.test/daemon", {
       headers: { upgrade: "websocket", authorization: `Bearer ${secret}`, ...extraHeaders },
     }),
     env,
   );
 }
 
-async function createServer(app: ReturnType<typeof createApp>, name: string) {
+async function createServer(app: ReturnType<typeof authedApp>, name: string) {
   const res = await app.fetch(
-    new Request("http://plane.test/servers", {
+    authedRequest("http://plane.test/servers", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name, provider: "hetzner", labels: {} }),
@@ -65,9 +65,9 @@ async function createServer(app: ReturnType<typeof createApp>, name: string) {
   return (await res.json()) as { token: string; server: { id: string } };
 }
 
-async function redeem(app: ReturnType<typeof createApp>, code: string, ip: string, body: Record<string, unknown>) {
+async function redeem(app: ReturnType<typeof authedApp>, code: string, ip: string, body: Record<string, unknown>) {
   return app.fetch(
-    new Request(`http://plane.test/enrolments/${code}/redeem`, {
+    authedRequest(`http://plane.test/enrolments/${code}/redeem`, {
       method: "POST",
       headers: { "content-type": "application/json", "cf-connecting-ip": ip },
       body: JSON.stringify(body),
@@ -78,9 +78,9 @@ async function redeem(app: ReturnType<typeof createApp>, code: string, ip: strin
 
 describe("enrolment: token", () => {
   it("POST /servers returns the install command with the token, and 409s a duplicate name", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const res = await app.fetch(
-      new Request("http://plane.test/servers", {
+      authedRequest("http://plane.test/servers", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: "contract-box", provider: "hetzner", labels: {} }),
@@ -98,7 +98,7 @@ describe("enrolment: token", () => {
     // The web maps this 409 to "that name is taken" — a changed status would silently
     // degrade it to a generic failure.
     const dup = await app.fetch(
-      new Request("http://plane.test/servers", {
+      authedRequest("http://plane.test/servers", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: "contract-box", provider: "hetzner", labels: {} }),
@@ -110,7 +110,7 @@ describe("enrolment: token", () => {
 
   it("is single-use — burned in #handleHello, not at connect time", async () => {
     const deps = testDeps();
-    const app = createApp(deps);
+    const app = authedApp(deps);
     const { token } = await createServer(app, "box-a");
 
     const first = await connect(app, token);
@@ -145,7 +145,7 @@ describe("enrolment: token", () => {
   });
 
   it("hashes the secret at rest — the row never contains the plaintext token", async () => {
-    const { token, server } = await createServer(createApp(testDeps()), "box-b");
+    const { token, server } = await createServer(authedApp(testDeps()), "box-b");
 
     const row = await db(env.DB).select().from(enrolments).where(eq(enrolments.serverId, server.id)).get();
     expect(row).toBeDefined();
@@ -187,7 +187,7 @@ describe("enrolment: token", () => {
       createdAt: deps.clock.now(),
     });
 
-    const app = createApp(deps);
+    const app = authedApp(deps);
     const res = await connect(app, token);
     expect(res.status).toBe(401);
   });
@@ -195,7 +195,7 @@ describe("enrolment: token", () => {
 
 describe("enrolment: unenrolled connections", () => {
   it("may do nothing but enrol — a state frame before hello closes the socket", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const { token } = await createServer(app, "box-d");
 
     const upgrade = await connect(app, token);
@@ -213,7 +213,7 @@ describe("enrolment: unenrolled connections", () => {
 
 describe("enrolment: malformed frames", () => {
   it("rejects a malformed state frame (close 1008) without clobbering a prior good snapshot", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const { token, server } = await createServer(app, "box-state");
 
     const upgrade = await connect(app, token);
@@ -245,7 +245,7 @@ describe("enrolment: malformed frames", () => {
     ws.send(JSON.stringify({ type: "state", rev: "not-a-number", resources: "not-an-array" }));
     expect((await closed).code).toBe(1008);
 
-    const detail = await createApp(testDeps()).fetch(new Request(`http://plane.test/servers/${server.id}`), env);
+    const detail = await authedApp(testDeps()).fetch(authedRequest(`http://plane.test/servers/${server.id}`), env);
     const body = (await detail.json()) as { observed: { rev: number } | null };
     expect(body.observed?.rev).toBe(1);
   });
@@ -253,7 +253,7 @@ describe("enrolment: malformed frames", () => {
 
 describe("enrolment: claim code", () => {
   it("redeem binds the server and delivers welcome+credential on the held socket", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const claimCode = "TEST-CLAIM-CODE-1";
 
     const upgrade = await connect(app, claimCode, { "cf-connecting-ip": "203.0.113.20" });
@@ -302,13 +302,13 @@ describe("enrolment: claim code", () => {
     // deliberately never learns the server id.
     expect((await closed).code).toBe(1000);
 
-    const detail = await createApp(testDeps()).fetch(new Request(`http://plane.test/servers/${server.id}`), env);
+    const detail = await authedApp(testDeps()).fetch(authedRequest(`http://plane.test/servers/${server.id}`), env);
     const body = (await detail.json()) as { server: { status: string } };
     expect(body.server.status).toBe("connected");
   });
 
   it("double redeem fails", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const claimCode = "TEST-CLAIM-CODE-2";
 
     const upgrade = await connect(app, claimCode, { "cf-connecting-ip": "203.0.113.21" });
@@ -323,7 +323,7 @@ describe("enrolment: claim code", () => {
   });
 
   it("rate limits redeem attempts to 5 per IP per minute", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const ip = "203.0.113.99";
 
     const statuses: number[] = [];
@@ -337,7 +337,7 @@ describe("enrolment: claim code", () => {
   });
 
   it("rate limits claim-mode /daemon connects per IP", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const ip = "198.51.100.5";
 
     const statuses: number[] = [];
@@ -352,7 +352,7 @@ describe("enrolment: claim code", () => {
   });
 
   it("concurrent dials with the same brand-new code never create duplicate enrolment rows", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const code = "DEDUP-CLAIM-CODE";
 
     const ip = { "cf-connecting-ip": "203.0.113.22" };
@@ -366,7 +366,7 @@ describe("enrolment: claim code", () => {
   });
 
   it("holds at most one pending socket per claim object — a second connect is rejected, not broadcast to", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const code = "SINGLE-PENDING-CODE";
 
     const ip = { "cf-connecting-ip": "203.0.113.23" };
@@ -389,7 +389,7 @@ describe("enrolment: claim code", () => {
   });
 
   it("redeem with no daemon holding the socket returns 409 and does not consume the code", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const code = "GHOST-CLAIM-CODE";
 
     const upgrade = await connect(app, code, { "cf-connecting-ip": "203.0.113.24" });
@@ -413,7 +413,7 @@ describe("enrolment: claim code", () => {
 
 describe("enrolment: disconnect accounting", () => {
   it("marks disconnected only when the last socket on the object closes", async () => {
-    const app = createApp(testDeps());
+    const app = authedApp(testDeps());
     const { token, server } = await createServer(app, "box-multi");
 
     const first = await connect(app, token);

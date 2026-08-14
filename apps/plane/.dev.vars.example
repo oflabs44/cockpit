@@ -1,0 +1,10 @@
+# Copy to .dev.vars (gitignored) for local development:
+#   cp .dev.vars.example .dev.vars
+#
+# wrangler reads .dev.vars into the Worker's env for `wrangler dev`. It does NOT pass the
+# host shell's environment through, so exporting these in your shell does nothing.
+#
+# COCKPIT_DEV_NO_AUTH=1 disables Cloudflare Access verification and warns on every request.
+# `wrangler dev` has no Access in front of it, so without this every request is a 401.
+# It must never be set on a deployed plane.
+COCKPIT_DEV_NO_AUTH=1
