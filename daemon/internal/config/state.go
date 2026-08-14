@@ -26,8 +26,12 @@ type State struct {
 	ClaimCode      string `json:"claim_code,omitempty"`
 	ClaimExpiresAt int64  `json:"claim_expires_at,omitempty"`
 	ServerID       string `json:"server_id,omitempty"`
-	Plane          string `json:"plane"`
-	Hostname       string `json:"hostname"`
+	// Whether the daemon is presenting an enrolment token. A box that cannot
+	// reach the plane looks the same either way from outside, and the two need
+	// different things done to them.
+	HasEnrolmentToken bool   `json:"has_enrolment_token,omitempty"`
+	Plane             string `json:"plane"`
+	Hostname          string `json:"hostname"`
 }
 
 // Readers that are not root need this by name: their own default resolves

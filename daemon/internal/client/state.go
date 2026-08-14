@@ -64,6 +64,7 @@ func (c *Client) publish(s config.State) {
 
 	s.Plane = c.PlaneURL
 	s.Hostname = c.Identity.Hostname
+	s.HasEnrolmentToken = c.EnrolmentSecret != ""
 
 	if err := c.PublishState(s); err != nil {
 		c.log().Warn("could not publish runtime state; `cockpitd claim` will not see this", "err", err, "state", s.State)

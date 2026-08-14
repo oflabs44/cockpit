@@ -19,6 +19,11 @@ export const createServerRoute = createRoute({
 
 const ENROLMENT_TTL_MS = 15 * 60 * 1000; // "minutes, not hours" — type-design §2.1.1
 
+// /latest/ resolves to the newest release, so this URL never changes while the
+// script and the digests it pins do.
+const INSTALL_SCRIPT_URL =
+  "https://github.com/oflabs44/cockpit/releases/latest/download/install.sh";
+
 export const createServerHandler: AppRouteHandler<typeof createServerRoute> = async (c) => {
   const body = c.req.valid("json");
   const deps = c.var.deps;
@@ -75,7 +80,7 @@ export const createServerHandler: AppRouteHandler<typeof createServerRoute> = as
         created_at: now,
       },
       token,
-      install_command: `curl -fsSL https://get.cockpit.oflabs.dev/install.sh | sh -s -- --plane ${planeUrl} --token ${token}`,
+      install_command: `curl -fsSL ${INSTALL_SCRIPT_URL} | sh -s -- --plane ${planeUrl} --token ${token}`,
     },
     201,
   );

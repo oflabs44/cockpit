@@ -31,7 +31,7 @@ live in [`CONTEXT.md`](../CONTEXT.md). Decision references like `(#7)` point at
 
    onboarding — operator runs this on the box, once. A static script, not
    a plane endpoint; the token is an argument, so the file never varies:
-     curl -fsSL https://get.cockpit.oflabs.dev/install.sh \
+     curl -fsSL https://github.com/oflabs44/cockpit/releases/latest/download/install.sh \
        | sh -s -- --plane <plane-url> --token <enrolment-token>
 ```
 
@@ -216,7 +216,7 @@ A **static bash script**, published as a release artifact and fetched over HTTPS
 not a Worker route and the plane does not generate it.
 
 ```
-curl -fsSL https://get.cockpit.oflabs.dev/install.sh \
+curl -fsSL https://github.com/oflabs44/cockpit/releases/latest/download/install.sh \
   | sh -s -- --plane https://cockpit.oflabs.dev --token ck_enrol_8fkq2t
 ```
 

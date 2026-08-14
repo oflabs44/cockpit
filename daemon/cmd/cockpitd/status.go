@@ -85,11 +85,11 @@ func statusOf(cfg config.File, st config.State, published bool, now time.Time) S
 
 	s.Advice = advice[s.Disposition]
 
-	// Not merely unreachable: a daemon with no credential that got far enough
-	// to report a dropped session was refused, and a spent or expired
-	// enrolment token is the likeliest reason.
-	if s.Disposition == DispositionDisconnected && !s.Enrolled {
-		s.Advice = "cockpitd cannot enrol: the plane refused it, or is unreachable. An enrolment token" +
+	// Only for a daemon actually presenting a token: an unreachable claim-code
+	// box looks identical from here, and telling that operator to issue a fresh
+	// token they were never given points away from the connectivity problem.
+	if s.Disposition == DispositionDisconnected && !s.Enrolled && published && st.HasEnrolmentToken {
+		s.Advice = "cockpitd cannot enrol: the plane refused its token, or is unreachable. The token" +
 			" may be spent or expired — issue a fresh one. journalctl -u cockpitd -n 50"
 	}
 

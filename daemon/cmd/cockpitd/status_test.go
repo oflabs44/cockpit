@@ -95,20 +95,31 @@ func TestStatusOf(t *testing.T) {
 	}
 }
 
-func TestRejectedTokenAdviceNamesTheToken(t *testing.T) {
-	// The daemon holds a token, the plane refused it, so it publishes
-	// disconnected while holding no credential. The generic "cannot reach the
-	// plane" line would send the operator to check egress on a box whose
-	// networking is fine.
-	s := statusOf(
+func TestAdviceForAnUnenrolledDaemonDependsOnWhetherItHasAToken(t *testing.T) {
+	// The two look identical from outside — no credential, no code, not
+	// reaching the plane — and need opposite things done to them. Telling a
+	// claim-code operator to issue a fresh token they were never given points
+	// away from the connectivity problem that is actually there.
+	withToken := statusOf(
+		config.File{Plane: "https://plane.test"},
+		config.State{State: config.StateDisconnected, Hostname: "lab-nbg1", HasEnrolmentToken: true},
+		true,
+		time.Unix(1700000000, 0),
+	)
+
+	if !strings.Contains(withToken.Advice, "token") {
+		t.Fatalf("advice = %q, want it to name the enrolment token", withToken.Advice)
+	}
+
+	claiming := statusOf(
 		config.File{Plane: "https://plane.test"},
 		config.State{State: config.StateDisconnected, Hostname: "lab-nbg1"},
 		true,
 		time.Unix(1700000000, 0),
 	)
 
-	if !strings.Contains(s.Advice, "token") {
-		t.Fatalf("advice = %q, want it to name the enrolment token", s.Advice)
+	if strings.Contains(claiming.Advice, "token") {
+		t.Fatalf("advice = %q, want no mention of a token this box never had", claiming.Advice)
 	}
 }
 

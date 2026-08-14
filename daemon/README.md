@@ -120,6 +120,14 @@ shell keeping its own idea of "enrolled" and drifting from the daemon's.
 Whether a published code is still live is one function, asked by both `status`
 and `claim`, so they cannot disagree: an expired code is not `awaiting_claim`.
 
+An unenrolled box that cannot reach the plane looks the same whether it is
+presenting a token or offering a claim code, so the daemon publishes which
+(`has_enrolment_token`) and the advice differs: a spent token to replace, or
+connectivity to check. When the daemon exits before publishing at all — an
+unwritable `/etc` does that — `install.sh` asks systemd instead and prints the
+journal, since the disposition would otherwise advise re-enrolling a server the
+plane has already bound.
+
 **The daemon exits rather than run on a credential it could not write.** The
 plane spends the enrolment secret in the same breath as issuing the credential,
 so a daemon that carried on would hold this box's only identity in memory,

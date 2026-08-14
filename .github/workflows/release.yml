@@ -1,0 +1,86 @@
+name: release
+
+# Publishes the pair an operator installs: the two cockpitd binaries and the
+# install.sh that pins them. The digests are substituted into the script here,
+# in the same job that built the binaries, so a published script can never
+# point at digests from a different build.
+#
+# The tag reaches every step through the environment rather than through ${{ }}
+# interpolation into a shell: a tag name is attacker-shaped input the moment
+# anyone else can push one.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  VERSION: ${{ github.ref_name }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: daemon/go.mod
+          cache-dependency-path: daemon/go.sum
+
+      - name: Test
+        working-directory: daemon
+        run: make test
+
+      - name: Build both architectures
+        working-directory: daemon
+        run: make dist VERSION="$VERSION"
+
+      - name: Pin the digests into install.sh
+        working-directory: daemon
+        run: |
+          set -eu
+
+          amd64=$(sha256sum dist/cockpitd-linux-amd64 | cut -d' ' -f1)
+          arm64=$(sha256sum dist/cockpitd-linux-arm64 | cut -d' ' -f1)
+
+          sed \
+            -e "s|__COCKPITD_VERSION__|$VERSION|" \
+            -e "s|__COCKPITD_SHA256_AMD64__|$amd64|" \
+            -e "s|__COCKPITD_SHA256_ARM64__|$arm64|" \
+            install.sh >dist/install.sh
+
+          # A placeholder that survives publication is a script that installs
+          # nothing, discovered by an operator rather than by CI.
+          if grep -q '__COCKPITD_' dist/install.sh; then
+            echo "unsubstituted placeholder in dist/install.sh" >&2
+            grep -n '__COCKPITD_' dist/install.sh >&2
+            exit 1
+          fi
+
+          (cd dist && sha256sum cockpitd-linux-amd64 cockpitd-linux-arm64 install.sh >SHA256SUMS)
+
+      - name: Shellcheck the published script
+        working-directory: daemon
+        run: docker run --rm -v "$PWD/dist:/mnt" koalaman/shellcheck:stable /mnt/install.sh
+
+      - name: Publish
+        working-directory: daemon
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The plane hands out releases/latest/download/install.sh, so a tag
+          # that is not a stable version must not become "latest" — otherwise
+          # smoke-testing v0.4.0-rc1 silently repoints every server created
+          # afterwards at the release candidate.
+          args=(--title "$VERSION" --generate-notes)
+          case "$VERSION" in
+            *-*) args+=(--prerelease) ;;
+          esac
+
+          gh release create "$VERSION" "${args[@]}" \
+            dist/install.sh \
+            dist/cockpitd-linux-amd64 \
+            dist/cockpitd-linux-arm64 \
+            dist/SHA256SUMS

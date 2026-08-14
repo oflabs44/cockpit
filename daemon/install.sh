@@ -3,7 +3,7 @@
 # cockpit installer: makes a box able to talk to the plane, and nothing else.
 # Docker, the cockpitd binary, its unit, enrolment.
 #
-#   curl -fsSL https://get.cockpit.oflabs.dev/install.sh \
+#   curl -fsSL https://github.com/oflabs44/cockpit/releases/latest/download/install.sh \
 #     | sh -s -- --plane https://cockpit.oflabs.dev --token ck_enrol_8fkq2t
 #
 # It does no host hardening — no sshd, no users, no UFW — and it does not
@@ -20,7 +20,9 @@ COCKPITD_VERSION="__COCKPITD_VERSION__"
 SHA256_AMD64="__COCKPITD_SHA256_AMD64__"
 SHA256_ARM64="__COCKPITD_SHA256_ARM64__"
 
-DEFAULT_BASE_URL="https://get.cockpit.oflabs.dev"
+# Release assets are flat under the tag, so $BASE_URL/$COCKPITD_VERSION/<asset>
+# is a GitHub release download URL unchanged.
+DEFAULT_BASE_URL="https://github.com/oflabs44/cockpit/releases/download"
 BASE_URL="${COCKPIT_BASE_URL:-$DEFAULT_BASE_URL}"
 
 BIN=/usr/local/bin/cockpitd
@@ -623,6 +625,18 @@ wait_for_disposition() {
 }
 
 timeout_message() {
+	# A daemon that exits before publishing anything — an unwritable /etc is
+	# the way that happens — leaves status with nothing to go on, and its
+	# disposition advice would then send the operator to re-enrol a server the
+	# plane has already bound. Ask systemd instead: the reason is in the log.
+	if ! systemctl is-active --quiet cockpitd; then
+		die "cockpitd is not running: it exited, or systemd is restarting it in a loop.
+$(journalctl -u cockpitd -n 15 --no-pager 2>&1 | sed 's/^/  /')
+
+  If it could not write its credential, free space or fix permissions on $CONFIG_DIR
+  and enrol again with a fresh token — the plane has already spent the one used here."
+	fi
+
 	refresh_status
 
 	case "$(status_field disposition)" in
@@ -639,14 +653,8 @@ timeout_message() {
 
 # The token goes on disk rather than in argv, which is world-readable through
 # /proc, and into a drop-in rather than the unit, so a single-use secret does
-# not sit in a unit file across every reboot. umask rather than a later chmod:
-# the file must never exist world-readable, even briefly.
+# not sit in a unit file across every reboot.
 enrol_with_token() {
-	old_umask=$(umask)
-	umask 077
-	printf '%s' "$TOKEN" >"$TOKEN_FILE"
-	umask "$old_umask"
-
 	mkdir -p "$DROPIN_DIR"
 
 	write_file "$DROPIN" 0644 <<EOF
@@ -654,6 +662,18 @@ enrol_with_token() {
 ExecStart=
 ExecStart=$BIN --token-file $TOKEN_FILE
 EOF
+
+	# After the last write_file, which clears traps of its own. From here a
+	# failure must not leave a single-use secret on disk, or a drop-in that
+	# restarts cockpitd against it for ever.
+	trap 'clear_enrolment_dropin' EXIT INT TERM
+
+	# umask rather than a later chmod: the token must never exist
+	# world-readable, even briefly.
+	old_umask=$(umask)
+	umask 077
+	printf '%s' "$TOKEN" >"$TOKEN_FILE"
+	umask "$old_umask"
 
 	systemctl daemon-reload
 	systemctl enable cockpitd
@@ -663,6 +683,7 @@ EOF
 
 	# The daemon unlinks the token file itself once the credential is on disk.
 	clear_enrolment_dropin
+	trap - EXIT INT TERM
 
 	log "enrolled. This server is connected to $PLANE."
 }
