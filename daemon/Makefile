@@ -3,13 +3,14 @@ PKG     := ./cmd/cockpitd
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 GOFLAGS := -trimpath
+SHELLCHECK_IMAGE := koalaman/shellcheck:stable
 TOKEN_ARG = $(if $(TOKEN),--token $(TOKEN),)
 
 # Where make daemon-push sends the binary (docs/development.md section 3).
 BOX ?= lab-nbg1
 ARCH ?= arm64
 
-.PHONY: help build test test-race lint fmt vet tidy clean dist push run
+.PHONY: help build test test-race lint fmt vet shellcheck tidy clean dist push run
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
@@ -23,13 +24,26 @@ test: ## tier 1 tests: no network, no docker
 test-race: ## tier 1 tests under the race detector
 	go test -race ./...
 
-lint: fmt vet ## gofmt check plus go vet
+lint: fmt vet shellcheck ## gofmt check, go vet, and shellcheck install.sh
 
 fmt:
 	@test -z "$$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
 
 vet:
 	go vet ./...
+
+# install.sh is piped into a root shell on other people's boxes, so it is
+# linted with everything else rather than by hand. Prefers a local shellcheck,
+# falls back to the container, and skips with a word when neither is here: a
+# lint target that cannot run must not fail a build it never checked.
+shellcheck: ## shellcheck install.sh, using docker when shellcheck is not installed
+	@if command -v shellcheck >/dev/null 2>&1; then \
+		shellcheck install.sh; \
+	elif command -v docker >/dev/null 2>&1; then \
+		docker run --rm -v "$$PWD:/mnt" $(SHELLCHECK_IMAGE) /mnt/install.sh; \
+	else \
+		echo "skipping shellcheck: install it, or docker, to lint install.sh"; \
+	fi
 
 tidy:
 	go mod tidy

@@ -18,91 +18,38 @@ func welcomeConn(t *testing.T, serverID, credential string) *fakeTransport {
 	}}
 }
 
-func TestFailedPersistIsRetriedNextSession(t *testing.T) {
-	conns := []*fakeTransport{
-		welcomeConn(t, "srv_1", "ck_cred_live"),
-		welcomeConn(t, "srv_1", "ck_cred_live"),
-	}
+func TestUnwritableCredentialEndsTheDaemon(t *testing.T) {
+	// The plane spends the enrolment secret in the same breath as issuing the
+	// credential, so a daemon that carried on with one it could not write
+	// would be a box whose identity lives in nothing but that process — and
+	// every way of touching it afterwards, restart included, destroys the
+	// server. Dying leaves a disk to fix and a fresh token to enrol with.
+	tr := welcomeConn(t, "srv_1", "ck_cred_live")
 
-	var (
-		dialed   int
-		attempts int
-	)
-
-	c := newClient(t, nil)
+	c := newClient(t, tr)
 	c.EnrolmentSecret = "ck_enrol_once"
-	c.Backoff = client.Backoff{Base: time.Millisecond, Max: time.Second, Factor: 2}
-	c.Dial = func(context.Context, string, string) (client.Transport, error) {
-		i := dialed
-		dialed++
-
-		if i >= len(conns) {
-			return nil, errors.New("no more connections")
-		}
-
-		return conns[i], nil
-	}
-
-	c.OnCredential = func(string, string) error {
-		attempts++
-
-		if attempts == 1 {
-			return errors.New("disk full")
-		}
-
-		return nil
-	}
+	c.OnCredential = func(string, string) error { return errors.New("read-only file system") }
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	c.Sleep = func(context.Context, time.Duration) error {
-		if dialed >= len(conns) {
-			cancel()
-
-			return context.Canceled
-		}
+		t.Fatal("reconnected instead of exiting")
 
 		return nil
 	}
 
-	if err := c.Run(ctx); !errors.Is(err, context.Canceled) {
-		t.Fatalf("Run err = %v, want context.Canceled", err)
+	err := c.Run(ctx)
+
+	if !errors.Is(err, client.ErrCredentialNotPersisted) {
+		t.Fatalf("Run err = %v, want ErrCredentialNotPersisted", err)
 	}
 
-	if attempts != 2 {
-		t.Fatalf("persist attempted %d times, want a retry after the failure", attempts)
-	}
+	// And it did not go on to behave as though it were enrolled.
+	frames := tr.frames()
 
-	// Nothing is burned until the credential is on disk.
-	if c.EnrolmentSecret != "" {
-		t.Fatal("enrolment secret still held after a successful persist")
-	}
-
-	// The failed persist must not have stopped the session: the box is useful
-	// now, it is only a restart that would orphan it.
-	frames := conns[0].frames()
-
-	if len(frames) != 2 || frames[1]["type"] != protocol.TypeState {
-		t.Fatalf("first session frames = %+v, want hello + state despite the failed persist", frames)
-	}
-}
-
-func TestEnrolmentSecretSurvivesAFailedPersist(t *testing.T) {
-	tr := welcomeConn(t, "srv_1", "ck_cred_live")
-
-	c := newClient(t, tr)
-	c.EnrolmentSecret = "ck_enrol_once"
-	c.OnCredential = func(string, string) error { return errors.New("read-only filesystem") }
-
-	runOnce(t, c)
-
-	if c.EnrolmentSecret != "ck_enrol_once" {
-		t.Fatal("enrolment secret burned before the credential reached disk")
-	}
-
-	if c.Credential != "ck_cred_live" {
-		t.Fatalf("credential = %q, want the issued one held in memory", c.Credential)
+	if len(frames) != 1 {
+		t.Fatalf("frames = %+v, want hello only", frames)
 	}
 }
 

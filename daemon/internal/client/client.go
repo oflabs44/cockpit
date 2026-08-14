@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/oflabs44/cockpit/daemon/internal/config"
 	"github.com/oflabs44/cockpit/daemon/internal/observer"
 	"github.com/oflabs44/cockpit/daemon/internal/ops"
 	"github.com/oflabs44/cockpit/daemon/internal/protocol"
@@ -41,6 +42,9 @@ type Identity struct {
 // handshake. Until it succeeds the connection may do nothing but enrol
 // (type-design section 3.3).
 var ErrUnauthenticated = errors.New("plane did not complete the handshake")
+
+// Not a connection failure to retry: see persistIdentity.
+var ErrCredentialNotPersisted = errors.New("could not write the credential to disk")
 
 // ErrClaimExpired means the printed claim code aged out before the operator
 // redeemed it. The daemon prints a fresh one and waits again; it is the normal
@@ -73,9 +77,7 @@ type Client struct {
 
 	// OnCredential persists a credential issued by the plane. Called before any
 	// further frame is sent, so a crash mid-session cannot lose it. A failure
-	// is sticky: the daemon keeps serving on the credential it holds and
-	// retries the persist at the start of every session until it lands,
-	// because the secret that produced it is already burned plane-side.
+	// ends the daemon: see persistIdentity.
 	OnCredential func(serverID, credential string) error
 
 	// NewClaimCode generates the code an unbound daemon prints and presents.
@@ -88,6 +90,11 @@ type Client struct {
 	// os.Stdout. It is not the log: this is what a human reads seconds after
 	// install.sh finishes.
 	Out io.Writer
+
+	// PublishState records the daemon's live condition where `cockpitd claim`
+	// and `cockpitd status` can read it. A failure is logged and ignored: this
+	// file describes the box, it is not how the box works.
+	PublishState func(config.State) error
 
 	// SnapshotInterval re-sends a full state snapshot while connected.
 	SnapshotInterval time.Duration
@@ -102,9 +109,9 @@ type Client struct {
 	// fresh clock every time a flaky connection redials.
 	claimCode     string
 	claimIssuedAt time.Time
-
-	// unsaved is set when the plane issued an identity that is not yet on disk.
-	unsaved bool
+	// claimPresented is set once the plane has actually been shown the code.
+	// A code generated for a dial that never landed is redeemable by nobody.
+	claimPresented bool
 }
 
 // Run dials, serves, and redials until ctx is done. A daemon holding neither a
@@ -115,8 +122,19 @@ func (c *Client) Run(ctx context.Context) error {
 		err := c.session(ctx)
 
 		if ctx.Err() != nil {
+			c.publishNotConnected()
+
 			return ctx.Err()
 		}
+
+		if errors.Is(err, ErrCredentialNotPersisted) {
+			return err
+		}
+
+		// Said before the backoff sleep, which is most of the time this daemon
+		// spends unreachable. A shutdown skips it: the runtime directory goes
+		// with the unit, so there is no file left to correct.
+		c.publishDisconnected()
 
 		// An expired claim code is the expected outcome of waiting, not a
 		// failing connection, so it does not push the backoff out.
@@ -127,7 +145,10 @@ func (c *Client) Run(ctx context.Context) error {
 		d := c.Backoff.Next()
 		c.log().Warn("connection ended, reconnecting", "err", err, "in", d)
 
+		// The likelier exit: a daemon spends most of its unreachable life here.
 		if err := c.sleep(ctx, d); err != nil {
+			c.publishNotConnected()
+
 			return err
 		}
 	}
@@ -138,11 +159,9 @@ func (c *Client) session(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	c.persistIdentity()
-
-	// The same secret goes in the upgrade header and in hello: the plane
-	// resolves the daemon from the header before choosing a Durable Object,
-	// then validates the two against each other.
+	// Resolved once and carried into the handshake: the plane keys the
+	// connection on what the upgrade header carried and then validates hello
+	// against it, and asking twice can return two different claim codes.
 	secret, err := c.secret()
 	if err != nil {
 		return err
@@ -157,7 +176,7 @@ func (c *Client) session(ctx context.Context) error {
 
 	defer tr.Close()
 
-	if err := c.handshake(ctx, tr); err != nil {
+	if err := c.handshake(ctx, tr, secret); err != nil {
 		return err
 	}
 
@@ -214,15 +233,11 @@ func (c *Client) logDialReject(err error) {
 
 // handshake sends hello and waits for the plane's welcome, persisting a
 // credential if this was an enrolment or a claim.
-func (c *Client) handshake(ctx context.Context, tr Transport) error {
-	// The same secret the upgrade header carried. Prefixes (ck_cred_, ck_enrol_)
-	// are the plane's and the operator's; the daemon passes them through
-	// untouched, and an unprefixed secret is its own claim code.
-	secret, err := c.secret()
-	if err != nil {
-		return err
-	}
-
+// secret is the exact string the upgrade header carried, passed in rather than
+// resolved again. Prefixes (ck_cred_, ck_enrol_) are the plane's and the
+// operator's; the daemon passes them through untouched, and an unprefixed
+// secret is its own claim code.
+func (c *Client) handshake(ctx context.Context, tr Transport, secret string) error {
 	auth := protocol.Auth{Kind: protocol.AuthEnrolment, Secret: secret}
 	if c.Credential != "" {
 		auth.Kind = protocol.AuthCredential
@@ -244,11 +259,25 @@ func (c *Client) handshake(ctx context.Context, tr Transport) error {
 	waitCtx := ctx
 
 	if c.claiming() {
-		if err := send(ctx, tr, protocol.AwaitingClaim{Type: protocol.TypeAwaitingClaim, Code: c.claimCode}); err != nil {
+		// The deadline is wall-clock and a dial takes time, so a code with
+		// seconds left when the session started can be dead by now. Presenting
+		// it means the plane closes with 4007 while the operator reads a block
+		// saying it expires in -30s.
+		if c.claimRemaining() <= 0 {
+			c.log().Info("claim code expired while connecting, generating a new one")
+			c.expireClaim()
+
+			return ErrClaimExpired
+		}
+
+		// secret, not c.claimCode: the frame, the file and the block on screen
+		// all say the code the connection was keyed on.
+		if err := send(ctx, tr, protocol.AwaitingClaim{Type: protocol.TypeAwaitingClaim, Code: secret}); err != nil {
 			return fmt.Errorf("send awaiting_claim: %w", err)
 		}
 
-		c.printClaim()
+		c.publishAwaitingClaim(secret)
+		c.printClaim(secret)
 
 		// The operator may take minutes to redeem, so the wait is bounded by
 		// what is left of this code's life — not by a fresh timeout per
@@ -332,38 +361,36 @@ func (c *Client) handshake(ctx context.Context, tr Transport) error {
 	// Anything the plane told us about our own identity has to reach disk,
 	// including a server_id learned without a new credential.
 	if changed && c.Credential != "" {
-		c.unsaved = true
-		c.persistIdentity()
+		if err := c.persistIdentity(); err != nil {
+			return err
+		}
 	}
+
+	// Overwrites any awaiting_claim this session published: a code left
+	// standing after the bind is one the operator would redeem into an error.
+	c.publishConnected()
 
 	return nil
 }
 
-// persistIdentity writes the plane-issued identity to disk and, only once that
-// succeeds, burns the secret that produced it. A failure leaves `unsaved` set
-// so the next session tries again: the daemon can still serve on the in-memory
-// credential, but a restart before this lands would orphan the box.
-func (c *Client) persistIdentity() {
-	if !c.unsaved {
-		return
-	}
-
+// A failure here ends the process. The plane spends the enrolment secret in
+// the same breath as issuing the credential, so a daemon carrying on with one
+// it could not write would hold this box's only identity in memory, where
+// every way of touching it afterwards destroys the server. Dying leaves a disk
+// to fix and a fresh token to enrol with.
+func (c *Client) persistIdentity() error {
 	if c.OnCredential != nil {
 		if err := c.OnCredential(c.ServerID, c.Credential); err != nil {
-			c.log().Error("credential not persisted; this box is orphaned if it restarts before it lands",
-				"err", err, "server_id", c.ServerID)
-
-			return
+			return fmt.Errorf("%w: %w", ErrCredentialNotPersisted, err)
 		}
 	}
 
-	c.unsaved = false
-	// Burned only now: the secret is worthless plane-side, but until the
-	// credential is on disk it is the only record that this happened.
 	c.EnrolmentSecret = ""
 	c.claimCode = ""
 
 	c.log().Info("enrolled", "server_id", c.ServerID)
+
+	return nil
 }
 
 // serve reads plane frames until the connection ends. This slice executes

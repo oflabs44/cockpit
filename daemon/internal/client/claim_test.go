@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/oflabs44/cockpit/daemon/internal/client"
+	"github.com/oflabs44/cockpit/daemon/internal/config"
 	"github.com/oflabs44/cockpit/daemon/internal/protocol"
 )
 
@@ -25,6 +27,156 @@ func (t *blockingTransport) Recv(ctx context.Context) ([]byte, error) {
 	<-ctx.Done()
 
 	return nil, ctx.Err()
+}
+
+func TestCodeDoesNotChangeBetweenDialAndHello(t *testing.T) {
+	// The plane keys the connection on the code the upgrade header carried and
+	// then checks hello against it, so a second one generated mid-dial is
+	// closed as a policy violation — and, worse, printed to the operator as
+	// though it were live. The dial here is slow, but not slow enough to
+	// outlive the code.
+	tr := &fakeTransport{}
+	now := time.Unix(1700000000, 0)
+	issued := []string{"AAAA-1111", "BBBB-2222"}
+	generated := 0
+
+	c := newClient(t, nil)
+	c.Out = io.Discard
+	c.ClaimTTL = time.Minute
+	c.Now = func() time.Time { return now }
+	c.NewClaimCode = func() (string, error) {
+		code := issued[generated]
+		generated++
+
+		return code, nil
+	}
+
+	var dialed string
+
+	c.Dial = func(_ context.Context, _, secret string) (client.Transport, error) {
+		dialed = secret
+		now = now.Add(30 * time.Second)
+
+		return tr, nil
+	}
+
+	var published []config.State
+
+	c.PublishState = func(s config.State) error {
+		published = append(published, s)
+
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c.Sleep = func(context.Context, time.Duration) error {
+		cancel()
+
+		return context.Canceled
+	}
+
+	if err := c.Run(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run err = %v, want context.Canceled", err)
+	}
+
+	if generated != 1 {
+		t.Fatalf("generated %d codes in one session, want 1", generated)
+	}
+
+	frames := tr.frames()
+
+	if len(frames) < 2 {
+		t.Fatalf("sent %+v, want hello + awaiting_claim", frames)
+	}
+
+	auth, _ := frames[0]["auth"].(map[string]any)
+
+	if auth["secret"] != dialed {
+		t.Fatalf("hello carried %v, want the dialed code %q", auth["secret"], dialed)
+	}
+
+	if frames[1]["code"] != dialed {
+		t.Fatalf("awaiting_claim carried %v, want the dialed code %q", frames[1]["code"], dialed)
+	}
+
+	// And the operator must never be shown a code the plane was not asked about.
+	for _, s := range published {
+		if s.ClaimCode != "" && s.ClaimCode != dialed {
+			t.Fatalf("published claim code %q, want the dialed code %q", s.ClaimCode, dialed)
+		}
+	}
+}
+
+func TestCodeThatDiedDuringTheDialIsNotPresented(t *testing.T) {
+	// Same slow dial, but this code had seconds left when the session started.
+	// Presenting it anyway means the plane closes with 4007 while the operator
+	// reads a block that says it expires in -30s, and install.sh sees a state
+	// file that satisfies its wait and a `cockpitd claim` that then refuses.
+	tr := &fakeTransport{}
+	now := time.Unix(1700000000, 0)
+	generated := 0
+
+	out := &bytes.Buffer{}
+
+	c := newClient(t, nil)
+	c.Out = out
+	c.ClaimTTL = time.Minute
+	c.Now = func() time.Time { return now }
+	c.NewClaimCode = func() (string, error) {
+		generated++
+
+		return "AAAA-1111", nil
+	}
+
+	c.Dial = func(context.Context, string, string) (client.Transport, error) {
+		now = now.Add(2 * time.Minute)
+
+		return tr, nil
+	}
+
+	var published []config.State
+
+	c.PublishState = func(s config.State) error {
+		published = append(published, s)
+
+		return nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	c.Sleep = func(context.Context, time.Duration) error {
+		cancel()
+
+		return context.Canceled
+	}
+
+	if err := c.Run(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run err = %v, want context.Canceled", err)
+	}
+
+	for _, f := range tr.frames() {
+		if f["type"] == protocol.TypeAwaitingClaim {
+			t.Fatalf("presented a dead code to the plane: %+v", f)
+		}
+	}
+
+	for _, s := range published {
+		if s.State == config.StateAwaitingClaim {
+			t.Fatalf("published a dead code: %+v", s)
+		}
+	}
+
+	if out.Len() != 0 {
+		t.Fatalf("printed a block for a dead code:\n%s", out)
+	}
+
+	// And the code is retired, so the next session offers a redeemable one.
+	if generated != 1 {
+		t.Fatalf("generated %d codes, want the dead one not reused after this session", generated)
+	}
 }
 
 func TestUnclaimedHandshakePresentsCodeAndSendsNothingElse(t *testing.T) {

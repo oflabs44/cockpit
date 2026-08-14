@@ -64,9 +64,10 @@ Numbered so other docs can reference them as `(#n)`.
    `cockpitd` runs on every managed server and dials **out** to the plane over
    WSS. The plane holds no SSH keys, opens no connections, and needs no inbound
    port on any box. Onboarding is a one-line install script the operator runs on
-   the box themselves — it hardens the host, installs Docker and the daemon, and
-   enrols either with a pre-authorised token or by printing a claim code the
-   operator redeems in any client. SSH remains the operator's own out-of-band
+   the box themselves — it installs Docker and the daemon, and enrols either with
+   a pre-authorised token or by presenting a claim code the operator redeems in
+   any client. It does not harden the host: that is a later opt-in operation
+   (ADR-0011). SSH remains the operator's own out-of-band
    access to their box; it is not a component of cockpit. See ADR-0001.
 
 5. **The control plane is serverless and lives nowhere near the servers it
@@ -178,10 +179,10 @@ plane, reports observed state, executes tasks, streams logs and metrics.
 
 **Install script** — a static, versioned shell script fetched from a release
 host and run on the box: `curl -fsSL <get>/install.sh | sh -s -- --plane <url>
---token <tok>`. Hardens the host, installs Docker and `cockpitd`, and enrols.
-Not a plane route: the token is an argument rather than templated in, so the
-file never varies and the plane never generates shell. The only thing that ever
-runs directly on a box outside the daemon.
+--token <tok>`. Installs Docker and `cockpitd`, and enrols. It does not harden
+the host (ADR-0011). Not a plane route: the token is an argument rather than
+templated in, so the file never varies and the plane never generates shell. The
+only thing that ever runs directly on a box outside the daemon.
 
 **Enrolment token** — a short-lived, single-use secret embedded in the install
 one-liner, produced when a server is created in a client. Exchanged by the daemon

@@ -29,10 +29,33 @@ import (
 var version = "dev"
 
 func main() {
+	// Two subcommands do not justify a CLI framework.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "claim":
+			exitOn(runClaim(os.Args[2:], os.Stdout, time.Now))
+
+			return
+		case "status":
+			exitOn(runStatus(os.Args[2:], os.Stdout, time.Now))
+
+			return
+		}
+	}
+
 	if err := run(); err != nil && !errors.Is(err, context.Canceled) {
 		fmt.Fprintln(os.Stderr, "cockpitd:", err)
 		os.Exit(1)
 	}
+}
+
+func exitOn(err error) {
+	if err == nil {
+		return
+	}
+
+	fmt.Fprintln(os.Stderr, "cockpitd:", err)
+	os.Exit(1)
 }
 
 func run() error {
@@ -40,7 +63,9 @@ func run() error {
 		foreground = flag.Bool("foreground", false, "run in the terminal, logging to stdout, rather than as a systemd unit")
 		plane      = flag.String("plane", "", "plane base URL, e.g. https://cockpit.oflabs.dev")
 		token      = flag.String("token", "", "enrolment token, used once on a daemon that holds no credential")
+		tokenFile  = flag.String("token-file", "", "read the enrolment token from this file instead of argv, and unlink it once burned")
 		cfgPath    = flag.String("config", config.DefaultPath(), "path to the daemon config file")
+		statePath  = flag.String("state", config.StatePath(), "path to the runtime state file that cockpitd claim reads")
 		showVer    = flag.Bool("version", false, "print the version and exit")
 	)
 
@@ -58,6 +83,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	enrolment, err := resolveToken(*token, *tokenFile, log)
+	if err != nil {
+		return err
+	}
+
+	enrolment = discardUnusableToken(cfg, enrolment, *tokenFile, log)
 
 	if *plane != "" {
 		cfg.Plane = *plane
@@ -93,7 +125,7 @@ func run() error {
 		Ops:             &ops.Runner{Docker: docker},
 		Dial:            client.WSDialer,
 		Log:             log,
-		EnrolmentSecret: *token,
+		EnrolmentSecret: enrolment,
 		Credential:      cfg.Credential,
 		ServerID:        cfg.ServerID,
 		Backoff: client.Backoff{
@@ -105,12 +137,10 @@ func run() error {
 		SnapshotInterval: 30 * time.Second,
 		ClaimTTL:         10 * time.Minute,
 		Out:              os.Stdout,
-		OnCredential: func(serverID, credential string) error {
-			cfg.ServerID = serverID
-			cfg.Credential = credential
-
-			return config.Save(*cfgPath, cfg)
+		PublishState: func(s config.State) error {
+			return config.SaveState(*statePath, s)
 		},
+		OnCredential: persistCredential(*cfgPath, &cfg, *tokenFile, log),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

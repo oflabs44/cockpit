@@ -4,7 +4,8 @@ The on-box agent. This build **enrols, connects, observes, and executes docker
 app changes**: the full state snapshot — host, containers, firewall rules,
 systemd units, cron — plus `task` and `op` frames against the app kind. No
 builds, no secret resolution, no ufw/systemd/cron execution, no streams, no
-metrics, no `install.sh`.
+metrics. `install.sh` and the systemd unit are here; host hardening is not, and
+is not coming here — it is an opt-in flow the plane drives.
 
 ## Run it
 
@@ -53,16 +54,114 @@ read off a terminal and typed into a form, or read aloud.
 | `--foreground` | log to stdout as text rather than JSON; `Ctrl-C` to stop |
 | `--plane <url>` | plane base URL; `http(s)` and `ws(s)` both accepted, `/daemon` is appended |
 | `--token <tok>` | enrolment token, presented once by a daemon holding no credential; omit it to use the claim-code flow |
+| `--token-file <path>` | read the enrolment token from a 0600 file rather than argv, which is world-readable through `/proc`; the file is unlinked once the token is burned. A missing file means burned and is fine; an empty one is an error |
 | `--config <path>` | config file; defaults to `/etc/cockpitd/config.json` as root, `$XDG_CONFIG_HOME/cockpitd/config.json` otherwise |
+| `--state <path>` | runtime state file; defaults to `/run/cockpitd/state.json` as root, beside the config otherwise |
+
+## Install it
+
+```sh
+curl -fsSL <get>/install.sh | sh -s -- --plane <url> --token <tok>
+```
+
+`install.sh` installs Docker, the versioned binary against a pinned SHA-256,
+`/etc/cockpitd/config.json`, and the systemd unit. It does no host hardening,
+it never touches UFW, and it does not configure Docker beyond installing it.
+
+It refuses before it changes anything: bad arguments cost nothing, an
+unpublished copy of the script — the one in this repo, whose version and
+digests are still placeholders — refuses outright, and the plane and the
+release host are both probed for reachability before Docker or any file is
+written. Only curl and jq go on first, because the probes need them, and a
+probe that then fails says so rather than claiming nothing was touched.
+
+It also refuses a box that cannot do the job — Docker
+older than 24, under 5 GB free where images and builds land, a distro or
+architecture outside Debian/Ubuntu on amd64/arm64 — with the actual number and
+the fix rather than a warning it expects you to ignore.
+
+It is idempotent. A re-run on an enrolled box upgrades and never re-enrols, and
+it hashes the binary, unit and config either side of the install so an
+unchanged re-run **does not restart the daemon** and drop its session for
+nothing. `COCKPIT_FORCE_RESTART=1` overrides that. That restraint matters most
+on the claim-code path: the code lives in the daemon's memory and in `/run`, so
+restarting issues a *new* one and invalidates whatever the operator already
+pasted into a client. Re-running the one-liner to see the code again — the
+obvious move — reprints the live one instead of replacing it.
+
+`cockpitd-uninstall.sh` is generated at install time from that run's paths, so
+it removes what was installed and nothing else. It stops the unit and removes
+the binary, unit, drop-in, config and runtime directory — and deliberately
+leaves Docker, containers, images and volumes alone. Removing the agent must
+not remove the operator's workloads. It removes itself only once it has got
+that far: a run that aborts halfway must not also take away the thing that
+would have finished the job.
+
+## What state the box is in
+
+```sh
+sudo cockpitd status          # for a human
+sudo cockpitd status --json   # for install.sh
+```
+
+`status` is the one answer to "is this box enrolled, is it connected, and what
+should a human do next". It is computed in Go, and `install.sh` reads it rather
+than working it out from the files itself — three rounds of bugs came from the
+shell keeping its own idea of "enrolled" and drifting from the daemon's.
+
+| disposition | meaning |
+|---|---|
+| `not_enrolled` | no credential on disk, and no live claim code on offer |
+| `awaiting_claim` | a published code that is still redeemable |
+| `connected` | enrolled and talking to the plane |
+| `disconnected` | enrolled, not currently reaching it |
+| `unknown` | enrolled, but the daemon is saying nothing |
+
+Whether a published code is still live is one function, asked by both `status`
+and `claim`, so they cannot disagree: an expired code is not `awaiting_claim`.
+
+**The daemon exits rather than run on a credential it could not write.** The
+plane spends the enrolment secret in the same breath as issuing the credential,
+so a daemon that carried on would hold this box's only identity in memory,
+where every subsequent action — restart included — destroys the server. Failing
+immediately leaves a disk to fix and a fresh token to enrol with. That single
+rule removed a state file field, two dispositions, a safety flag, a restart
+guard in `install.sh`, and both criticals from an earlier review.
+
+A re-run whose `--plane` differs from the one an enrolled box holds is refused,
+naming both: a credential is worthless to any other plane, so rewriting the
+field would leave the box unable to reach either.
+
+```sh
+sudo cockpitd claim
+```
+
+renders the block, sharing one formatter with the live daemon, so what an
+operator reads is written in exactly one place and the installer formats none
+of it. The bind rewrites the state file, so a code that is no longer redeemable
+is never shown.
+
+`sudo`, because the daemon publishes into a 0700 runtime directory. Run without
+it, the subcommand falls back to the root path rather than reporting a healthy
+box as not running, and says which way to fix it when it cannot read the file.
+
 
 `make test` runs everything with no network and no Docker (tier 1).
+`make lint` is gofmt, `go vet`, and shellcheck over `install.sh` — which is
+piped into a root shell on other people's boxes and so is linted with
+everything else rather than by hand. `make shellcheck` runs that part alone; it
+prefers a local shellcheck, falls back to `koalaman/shellcheck:stable` under
+Docker, and skips with a message when neither is available, so a lint it could
+not run never fails a build it never checked.
 `make push BOX=lab-nbg1 ARCH=arm64` cross-compiles and copies the binary to the
 scratch box over **your** SSH, which is not cockpit's SSH (ADR-0001).
 
 ## Shape
 
 ```
-cmd/cockpitd          flags, wiring, signals
+install.sh            bootstrap: docker, binary, enrolment, and the only copy
+                      of the systemd unit
+cmd/cockpitd          flags, wiring, signals, the claim and status subcommands
 internal/protocol     frame types, verbatim from docs/type-design.md section 3
 internal/client       dial, handshake, snapshot, serve, reconnect with backoff
 internal/observer     executors -> state snapshot; reports, never mutates
@@ -72,6 +171,7 @@ internal/executor     Docker, Host, Firewall, Systemd, Cron interfaces
   /oscli              host, ufw, systemd and cron over /proc, /etc and the CLIs
   /fake               in-memory executors for tier 1 tests
 internal/config       the plane URL, server id, and credential; nothing about the box
+                      plus the ephemeral runtime state file, which is never mixed into it
 ```
 
 The dial carries `Authorization: Bearer <secret>` — the credential, the
@@ -92,12 +192,12 @@ minutes from generation (wall clock, not per connection), and three consecutive
 failed snapshots end the session, so a box the daemon can no longer observe
 stops looking connected instead of leaving a stale snapshot standing as current.
 
-A credential the plane issues is held in memory and written to disk before
-anything else; if that write fails the session continues on the in-memory
-credential, the secret that produced it is *not* burned, and the write is
-retried at the start of every session. The failure logs at Error, because a
-restart before it lands orphans the box — the plane has already burned the
-enrolment secret.
+A credential the plane issues is written to disk before anything else, and the
+secret that produced it is burned only once that lands. **If the write fails,
+the daemon exits.** It does not continue on an in-memory credential: the plane
+has already spent the enrolment secret, so carrying on would leave this box's
+only identity inside one process, where every subsequent action destroys the
+server. Fix the disk and enrol again with a fresh token.
 
 ## What it observes
 

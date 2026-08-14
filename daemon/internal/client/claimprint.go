@@ -8,8 +8,6 @@ import (
 	"github.com/oflabs44/cockpit/daemon/internal/claim"
 )
 
-// defaultClaimTTL keeps a printed code short-lived without making an operator
-// who walked away re-run anything: they read whatever code is on screen.
 const defaultClaimTTL = 10 * time.Minute
 
 func (c *Client) claimTTL() time.Duration {
@@ -28,15 +26,12 @@ func (c *Client) now() time.Time {
 	return time.Now()
 }
 
-// claimRemaining is what is left of the printed code's life, measured from
-// when it was generated rather than from the start of this session.
+// Measured from when the code was generated, not from the start of this
+// session: a flaky link must not give a plane-expired code a fresh clock.
 func (c *Client) claimRemaining() time.Duration {
 	return c.claimTTL() - c.now().Sub(c.claimIssuedAt)
 }
 
-// expireClaim drops a code that has aged out. rejectClaim drops one the plane
-// answered without binding: either way the next wait generates a fresh one
-// rather than reprinting a code a form would reject.
 func (c *Client) expireClaim() {
 	c.claimCode = ""
 }
@@ -50,8 +45,6 @@ func (c *Client) rejectClaim(reason string) {
 	c.claimCode = ""
 }
 
-// ensureClaimCode returns the code currently on offer, generating one if this
-// is the first wait or the previous code has run out of life.
 func (c *Client) ensureClaimCode() (string, error) {
 	if c.claimCode != "" && c.claimRemaining() > 0 {
 		return c.claimCode, nil
@@ -69,20 +62,17 @@ func (c *Client) ensureClaimCode() (string, error) {
 
 	c.claimCode = code
 	c.claimIssuedAt = c.now()
+	// Not yet in front of the plane: what the last code earned does not carry.
+	c.claimPresented = false
 
 	return code, nil
 }
 
-// printClaim writes the block an operator reads immediately after install.sh
-// finishes. It goes to stdout rather than the log because it is the first
-// thing cockpit ever says to them.
-func (c *Client) printClaim() {
-	w := c.Out
-	if w == nil {
-		w = os.Stdout
-	}
-
-	fmt.Fprintf(w, `
+// The one renderer: the running daemon and `cockpitd claim` both call it, and
+// an operator who saw two different blocks for one code would have to work out
+// which to believe.
+func ClaimBlock(hostname, code, plane string, expiresIn time.Duration) string {
+	return fmt.Sprintf(`
 cockpit
 
   cockpitd is installed and running on %s.
@@ -94,7 +84,18 @@ cockpit
   Redeem the code in your cockpit client to bind this server.
   It expires in %s; a new one is printed here when it does.
 
-`, c.Identity.Hostname, c.claimCode, c.PlaneURL, humanDuration(c.claimRemaining()))
+`, hostname, code, plane, humanDuration(expiresIn))
+}
+
+// Stdout rather than the log: it is the first thing cockpit says to an
+// operator.
+func (c *Client) printClaim(code string) {
+	w := c.Out
+	if w == nil {
+		w = os.Stdout
+	}
+
+	fmt.Fprint(w, ClaimBlock(c.Identity.Hostname, code, c.PlaneURL, c.claimRemaining()))
 }
 
 func humanDuration(d time.Duration) string {

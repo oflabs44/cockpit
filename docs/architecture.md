@@ -222,11 +222,24 @@ curl -fsSL https://get.cockpit.oflabs.dev/install.sh \
 
 It is idempotent and safe to re-run:
 
-1. Detects distro and architecture.
-2. Hardens the host — sshd, users, UFW baseline.
-3. Installs Docker.
-4. Installs the matching `cockpitd` binary and its systemd unit.
-5. Enrols with the token if given one, otherwise prints a claim code.
+1. Detects distro and architecture, checks disk and reachability, and refuses anything
+   unsupported before it touches the box.
+2. Installs Docker, at a minimum version, enabled at boot.
+3. Installs the matching `cockpitd` binary and its systemd unit.
+4. Records the plane URL and starts the daemon.
+5. Enrols with the token if given one, otherwise presents a claim code.
+
+It configures nothing inside Docker and holds no recovery machinery: anything that might
+fail, fails hard, naming the cause and the fix (ADR-0011).
+
+**It does not harden the host.** sshd, users, and the UFW baseline moved out to a later
+operation the operator opts into from a client (ADR-0011). A step that can remove the
+operator's only way back into the box does not belong in a one-liner piped to a root shell,
+and a baseline applied by bash is state cockpit cannot see or reconcile.
+
+A re-run on a box that already holds a credential upgrades the binary and unit, restarting
+the daemon only when something changed. It does not re-enrol, and a token handed to an
+already-enrolled box is ignored rather than rebinding it.
 
 **Why it is static, and not served by the plane.** The enrolment token is a command-line
 *argument*, never templated into the file — so every server fetches byte-identical bytes,
@@ -317,7 +330,7 @@ No SSH, and no client on the critical path (ADR-0001). Two directions, same endp
                                    + a copy-paste one-liner
   2. operator, on the box:         curl -fsSL <get>/install.sh
                                      | sh -s -- --plane <url> --token <tok>
-                                   → harden, install Docker, install cockpitd
+                                   → install Docker, install cockpitd
   3. daemon dials plane, presents the token
                                    → exchanged for a long-lived per-server
                                      credential; the enrolment token is burned
@@ -328,7 +341,8 @@ No SSH, and no client on the critical path (ADR-0001). Two directions, same endp
 
 ```
   1. operator, on the box:  curl -fsSL <get>/install.sh | sh -s -- --plane <url>
-                            → daemon starts unbound, prints a short claim code
+                            → daemon starts unbound; the installer presents the
+                              short claim code the daemon published
   2. daemon dials plane and waits, identified only by that code
   3. operator, in UI or over MCP:  redeem the code
                             → creates or binds the Server, issues the credential
