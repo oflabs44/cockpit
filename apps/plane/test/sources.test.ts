@@ -27,6 +27,19 @@ function nextInstallationId(): number {
   return installationCounter++;
 }
 
+// wrangler.jsonc carries the real GITHUB_APP_* vars, and cloudflare:test's `env` inherits
+// them. A test about an unconfigured plane must clear them rather than rely on their
+// absence, or it passes for the wrong reason the moment deployment config changes.
+function withoutGithubConfig(overrides: Record<string, string> = {}): typeof env {
+  return {
+    ...env,
+    GITHUB_APP_ID: undefined,
+    GITHUB_APP_SLUG: undefined,
+    GITHUB_APP_PRIVATE_KEY: undefined,
+    ...overrides,
+  } as unknown as typeof env;
+}
+
 async function callback(
   app: ReturnType<typeof authedApp>,
   query: string,
@@ -34,7 +47,7 @@ async function callback(
 ) {
   return app.fetch(
     authedRequest(`http://plane.test/source-connections/github/callback?${query}`),
-    { ...env, ...overrides },
+    withoutGithubConfig(overrides),
   );
 }
 
@@ -48,7 +61,7 @@ describe("sources: github connect", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
       }),
-      env,
+      withoutGithubConfig(),
     );
     expect(res.status).toBe(500);
 
@@ -77,7 +90,7 @@ describe("sources: github connect", () => {
 
     const body = (await res.json()) as { url: string; state: string };
     expect(body.url).toBe(
-      `https://github.com/apps/cockpit-test-app/installations/new?state=${body.state}`,
+      `https://github.com/apps/cockpit-test-app/installations/select_target?state=${body.state}`,
     );
   });
 
@@ -90,7 +103,7 @@ describe("sources: github connect", () => {
         method: "POST",
         headers: { "content-type": "application/json" },
       }),
-      { ...env, GITHUB_APP_SLUG: "cockpit-test-app" },
+      withoutGithubConfig({ GITHUB_APP_SLUG: "cockpit-test-app" }),
     );
     expect(res.status).toBe(500);
 

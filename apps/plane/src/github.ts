@@ -51,7 +51,9 @@ export class GitHubConfigError extends Error {
 export function installUrl(env: GitHubEnv, state: string): string {
   if (githubConfigState(env) !== "configured") throw new GitHubConfigError(env);
 
-  return `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/new?state=${encodeURIComponent(state)}`;
+  // select_target, not the more obvious installations/new: GitHub drops the state parameter
+  // when redirecting to the setup URL from installations/new, and preserves it from this one.
+  return `https://github.com/apps/${env.GITHUB_APP_SLUG}/installations/select_target?state=${encodeURIComponent(state)}`;
 }
 
 /**
