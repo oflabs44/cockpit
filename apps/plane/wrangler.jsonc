@@ -51,7 +51,7 @@
     {
       "binding": "DB",
       "database_name": "cockpit-plane",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "dc663391-eaf6-4a74-b2f3-54d4b34dd5a3",
       "migrations_dir": "drizzle"
     }
   ],
