@@ -45,6 +45,16 @@ import {
 } from "./routes/resource-deployments-create";
 import { getDeploymentRoute, getDeploymentHandler } from "./routes/deployments-detail";
 import { getOperationRoute, getOperationHandler } from "./routes/operations-detail";
+import { listSourcesRoute, listSourcesHandler } from "./routes/sources-list";
+import { getSourceRoute, getSourceHandler } from "./routes/sources-detail";
+import {
+  connectGithubSourceRoute,
+  connectGithubSourceHandler,
+} from "./routes/sources-github-connect";
+import {
+  githubSourceCallbackRoute,
+  githubSourceCallbackHandler,
+} from "./routes/sources-github-callback";
 import { daemonWsHandler } from "./routes/daemon-ws";
 import type { ServerDO } from "./durable-objects/server-do";
 
@@ -59,6 +69,13 @@ export interface Bindings {
   DB: D1Database;
   SERVER_DO: DurableObjectNamespace<ServerDO>;
   ASSETS: Fetcher;
+  // GitHub App config (ADR-0010). Optional at the type level because local dev/tests may
+  // omit them, but the Sources connect/callback flow refuses to run unless all three are
+  // present. GITHUB_APP_ID and GITHUB_APP_SLUG are vars; GITHUB_APP_PRIVATE_KEY (PKCS#8
+  // PEM) is a secret set via `wrangler secret put`.
+  GITHUB_APP_ID?: string;
+  GITHUB_APP_SLUG?: string;
+  GITHUB_APP_PRIVATE_KEY?: string;
 }
 export type AppEnv = { Bindings: Bindings; Variables: Variables };
 
@@ -134,6 +151,10 @@ export function createApp(deps: Deps = realDeps) {
   app.openapi(createResourceDeploymentRoute, createResourceDeploymentHandler);
   app.openapi(getDeploymentRoute, getDeploymentHandler);
   app.openapi(getOperationRoute, getOperationHandler);
+  app.openapi(listSourcesRoute, listSourcesHandler);
+  app.openapi(getSourceRoute, getSourceHandler);
+  app.openapi(connectGithubSourceRoute, connectGithubSourceHandler);
+  app.openapi(githubSourceCallbackRoute, githubSourceCallbackHandler);
   app.get("/daemon", daemonWsHandler);
 
   // `run_worker_first: ["/*", ...]` (apps/plane/wrangler.jsonc) routes every request through

@@ -344,5 +344,37 @@ export const EventSchema = z.object({
 
 export type Event = z.infer<typeof EventSchema>;
 
+// ADR-0010 — a Source is a mirrored GitHub App installation, not daemon configuration.
+export const SourceProviderSchema = z.enum(["github"]);
+
+export const RepositorySelectionSchema = z.enum(["all", "selected"]);
+
+// Field names match apps/web/src/api/sources.ts, the web's hand-written subset of this
+// contract — `github_login` / `github_installation_id` are prefixed there so a future
+// provider's fields don't collide.
+export const SourceSchema = z.object({
+  id: z.string(),
+  provider: SourceProviderSchema,
+  name: z.string(), // display name; defaults to the login at connect time
+  github_login: z.string(),
+  github_installation_id: z.number().int().positive(),
+  account_id: z.number().int().nullable(),
+  repository_selection: RepositorySelectionSchema,
+  permissions: z.record(z.string(), z.string()),
+  events: z.array(z.string()),
+  created_at: z.number(),
+  updated_at: z.number(),
+});
+
+export type Source = z.infer<typeof SourceSchema>;
+
+export const SourceListResponse = z.object({ sources: z.array(SourceSchema) });
+
+export const ConnectGitHubResponse = z.object({
+  // Where the operator's browser goes to install the configured GitHub App.
+  url: z.string(),
+  state: z.string(), // echoed through GitHub's redirect; opaque
+});
+
 export const ResourceListResponse = z.object({ resources: z.array(ResourceSchema) });
 export const ErrorResponse = z.object({ error: z.string() });

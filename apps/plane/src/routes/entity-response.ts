@@ -3,8 +3,9 @@ import {
   OperationSchema,
   ProjectSchema,
   ResourceSchema,
+  SourceSchema,
 } from "../schema";
-import type { deployments, operations, projects, resources } from "../db";
+import type { deployments, operations, projects, resources, sources } from "../db";
 
 export function projectResponse(row: typeof projects.$inferSelect) {
 
@@ -34,6 +35,23 @@ export function resourceResponse(row: typeof resources.$inferSelect) {
     observed: row.observed,
     observed_rev: row.observedRev,
     observed_at: row.observedAt,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+  });
+}
+
+export function sourceResponse(row: typeof sources.$inferSelect) {
+
+  return SourceSchema.parse({
+    id: row.id,
+    provider: row.provider,
+    name: row.name,
+    github_login: row.login,
+    github_installation_id: row.installationId,
+    account_id: row.accountId,
+    repository_selection: row.repositorySelection,
+    permissions: row.permissions,
+    events: row.events,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   });

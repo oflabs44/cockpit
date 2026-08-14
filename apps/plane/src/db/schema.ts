@@ -228,6 +228,38 @@ export const releases = sqliteTable(
   ],
 );
 
+// ADR-0010 — one row per GitHub App installation, mirrored from GitHub's record and
+// updated in place on re-delivery (unique on provider + installation_id). Account-scoped
+// (ADR-0007): no server_id column at all. Deliberately no token column: installation
+// access tokens are short-lived and minted on demand, never persisted.
+export const sources = sqliteTable(
+  "sources",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider").notNull().default("github"),
+    name: text("name").notNull(), // display name; defaults to the login at connect time
+    login: text("login").notNull(), // GitHub account/org login the app is installed on
+    installationId: integer("installation_id").notNull(),
+    accountId: integer("account_id"), // GitHub's numeric account id; nullable if GitHub omits it
+    repositorySelection: text("repository_selection").notNull().default("all"),
+    permissions: text("permissions", { mode: "json" })
+      .$type<Record<string, string>>()
+      .notNull(),
+    events: text("events", { mode: "json" }).$type<string[]>().notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_sources_provider_installation").on(table.provider, table.installationId),
+    index("idx_sources_name").on(table.name),
+    check("sources_provider", sql`${table.provider} IN ('github')`),
+    check(
+      "sources_repository_selection",
+      sql`${table.repositorySelection} IN ('all', 'selected')`,
+    ),
+  ],
+);
+
 export const events = sqliteTable(
   "events",
   {

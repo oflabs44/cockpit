@@ -6,7 +6,7 @@ import {
   ServerStack01Icon,
   Activity01Icon,
   GlobeIcon,
-  Package01Icon,
+  GitBranchIcon,
   DatabaseIcon,
   Settings01Icon,
   SidebarLeftIcon,
@@ -115,7 +115,7 @@ function AppShell() {
               spine above but out of Settings — domains are operational, touched on most
               deploys, and burying routing in configuration would misrepresent that. */}
           <NavLink to="/domains" activeProps={activeProps} icon={GlobeIcon} label="Domains" />
-          <NavLink to="/sources" activeProps={activeProps} icon={Package01Icon} label="Sources" />
+          <NavLink to="/sources" activeProps={activeProps} icon={GitBranchIcon} label="Sources" />
           <NavLink to="/secrets" activeProps={activeProps} icon={DatabaseIcon} label="Secrets" />
 
           <NavSep />

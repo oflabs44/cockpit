@@ -18,6 +18,7 @@ const API_PATHS = [
   '/operations',
   '/hooks',
   '/enrolments',
+  '/source-connections',
   '/daemon',
   '/doc',
   '/health',
