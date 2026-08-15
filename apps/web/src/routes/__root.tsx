@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Outlet, createRootRouteWithContext } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
+import { ToastProvider } from '#/components/toast'
 
 import '../styles.css'
 
@@ -38,13 +39,13 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootComponent() {
   return (
-    <>
+    <ToastProvider>
       <Outlet />
       {Devtools ? (
         <Suspense fallback={null}>
           <Devtools />
         </Suspense>
       ) : null}
-    </>
+    </ToastProvider>
   )
 }

@@ -905,3 +905,159 @@ button.card:hover {
     border-left: 0;
   }
 }
+
+/* ---------------------------- toast ---------------------------- */
+/* Base UI's Toast (src/components/toast.tsx). The stacking maths — index, offset, swipe
+   movement — is theirs, taken from the component's own CSS example; everything visual is
+   ours: a Notice on a floating surface (docs/design.md §5.2). Severity tints exactly two
+   things, the rule and the tag; the message itself is plain ink, and there is no coloured
+   background anywhere. Notice is not built as a component yet, so this is the smallest
+   version of the treatment §5.2 describes rather than a reuse of it. */
+.toast-viewport {
+  position: fixed;
+  z-index: 60;
+  right: calc(var(--spacing) * 6);
+  bottom: calc(var(--spacing) * 6);
+  left: auto;
+  top: auto;
+  width: min(calc(100vw - var(--spacing) * 8), 380px);
+}
+
+.toast {
+  --gap: calc(var(--spacing) * 3);
+  --peek: calc(var(--spacing) * 3);
+  --scale: calc(max(0, 1 - (var(--toast-index) * 0.1)));
+  --shrink: calc(1 - var(--scale));
+  --height: var(--toast-frontmost-height, var(--toast-height));
+  --offset-y: calc(
+    var(--toast-offset-y) * -1 + (var(--toast-index) * var(--gap) * -1) +
+      var(--toast-swipe-movement-y)
+  );
+
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--height);
+  z-index: calc(1000 - var(--toast-index));
+  background: var(--color-sheet);
+  border: 1px solid var(--color-ink-20);
+  color: inherit;
+  font-family: var(--font-sans);
+  transform-origin: bottom center;
+  /* Kept from Base UI's example so a swipe-to-dismiss drag does not select text; the
+     message itself opts back in below. */
+  user-select: none;
+  transform: translateX(var(--toast-swipe-movement-x))
+    translateY(
+      calc(
+        var(--toast-swipe-movement-y) - (var(--toast-index) * var(--peek)) -
+          (var(--shrink) * var(--height))
+      )
+    )
+    scale(var(--scale));
+  transition:
+    transform 0.5s var(--ease),
+    opacity 0.5s var(--ease),
+    height 0.15s var(--ease);
+}
+
+/* The gap between stacked toasts is hoverable, so moving between them does not collapse
+   the stack. */
+.toast::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: calc(var(--gap) + 1px);
+}
+
+.toast[data-expanded] {
+  height: var(--toast-height);
+  transform: translateX(var(--toast-swipe-movement-x)) translateY(var(--offset-y));
+}
+
+.toast[data-starting-style],
+.toast[data-ending-style] {
+  transform: translateY(150%);
+}
+
+.toast[data-limited] {
+  opacity: 0;
+}
+
+.toast[data-ending-style] {
+  opacity: 0;
+}
+
+.toast[data-ending-style][data-swipe-direction='down'] {
+  transform: translateY(calc(var(--toast-swipe-movement-y) + 150%));
+}
+.toast[data-ending-style][data-swipe-direction='up'] {
+  transform: translateY(calc(var(--toast-swipe-movement-y) - 150%));
+}
+.toast[data-ending-style][data-swipe-direction='left'] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) - 150%)) translateY(var(--offset-y));
+}
+.toast[data-ending-style][data-swipe-direction='right'] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) + 150%)) translateY(var(--offset-y));
+}
+
+.toast-content {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  height: 100%;
+  padding: calc(var(--spacing) * 4);
+  overflow: hidden;
+  transition: opacity 0.25s var(--ease);
+}
+/* Only the frontmost toast's text is legible while the stack is collapsed. */
+.toast-content[data-behind] {
+  opacity: 0;
+}
+.toast-content[data-expanded] {
+  opacity: 1;
+}
+
+/* The rule. A neutral notice would take no colour here. */
+.toast[data-type='success'] {
+  border-top: 2px solid var(--color-accent);
+}
+.toast[data-type='error'] {
+  border-top: 2px solid var(--color-danger);
+}
+
+/* The tag: the machine's classification, in the mono gutter beside the sentence. */
+.toast-tag {
+  flex: none;
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.6;
+}
+.toast[data-type='success'] .toast-tag {
+  color: var(--color-accent);
+}
+.toast[data-type='error'] .toast-tag {
+  color: var(--color-danger);
+}
+
+.toast-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  /* Selectable: the next move after a failure is pasting the message somewhere
+     (docs/design.md §5.2), and the paragraphs this replaced could be copied. */
+  user-select: text;
+}
+
+.toast-content .btn {
+  flex: none;
+}

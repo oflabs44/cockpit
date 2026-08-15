@@ -1,18 +1,8 @@
 import { useState } from 'react'
 import { createFileRoute, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
-import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-  type UseMutationResult,
-} from '@tanstack/react-query'
-import {
-  connectGithub,
-  disconnectSource,
-  sourcesQueryOptions,
-  type DisconnectSourceResponse,
-  type Source,
-} from '#/api/sources'
+import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import { connectGithub, disconnectSource, sourcesQueryOptions, type Source } from '#/api/sources'
+import { toast } from '#/components/toast'
 import { formatAgo } from '#/lib/format'
 
 // The plane's GitHub callback redirects the browser back here carrying the outcome:
@@ -121,15 +111,13 @@ function CallbackNotice({ search, sources }: { search: SourcesSearch; sources: S
 function SourcesScreen() {
   const { data, error } = useSuspenseQuery(sourcesQueryOptions)
   const search = Route.useSearch()
-  const queryClient = useQueryClient()
-
-  const disconnect = useMutation({
-    mutationFn: disconnectSource,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: sourcesQueryOptions.queryKey }),
-  })
 
   const connect = useMutation({
     mutationFn: connectGithub,
+    // One id: clicking Connect against a plane that is down updates this toast rather
+    // than stacking a new permanent one each time.
+    onError: (err) =>
+      toast.error('sources-connect', `Couldn't start the GitHub connection (${err.message}).`),
     onSuccess: ({ url }) => {
       // The rest of the flow happens off-app: GitHub's install page finishes and returns
       // via the plane's callback. Full navigation, not a popup — the page is abandoned
@@ -170,15 +158,10 @@ function SourcesScreen() {
           revoke the installation from GitHub at any time.
         </p>
         <div className="empty-actions">{connectButton('primary-lg')}</div>
-        {!connect.isError && search.error && (
+        {search.error && (
           <div style={{ marginTop: 'calc(var(--spacing) * 4)' }}>
             <CallbackNotice search={search} sources={data} />
           </div>
-        )}
-        {connect.isError && (
-          <p className="form-error" role="alert" style={{ marginTop: 'calc(var(--spacing) * 4)' }}>
-            Couldn&rsquo;t start the GitHub connection ({connect.error.message}).
-          </p>
         )}
       </div>
     )
@@ -200,26 +183,9 @@ function SourcesScreen() {
         <span className="spacer" />
         {connectButton('secondary-sm')}
       </div>
-      {connect.isError && (
-        <p className="form-error" role="alert" style={{ marginBottom: 'calc(var(--spacing) * 4)' }}>
-          Couldn&rsquo;t start the GitHub connection ({connect.error.message}).
-        </p>
-      )}
-      {disconnect.isSuccess && (
-        <p className="form-success" role="status" style={{ marginBottom: 'calc(var(--spacing) * 4)' }}>
-          Disconnected.
-          {!disconnect.data.revoked_on_github &&
-            ' GitHub had no such installation for this App — it was already uninstalled, or it belongs to a different GitHub App than this plane is configured with.'}
-        </p>
-      )}
-      {disconnect.isError && (
-        <p className="form-error" role="alert" style={{ marginBottom: 'calc(var(--spacing) * 4)' }}>
-          {disconnect.error.message}
-        </p>
-      )}
       <div className="servers-grid">
         {data.map((source) => (
-          <SourceCard key={source.id} source={source} disconnect={disconnect} />
+          <SourceCard key={source.id} source={source} />
         ))}
       </div>
 
@@ -227,13 +193,7 @@ function SourcesScreen() {
   )
 }
 
-type DisconnectMutation = UseMutationResult<
-  DisconnectSourceResponse,
-  Error,
-  { id: string; confirm: string }
->
-
-function SourceCard({ source, disconnect }: { source: Source; disconnect: DisconnectMutation }) {
+function SourceCard({ source }: { source: Source }) {
   const permissions = Object.entries(source.permissions)
   // GitHub renders the same string twice for a personal account, where the display name
   // defaults to the login at connect time.
@@ -293,19 +253,28 @@ function SourceCard({ source, disconnect }: { source: Source; disconnect: Discon
         </div>
       </div>
 
-      <SourceCardFoot source={source} disconnect={disconnect} />
+      <SourceCardFoot source={source} />
     </div>
   )
 }
 
-function SourceCardFoot({
-  source,
-  disconnect,
-}: {
-  source: Source
-  disconnect: DisconnectMutation
-}) {
+function SourceCardFoot({ source }: { source: Source }) {
   const [confirming, setConfirming] = useState(false)
+  const queryClient = useQueryClient()
+
+  const disconnect = useMutation({
+    mutationFn: disconnectSource,
+    onSuccess: (result) => {
+      // The card unmounts on the refetch below, so the outcome has to outlive it.
+      toast.success(
+        result.revoked_on_github
+          ? `Disconnected @${source.github_login}.`
+          : `Disconnected @${source.github_login}. GitHub had no such installation for this App — already uninstalled, or belonging to a different App than this plane is configured with.`,
+      )
+      return queryClient.invalidateQueries({ queryKey: sourcesQueryOptions.queryKey })
+    },
+    onError: (err) => toast.error(`sources-disconnect-${source.id}`, err.message),
+  })
 
   if (confirming) {
     return (
