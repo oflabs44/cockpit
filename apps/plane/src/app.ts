@@ -55,6 +55,7 @@ import {
   githubSourceCallbackRoute,
   githubSourceCallbackHandler,
 } from "./routes/sources-github-callback";
+import { disconnectSourceRoute, disconnectSourceHandler } from "./routes/sources-disconnect";
 import { daemonWsHandler } from "./routes/daemon-ws";
 import { accessAuth } from "./access";
 import type { AccessOptions, Identity } from "./access";
@@ -170,6 +171,7 @@ export function createApp(deps: Deps = realDeps, access: AccessOptions = {}) {
   app.openapi(getSourceRoute, getSourceHandler);
   app.openapi(connectGithubSourceRoute, connectGithubSourceHandler);
   app.openapi(githubSourceCallbackRoute, githubSourceCallbackHandler);
+  app.openapi(disconnectSourceRoute, disconnectSourceHandler);
   app.get("/daemon", daemonWsHandler);
 
   // `run_worker_first: ["/*", ...]` (apps/plane/wrangler.jsonc) routes every request through

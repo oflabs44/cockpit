@@ -358,6 +358,10 @@ export const SourceSchema = z.object({
   name: z.string(), // display name; defaults to the login at connect time
   github_login: z.string(),
   github_installation_id: z.number().int().positive(),
+  // The App this installation belongs to. Every source is an installation of this plane's
+  // one App, so it belongs on the row rather than behind a second request; null when the
+  // plane has no GITHUB_APP_SLUG configured, and clients hide the link rather than guess.
+  github_app_slug: z.string().nullable(),
   account_id: z.number().int().nullable(),
   repository_selection: RepositorySelectionSchema,
   permissions: z.record(z.string(), z.string()),
@@ -369,6 +373,25 @@ export const SourceSchema = z.object({
 export type Source = z.infer<typeof SourceSchema>;
 
 export const SourceListResponse = z.object({ sources: z.array(SourceSchema) });
+
+// ADR-0009: destructive actions confirm at request time. The confirmation is the account
+// login the operator can see on the card, not a boolean — a flag is something a client can
+// set by accident, and this revokes cockpit's access to their repositories.
+export const DisconnectSourceBody = z.object({
+  confirm: z.string().min(1).openapi({
+    description:
+      "The connection's github_login, typed back to confirm the disconnect (case-insensitive)",
+  }),
+});
+
+export const DisconnectSourceResponse = z.object({
+  id: z.string(),
+  revoked_on_github: z.boolean().openapi({
+    description:
+      "False when GitHub had no such installation for this App: already uninstalled, or " +
+      "belonging to a different App than this plane is configured with. Removed either way",
+  }),
+});
 
 export const ConnectGitHubResponse = z.object({
   // Where the operator's browser goes to install the configured GitHub App.

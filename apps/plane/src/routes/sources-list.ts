@@ -19,5 +19,5 @@ export const listSourcesRoute = createRoute({
 export const listSourcesHandler: AppRouteHandler<typeof listSourcesRoute> = async (c) => {
   const rows = await db(c.env.DB).select().from(sources).orderBy(asc(sources.createdAt)).all();
 
-  return c.json({ sources: rows.map(sourceResponse) });
+  return c.json({ sources: rows.map((row) => sourceResponse(row, c.env.GITHUB_APP_SLUG ?? null)) });
 };

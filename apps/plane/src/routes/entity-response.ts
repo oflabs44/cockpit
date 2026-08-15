@@ -40,10 +40,11 @@ export function resourceResponse(row: typeof resources.$inferSelect) {
   });
 }
 
-export function sourceResponse(row: typeof sources.$inferSelect) {
+export function sourceResponse(row: typeof sources.$inferSelect, appSlug: string | null = null) {
 
   return SourceSchema.parse({
     id: row.id,
+    github_app_slug: appSlug,
     provider: row.provider,
     name: row.name,
     github_login: row.login,

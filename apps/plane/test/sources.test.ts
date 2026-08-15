@@ -1,5 +1,6 @@
 import { env } from "cloudflare:test";
 import { and, eq } from "drizzle-orm";
+import { exportPKCS8, generateKeyPair } from "jose";
 import { describe, expect, it } from "vitest";
 import { authedApp, authedRequest } from "./access";
 import { db, sources } from "../src/db";
@@ -240,5 +241,260 @@ describe("sources: list and detail", () => {
       env,
     );
     expect(res.status).toBe(404);
+  });
+});
+
+// --- disconnect ------------------------------------------------------------------------
+// The GitHub call is the point of these tests, so `fetch` is replaced for the duration
+// rather than the whole route being stubbed: the app JWT is really signed (against a key
+// generated here) and really presented, and only api.github.com's answer is ours.
+
+const { privateKey: appKey } = await generateKeyPair("RS256", { extractable: true });
+const APP_PRIVATE_KEY_PEM = await exportPKCS8(appKey);
+
+function withGithubConfig(overrides: Record<string, string> = {}): typeof env {
+  return {
+    ...env,
+    GITHUB_APP_ID: "12345",
+    GITHUB_APP_SLUG: "cockpit-test-app",
+    GITHUB_APP_PRIVATE_KEY: APP_PRIVATE_KEY_PEM,
+    ...overrides,
+  } as unknown as typeof env;
+}
+
+type GithubCall = { url: string; method: string; authorization: string | null };
+
+async function withGithubApi<T>(
+  reply: (call: GithubCall) => Response,
+  run: (calls: GithubCall[]) => Promise<T> | T,
+): Promise<T> {
+  const calls: GithubCall[] = [];
+  const original = globalThis.fetch;
+
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input as RequestInfo, init);
+    const call = {
+      url: request.url,
+      method: request.method,
+      authorization: request.headers.get("authorization"),
+    };
+    calls.push(call);
+
+    return reply(call);
+  }) as typeof fetch;
+
+  try {
+    return await run(calls);
+  } finally {
+    globalThis.fetch = original;
+  }
+}
+
+async function connectedSource(login = `disconnect-${installationCounter}`) {
+  const deps = testDeps();
+  const id = deps.ids.id("src");
+  const installationId = nextInstallationId();
+
+  await db(env.DB).insert(sources).values({
+    id,
+    provider: "github",
+    name: login,
+    login,
+    installationId,
+    accountId: null,
+    repositorySelection: "all",
+    permissions: { contents: "read", metadata: "read" },
+    events: [],
+    createdAt: deps.clock.now(),
+    updatedAt: deps.clock.now(),
+  });
+
+  return { id, login, installationId };
+}
+
+function disconnect(
+  app: ReturnType<typeof authedApp>,
+  id: string,
+  confirm: string,
+  bindings: typeof env,
+) {
+  return app.fetch(
+    authedRequest(`http://plane.test/source-connections/${id}`, {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ confirm }),
+    }),
+    bindings,
+  );
+}
+
+async function sourceRow(id: string) {
+  return db(env.DB).select().from(sources).where(eq(sources.id, id)).get();
+}
+
+describe("sources: disconnect", () => {
+  it("revokes on GitHub, then removes the connection", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      () => new Response(null, { status: 204 }),
+      async (calls) => {
+        const response = await disconnect(app, source.id, source.login, withGithubConfig());
+
+        expect(calls).toHaveLength(1);
+        expect(calls[0]?.method).toBe("DELETE");
+        expect(calls[0]?.url).toBe(
+          `https://api.github.com/app/installations/${source.installationId}`,
+        );
+        // As the app, not as an installation: a bearer JWT this plane signed.
+        expect(calls[0]?.authorization).toMatch(/^Bearer eyJ/);
+
+        return response;
+      },
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: source.id, revoked_on_github: true });
+    expect(await sourceRow(source.id)).toBeUndefined();
+  });
+
+  it("treats a 404 from GitHub as already uninstalled and still removes the row", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      () => new Response(JSON.stringify({ message: "Not Found" }), { status: 404 }),
+      () => disconnect(app, source.id, source.login, withGithubConfig()),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ id: source.id, revoked_on_github: false });
+    expect(await sourceRow(source.id)).toBeUndefined();
+  });
+
+  it("leaves the connection alone when GitHub fails for any other reason", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      () => new Response(JSON.stringify({ message: "Bad credentials" }), { status: 401 }),
+      () => disconnect(app, source.id, source.login, withGithubConfig()),
+    );
+
+    // Half-disconnected is the state that cannot be recovered from the UI.
+    expect(res.status).toBe(502);
+    expect(await sourceRow(source.id)).toBeDefined();
+  });
+
+  it("refuses without the confirmation, and never calls GitHub", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const wrong = await withGithubApi(
+      () => new Response(null, { status: 204 }),
+      async (calls) => {
+        const response = await disconnect(app, source.id, "not-the-login", withGithubConfig());
+        expect(calls).toHaveLength(0);
+
+        return response;
+      },
+    );
+
+    expect(wrong.status).toBe(400);
+    expect(await sourceRow(source.id)).toBeDefined();
+
+    const missing = await app.fetch(
+      authedRequest(`http://plane.test/source-connections/${source.id}`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      withGithubConfig(),
+    );
+    expect(missing.status).toBe(400);
+    expect(await sourceRow(source.id)).toBeDefined();
+  });
+
+  it("blames the plane, not GitHub, when the app key cannot be used", async () => {
+    // GitHub hands out PKCS#1 and WebCrypto wants PKCS#8, so this is the easy mistake —
+    // and it throws before any request leaves the Worker. Reporting it as "GitHub refused"
+    // sends the operator to retry against a fault on this side.
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      () => new Response(null, { status: 204 }),
+      async (calls) => {
+        const response = await disconnect(
+          app,
+          source.id,
+          source.login,
+          withGithubConfig({
+            GITHUB_APP_PRIVATE_KEY:
+              "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX\n-----END RSA PRIVATE KEY-----",
+          }),
+        );
+
+        expect(calls).toHaveLength(0);
+
+        return response;
+      },
+    );
+
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { error: string }).error).toContain("GITHUB_APP_PRIVATE_KEY");
+    expect(await sourceRow(source.id)).toBeDefined();
+  });
+
+  it("fails loudly on an unconfigured plane, like the other GitHub routes", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await disconnect(app, source.id, source.login, withoutGithubConfig());
+
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { error: string }).error).toContain("not configured");
+    expect(await sourceRow(source.id)).toBeDefined();
+  });
+
+  it("accepts the confirmation in any case, since GitHub logins are case-insensitive", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      () => new Response(null, { status: 204 }),
+      () => disconnect(app, source.id, source.login.toUpperCase(), withGithubConfig()),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await sourceRow(source.id)).toBeUndefined();
+  });
+
+  it("404s for a source that does not exist", async () => {
+    const res = await disconnect(
+      authedApp(testDeps()),
+      "src_missing",
+      "anything",
+      withGithubConfig(),
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it("requires authentication, like every operator route", async () => {
+    const source = await connectedSource();
+
+    const res = await authedApp().fetch(
+      new Request(`http://plane.test/source-connections/${source.id}`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirm: source.login }),
+      }),
+      withGithubConfig(),
+    );
+
+    expect(res.status).toBe(401);
+    expect(await sourceRow(source.id)).toBeDefined();
   });
 });

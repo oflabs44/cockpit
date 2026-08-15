@@ -14,6 +14,10 @@ export type Source = {
   name: string
   github_login: string
   github_installation_id: number
+  // The slug of the GitHub App this installation belongs to, so the card can link to the
+  // App's own settings without the web app knowing the plane's App by name. Null when the
+  // plane has no GITHUB_APP_SLUG configured.
+  github_app_slug: string | null
   // GitHub permission name -> access level, e.g. { contents: 'read', metadata: 'read' }.
   permissions: Record<string, string>
   // Webhook events the installation subscribes to, e.g. ['push'].
@@ -75,4 +79,36 @@ export async function connectGithub(): Promise<ConnectGithubResponse> {
   }
 
   return body as ConnectGithubResponse
+}
+
+// Revoking the installation on GitHub is the first thing the plane does, so a success here
+// means cockpit and GitHub agree. `confirm` is the connection's github_login: the plane
+// refuses a disconnect that does not carry it (ADR-0009, confirmation at request time).
+export type DisconnectSourceResponse = { id: string; revoked_on_github: boolean }
+
+export async function disconnectSource(input: {
+  id: string
+  confirm: string
+}): Promise<DisconnectSourceResponse> {
+  const res = await fetch(`/source-connections/${input.id}`, {
+    method: 'DELETE',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ confirm: input.confirm }),
+  })
+
+  // Already gone (another tab, a stale list) is the end state the caller asked for.
+  if (res.status === 404) return { id: input.id, revoked_on_github: false }
+
+  if (!res.ok) {
+    const detail = await errorDetail(res)
+
+    // The plane leaves the connection alone when GitHub refuses, so the operator can retry.
+    if (res.status === 502) {
+      throw new Error(`GitHub wouldn't revoke the installation, so nothing changed${detail}`)
+    }
+
+    throw new Error(`DELETE /source-connections/${input.id} failed: ${res.status}${detail}`)
+  }
+
+  return (await res.json()) as DisconnectSourceResponse
 }

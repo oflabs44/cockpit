@@ -5,6 +5,11 @@
 // Worker secret, the app JWT lives for one request, and installation access tokens are a
 // later slice (minted on demand at deploy time, never stored).
 
+// A 404 from api.github.com/app/installations/{id} means *this* App has no such
+// installation, and the two causes are indistinguishable from here: it was uninstalled on
+// github.com, or it belongs to a different App than GITHUB_APP_ID identifies. The lookup
+// treats that as fatal (nothing to record); the delete removes the row anyway and reports
+// it, because refusing would strand a row whose installation really is gone.
 export interface GitHubEnv {
   GITHUB_APP_ID?: string;
   GITHUB_APP_SLUG?: string;
@@ -77,7 +82,7 @@ export async function fetchInstallationFacts(
     },
   });
   if (!res.ok) {
-    // 404 here means "not an installation of *this* app" — a forged or stale callback.
+    // 404: see the note above GitHubEnv.
     throw new GitHubApiError(res.status, `github installation lookup failed: ${res.status}`);
   }
 
@@ -94,6 +99,37 @@ export async function fetchInstallationFacts(
     permissions: data.permissions ?? {},
     events: data.events ?? [],
   };
+}
+
+/**
+ * Revoke the installation on GitHub — the app stops having access to the account's
+ * repositories. Authenticated as the app, like the lookup above. `not-found` is not read as
+ * "definitely uninstalled": see the note above GitHubEnv.
+ */
+export async function deleteInstallation(
+  env: GitHubEnv,
+  installationId: number,
+  nowMs: number,
+): Promise<"revoked" | "not-found"> {
+  if (githubConfigState(env) !== "configured") throw new GitHubConfigError(env);
+
+  const jwt = await appJwt(env.GITHUB_APP_ID!, env.GITHUB_APP_PRIVATE_KEY!, nowMs);
+  const res = await fetch(`https://api.github.com/app/installations/${installationId}`, {
+    method: "DELETE",
+    headers: {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${jwt}`,
+      "user-agent": "cockpit-plane",
+      "x-github-api-version": "2022-11-28",
+    },
+  });
+
+  if (res.status === 404) return "not-found";
+  if (!res.ok) {
+    throw new GitHubApiError(res.status, `github installation delete failed: ${res.status}`);
+  }
+
+  return "revoked";
 }
 
 export class GitHubApiError extends Error {

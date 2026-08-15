@@ -23,5 +23,5 @@ export const getSourceHandler: AppRouteHandler<typeof getSourceRoute> = async (c
   const row = await db(c.env.DB).select().from(sources).where(eq(sources.id, id)).get();
   if (!row) return c.body(null, 404);
 
-  return c.json({ source: sourceResponse(row) });
+  return c.json({ source: sourceResponse(row, c.env.GITHUB_APP_SLUG ?? null) });
 };
