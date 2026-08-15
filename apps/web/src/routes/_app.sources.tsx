@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createFileRoute, useRouter, type ErrorComponentProps } from '@tanstack/react-router'
 import { useMutation, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { connectGithub, disconnectSource, sourcesQueryOptions, type Source } from '#/api/sources'
@@ -69,48 +69,43 @@ const CALLBACK_NOTICE_MESSAGES: Record<string, string> = {
     'Your install request went to the account owner. The source appears here once they approve it.',
 }
 
-function CallbackNotice({ search, sources }: { search: SourcesSearch; sources: Source[] }) {
-  if (search.error) {
-    return (
-      <p className="form-error" role="alert" style={{ marginBottom: 'calc(var(--spacing) * 4)' }}>
-        {CALLBACK_ERROR_MESSAGES[search.error] ??
-          "The GitHub connection didn't complete. Try connecting again."}
-      </p>
-    )
-  }
-
-  if (search.notice) {
-    const message = CALLBACK_NOTICE_MESSAGES[search.notice]
-
-    if (!message) return null
-
-    return (
-      <p className="form-success" role="status" style={{ marginBottom: 'calc(var(--spacing) * 4)' }}>
-        {message}
-      </p>
-    )
-  }
-
-  if (search.connected) {
-    // The redirect may carry an id for either a new installation or a refreshed grant on an
-    // existing one — name it if the list has it, and stay quiet on a stale/unknown id.
-    const source = sources.find((s) => s.id === search.connected)
-
-    if (!source) return null
-
-    return (
-      <p className="form-success" role="status" style={{ marginBottom: 'calc(var(--spacing) * 4)' }}>
-        GitHub installation for @{source.github_login} connected.
-      </p>
-    )
-  }
-
-  return null
-}
-
 function SourcesScreen() {
   const { data, error } = useSuspenseQuery(sourcesQueryOptions)
   const search = Route.useSearch()
+  const navigate = Route.useNavigate()
+  // The redirect's outcome is a toast, so it has to fire exactly once: the ref covers
+  // React's double-invoked effects in dev, and clearing the search params covers a
+  // refresh. `replace` so Back does not walk into it again.
+  const announced = useRef(false)
+
+  // Delivered on mount, which works because the route loader is async: SourcesScreen
+  // commits after ToastProvider is already listening. A synchronous router.load() would
+  // add this toast before the provider subscribes and it would never appear.
+  useEffect(() => {
+    if (announced.current) return
+    if (!search.connected && !search.notice && !search.error) return
+
+    announced.current = true
+
+    if (search.error) {
+      toast.error(
+        'sources-callback',
+        CALLBACK_ERROR_MESSAGES[search.error] ??
+          "The GitHub connection didn't complete. Try connecting again.",
+      )
+    } else if (search.notice) {
+      // An unknown code says nothing rather than echoing itself at the operator.
+      const message = CALLBACK_NOTICE_MESSAGES[search.notice]
+      if (message) toast.success(message)
+    } else if (search.connected) {
+      // The id may be a new installation or a refreshed grant on an existing one — name it
+      // if the list has it, and stay quiet on a stale or unknown id.
+      const source = data.find((s) => s.id === search.connected)
+      if (source) toast.success(`GitHub installation for @${source.github_login} connected.`)
+    }
+
+    navigate({ search: {}, replace: true })
+  }, [search, data, navigate])
 
   const connect = useMutation({
     mutationFn: connectGithub,
@@ -158,14 +153,11 @@ function SourcesScreen() {
           revoke the installation from GitHub at any time.
         </p>
         <div className="empty-actions">{connectButton('primary-lg')}</div>
-        {search.error && (
-          <div style={{ marginTop: 'calc(var(--spacing) * 4)' }}>
-            <CallbackNotice search={search} sources={data} />
-          </div>
-        )}
       </div>
     )
   }
+
+  const appSlug = data.find((source) => source.github_app_slug)?.github_app_slug
 
   return (
     <>
@@ -174,13 +166,24 @@ function SourcesScreen() {
           Plane unreachable since the last refresh &mdash; this list may be stale.
         </p>
       )}
-      <CallbackNotice search={search} sources={data} />
       <div className="toolbar">
         <p className="toolbar-note">
           GitHub App installations connected to this account. Pushes to their repositories can
           trigger deployments.
         </p>
         <span className="spacer" />
+        {/* The App registration is one App for the whole plane, not a property of any
+            connection — so it sits with the page's own actions, not on each card. */}
+        {appSlug && (
+          <a
+            className="table-link"
+            href={`https://github.com/settings/apps/${appSlug}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            App settings
+          </a>
+        )}
         {connectButton('secondary-sm')}
       </div>
       <div className="servers-grid">
@@ -194,7 +197,6 @@ function SourcesScreen() {
 }
 
 function SourceCard({ source }: { source: Source }) {
-  const permissions = Object.entries(source.permissions)
   // GitHub renders the same string twice for a personal account, where the display name
   // defaults to the login at connect time.
   const showLogin = source.github_login !== source.name
@@ -205,45 +207,50 @@ function SourceCard({ source }: { source: Source }) {
         <div className="server-head">
           <SourceAvatar login={source.github_login} />
           <span style={{ minWidth: 0 }}>
-            <span className="server-name">{source.name}</span>
-            <span className="server-meta">
-              <span>
-                <GitHubMark />
-                GitHub
-              </span>
-              {showLogin && (
-                <span>
-                  <span className="sep">&middot;</span>@{source.github_login}
-                </span>
-              )}
-              <span>
-                <span className="sep">&middot;</span>installation {source.github_installation_id}
-              </span>
-            </span>
+            {/* Managing repository access is the one thing an operator wants to reach from
+                here, and the account is what they would click. The personal-settings path
+                is right for every installation this plane can have: the App is registered
+                "Only on this account". An org installation would need
+                /organizations/<org>/settings/installations/<id> instead. */}
+            <a
+              className="server-name table-link"
+              href={`https://github.com/settings/installations/${source.github_installation_id}`}
+              target="_blank"
+              rel="noreferrer"
+              // The visible name is just the account, which says nothing about where this
+              // goes. Starts with that name so the accessible name still contains the
+              // visible label.
+              aria-label={`${source.name} — installation settings on GitHub (opens in a new tab)`}
+              // `.table-link` carries the underline's colour and offset, but preflight's
+              // `a { text-decoration: inherit }` means there is no underline to colour.
+              // Scoped here rather than to the shared class, which other screens use.
+              style={{ textDecorationLine: 'underline' }}
+            >
+              <GitHubMark />
+              {source.name}
+            </a>
+            {showLogin && <span className="server-meta">@{source.github_login}</span>}
           </span>
         </div>
       </div>
 
+      {/* kv-inline, not stacked: one line per fact in a 300px card, which is the spec-sheet
+          read docs/design.md §5.6 calls the default. Stacked kv is for wide grids of short
+          uniform values, which a card in this grid is not. */}
       <div className="card-section">
-        <div className="kv">
+        <div className="kv kv-inline source-kv">
           <div className="kv-item">
-            <div className="kv-k">repositories</div>
-            <div className="kv-v">
-              {source.repository_selection === 'all' ? 'all repositories' : 'selected repositories'}
-            </div>
+            <div className="kv-k">repos</div>
+            <div className="kv-v">{source.repository_selection === 'all' ? 'all' : 'selected'}</div>
           </div>
-          {/* One kv-item per permission rather than a comma-joined line: the data is a
-              mapping, and the kv grid is the design system's existing way to show one.
-              There is no repeatable badge/pill component to reuse (`resource-scope` is a
-              single right-aligned scope marker), so nothing new is invented here. */}
-          {permissions.map(([scope, level]) => (
+          {Object.entries(source.permissions).map(([scope, level]) => (
             <div className="kv-item" key={scope}>
               <div className="kv-k">{scope}</div>
               <div className="kv-v">{level}</div>
             </div>
           ))}
-          {/* No events row at all when there are none: cockpit subscribes to no webhook
-              events yet, so a permanent em dash is noise rather than information. */}
+          {/* No events row when there are none: cockpit subscribes to no webhook events
+              yet, so a permanent em dash is noise rather than information. */}
           {source.events.length > 0 && (
             <div className="kv-item">
               <div className="kv-k">events</div>
@@ -313,38 +320,11 @@ function SourceCardFoot({ source }: { source: Source }) {
   return (
     <div className="card-section card-foot">
       <div className="server-foot">
-        {/* Managing an installation is GitHub's job, so cockpit hands it over rather than
-            mirroring GitHub's own controls. The personal-settings path is right for every
-            installation this plane can have: the App is registered "Only on this account",
-            so oflabs44 is the only possible target. An org installation would need
-            /organizations/<org>/settings/installations/<id> instead — this link would 404. */}
-        <a
-          className="table-link"
-          href={`https://github.com/settings/installations/${source.github_installation_id}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Manage on GitHub
-        </a>
-        {source.github_app_slug && (
-          <a
-            className="table-link"
-            href={`https://github.com/settings/apps/${source.github_app_slug}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            App settings
-          </a>
-        )}
-        <span className="spacer" />
         <span className="server-foot-value">connected {formatAgo(source.created_at)}</span>
+        <span className="spacer" />
         {/* Least prominent action on the card: it revokes cockpit's access to the
             operator's repositories, and the confirmation step is the point. */}
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          onClick={() => setConfirming(true)}
-        >
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setConfirming(true)}>
           Disconnect
         </button>
       </div>
@@ -352,9 +332,37 @@ function SourceCardFoot({ source }: { source: Source }) {
   )
 }
 
+// Inline, like SourcesEmptyArt below: one mark does not justify an icon dependency, and
+// GitHub's is a brand mark rather than a generic glyph. Inside the link, so it marks the
+// provider and says where the link goes at the same time.
+function GitHubMark() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      fill="currentColor"
+      aria-hidden="true"
+      // Preflight makes svg display:block, which would drop the mark onto its own line.
+      style={{ display: 'inline-block', verticalAlign: '-1px', marginRight: 4 }}
+    >
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+    </svg>
+  )
+}
+
+// A stable hue per account (docs/design.md §2.3 identity tint): same account, same hue,
+// every render. Not a semantic accent — an account carries no state, and spending accent
+// or danger on a healthy connection is what makes a real alert stop reading as one (§1).
+function identityHue(login: string): number {
+  let hash = 0
+  for (const character of login) hash = (hash * 31 + character.codePointAt(0)!) % 360
+
+  return hash
+}
+
 // The account's avatar, straight from github.com: stable for users and organisations, no
-// API call and nothing stored. If it fails to load the card keeps its shape — the mark in
-// the meta line already says which provider this is.
+// API call and nothing stored. If it fails to load the card keeps its shape.
 function SourceAvatar({ login }: { login: string }) {
   const [failed, setFailed] = useState(false)
 
@@ -364,29 +372,21 @@ function SourceAvatar({ login }: { login: string }) {
     <img
       src={`https://github.com/${login}.png?size=80`}
       alt={`${login} on GitHub`}
-      width={40}
-      height={40}
+      width={28}
+      height={28}
       loading="lazy"
       onError={() => setFailed(true)}
-      style={{ flex: 'none', border: '1px solid var(--color-ink-20)' }}
+      // The ring only: the photo supplies its own colour and is not tinted or overlaid.
+      // `--idhue` composed with the theme's l/c is the mechanism styles.css documents.
+      style={
+        {
+          flex: 'none',
+          border: '1px solid oklch(var(--id-l) var(--id-c) var(--idhue))',
+          borderRadius: 'var(--radius)',
+          '--idhue': String(identityHue(login)),
+        } as React.CSSProperties
+      }
     />
-  )
-}
-
-// Inline, like SourcesEmptyArt below: one mark does not justify an icon dependency, and
-// GitHub's is a brand mark rather than a generic glyph.
-function GitHubMark() {
-  return (
-    <svg
-      viewBox="0 0 16 16"
-      width="12"
-      height="12"
-      fill="currentColor"
-      aria-hidden="true"
-      style={{ verticalAlign: '-1px', marginRight: 4 }}
-    >
-      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
-    </svg>
   )
 }
 
