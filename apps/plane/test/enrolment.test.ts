@@ -284,12 +284,22 @@ describe("enrolment: claim code", () => {
     const res = await redeem(app, claimCode, "203.0.113.10", { name: "claimed-box", provider: "hetzner" });
     expect(res.status).toBe(200);
     const { server } = (await res.json()) as {
-      server: { id: string; status: string; arch: string | null; agent_version: string | null };
+      server: {
+        id: string;
+        status: string;
+        addr: string | null;
+        arch: string | null;
+        agent_version: string | null;
+      };
     };
     // The daemon's `hello` already reported its identity before redeem ever ran — a claim-mode
-    // server shouldn't start its first session with these null.
+    // server shouldn't start its first session with these null. The address is the plane's
+    // own observation of that pending connection, carried across the same way.
     expect(server.arch).toBe("arm64");
     expect(server.agent_version).toBe("0.0.1");
+    expect(server.addr).toBe("203.0.113.20");
+    const persisted = await db(env.DB).select().from(servers).where(eq(servers.id, server.id)).get();
+    expect(persisted?.addr).toBe("203.0.113.20");
 
     const frame = await welcome;
     expect(frame.type).toBe("welcome");
@@ -305,6 +315,37 @@ describe("enrolment: claim code", () => {
     const detail = await authedApp(testDeps()).fetch(authedRequest(`http://plane.test/servers/${server.id}`), env);
     const body = (await detail.json()) as { server: { status: string } };
     expect(body.server.status).toBe("connected");
+  });
+
+  it("ignores a daemon-supplied internal server id", async () => {
+    const app = authedApp(testDeps());
+    const { server: victim } = await createServer(app, "internal-header-victim");
+    const claimCode = "FORGED-SERVER-ID-CLAIM";
+
+    const upgrade = await connect(app, claimCode, {
+      "cf-connecting-ip": "203.0.113.25",
+      "x-cockpit-server-id": victim.id,
+    });
+    const ws = upgrade.webSocket;
+    if (!ws) throw new Error("expected a websocket");
+    ws.accept();
+    ws.send(
+      JSON.stringify({
+        type: "hello",
+        agent_version: "0.0.1",
+        arch: "arm64",
+        hostname: "attacker-box",
+        auth: { kind: "enrolment", secret: claimCode },
+      }),
+    );
+    await tick();
+
+    const victimRow = await db(env.DB).select().from(servers).where(eq(servers.id, victim.id)).get();
+    expect(victimRow?.credentialHash).toBeNull();
+    const claimHash = await sha256Hex(claimCode);
+    const pending = await db(env.DB).select().from(enrolments).where(eq(enrolments.secretHash, claimHash)).get();
+    expect(pending?.presented).not.toBeNull();
+    ws.close(1000, "test complete");
   });
 
   it("double redeem fails", async () => {
@@ -463,5 +504,85 @@ describe("enrolment: disconnect accounting", () => {
 
     row = await db(env.DB).select().from(servers).where(eq(servers.id, server.id)).get();
     expect(row?.status).toBe("disconnected");
+  });
+});
+
+// The address is the plane's observation of the connection, not something the daemon says
+// about itself — a NATed box's own view would be a private address (ADR-0001).
+describe("enrolment: observed address", () => {
+  function helloOver(upgrade: Response, secret: string, kind: "enrolment" | "credential") {
+    const ws = upgrade.webSocket;
+    if (!ws) throw new Error("expected a websocket");
+    ws.accept();
+    const welcome = waitForMessage(ws);
+    ws.send(
+      JSON.stringify({
+        type: "hello",
+        agent_version: "0.0.1",
+        arch: "arm64",
+        hostname: "addr-box",
+        auth: { kind, secret },
+      }),
+    );
+    return welcome;
+  }
+
+  async function addrOf(serverId: string) {
+    const row = await db(env.DB).select().from(servers).where(eq(servers.id, serverId)).get();
+    return row?.addr;
+  }
+
+  it("records what the plane observed on an enrolment-token connect", async () => {
+    const app = authedApp(testDeps());
+    const { token, server } = await createServer(app, "addr-token-box");
+
+    const res = await connect(app, token, {
+      "cf-connecting-ip": "203.0.113.7",
+      "x-cockpit-observed-addr": "10.0.0.1",
+    });
+    const frame = await helloOver(res, token, "enrolment");
+    expect(frame.type).toBe("welcome");
+    await tick();
+
+    expect(await addrOf(server.id)).toBe("203.0.113.7");
+  });
+
+  it("updates the observed address on reconnect and clears it when unavailable", async () => {
+    const app = authedApp(testDeps());
+    const { token, server } = await createServer(app, "addr-reconnect-box");
+
+    const first = await connect(app, token, { "cf-connecting-ip": "203.0.113.8" });
+    const welcome = await helloOver(first, token, "enrolment");
+    expect(welcome.type).toBe("welcome");
+    expect(typeof welcome.credential).toBe("string");
+    const credential = welcome.credential as string;
+    await tick();
+    expect(await addrOf(server.id)).toBe("203.0.113.8");
+
+    const second = await connect(app, credential, {
+      // IPv6 is normal here and is stored exactly as observed.
+      "cf-connecting-ip": "2a01:4f9:c012:1234::1",
+    });
+    await helloOver(second, credential, "credential");
+    await tick();
+    expect(await addrOf(server.id)).toBe("2a01:4f9:c012:1234::1");
+
+    const unobservable = await connect(app, credential);
+    await helloOver(unobservable, credential, "credential");
+    await tick();
+    expect(await addrOf(server.id)).toBeNull();
+  });
+
+  it("ignores a daemon-supplied observed address when Cloudflare's header is absent", async () => {
+    // `wrangler dev` and anything else Cloudflare did not front. A missing observation must
+    // stay missing even if the daemon supplies the route's internal handoff header itself.
+    const app = authedApp(testDeps());
+    const { token, server } = await createServer(app, "addr-headerless-box");
+
+    const res = await connect(app, token, { "x-cockpit-observed-addr": "10.0.0.1" });
+    await helloOver(res, token, "enrolment");
+    await tick();
+
+    expect(await addrOf(server.id)).toBeNull();
   });
 });

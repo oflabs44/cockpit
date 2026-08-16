@@ -103,9 +103,19 @@ export async function daemonWsHandler(c: Context<AppEnv>) {
 
   const stub = c.env.SERVER_DO.get(c.env.SERVER_DO.idFromName(doName));
   const headers = new Headers(c.req.raw.headers);
+  // These are route-owned facts. Remove daemon-supplied values before conditionally setting
+  // them, or an absent value would let an inbound internal header survive into the DO.
+  headers.delete("x-cockpit-server-id");
+  headers.delete("x-cockpit-observed-addr");
   headers.set("x-cockpit-auth-kind", authKind);
   headers.set("x-cockpit-secret-hash", secretHash);
   if (serverId) headers.set("x-cockpit-server-id", serverId);
+  // The box's public egress address as the plane observed it. The daemon dials out and may
+  // be behind NAT (ADR-0001), so anything it reported about its own interfaces would be a
+  // claim, and possibly a private one. Absent under `wrangler dev` — then the address stays
+  // null rather than becoming a guess.
+  const observedAddr = c.req.header("cf-connecting-ip");
+  if (observedAddr) headers.set("x-cockpit-observed-addr", observedAddr);
 
   return stub.fetch(new Request(c.req.raw, { headers }));
 }

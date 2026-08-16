@@ -60,13 +60,14 @@ export const redeemEnrolmentHandler: AppRouteHandler<typeof redeemEnrolmentRoute
   // The daemon's `hello` already told us this before redeem ever ran (ServerDO#handleHello
   // stores it on the pending claim connection, since there's no server row yet to write it
   // onto) — a newly-created server would otherwise start its first session with these null.
-  const presented = safeJsonParse<{ arch?: string; agent_version?: string } | null>(
+  const presented = safeJsonParse<{ arch?: string; agent_version?: string; addr?: string } | null>(
     enrolment.presented ?? "null",
     null,
     `enrolments.presented (${enrolment.id})`,
   );
   const presentedArch = presented?.arch || null; // clampField turns "missing" into "", not absent
   const presentedAgentVersion = presented?.agent_version || null;
+  const presentedAddr = presented?.addr || null;
 
   // Fields for the response, filled in by whichever branch below runs — kept in hand so the
   // final response doesn't depend on a re-SELECT after the writes (finding #8: a successful
@@ -93,7 +94,7 @@ export const redeemEnrolmentHandler: AppRouteHandler<typeof redeemEnrolmentRoute
         id: serverId,
         name: body.name as string,
         provider: body.provider as string,
-        addr: null,
+        addr: presentedAddr,
         arch: presentedArch,
         status: "enrolling",
         agentVersion: presentedAgentVersion,
@@ -110,7 +111,7 @@ export const redeemEnrolmentHandler: AppRouteHandler<typeof redeemEnrolmentRoute
       id: serverId,
       name: body.name as string,
       provider: body.provider as string,
-      addr: null,
+      addr: presentedAddr,
       arch: presentedArch,
       agentVersion: presentedAgentVersion,
       labels: "{}",

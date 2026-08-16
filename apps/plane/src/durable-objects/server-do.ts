@@ -40,6 +40,7 @@ export class ServerDO extends DurableObject<Env> {
       authKind: request.headers.get("x-cockpit-auth-kind"),
       secretHash: request.headers.get("x-cockpit-secret-hash") ?? "",
       serverId,
+      observedAddr: request.headers.get("x-cockpit-observed-addr"),
       enrolled: false,
     } satisfies Session);
 
@@ -167,7 +168,10 @@ export class ServerDO extends DurableObject<Env> {
     const presented = {
       hostname: clampField(frame.hostname),
       arch: clampField(frame.arch),
-      addr: "",
+      // Observed by the plane, not clamped from the frame: architecture §3.1 has the
+      // operator confirming this is the box they just installed on, and an address the
+      // daemon reported about itself would be the weakest part of that.
+      addr: session.observedAddr ?? "",
       agent_version: clampField(frame.agent_version),
     };
 
@@ -197,21 +201,23 @@ export class ServerDO extends DurableObject<Env> {
       }
       session.enrolled = true;
       ws.serializeAttachment(session);
-      // `clampField` turns a missing value into `""`, not absence — only write columns the
-      // daemon actually reported, so a hello missing one leaves it `null` rather than "".
-      const identity: { arch?: string; agentVersion?: string } = {};
+      // Only write identity fields the daemon reported, so a hello missing one leaves the
+      // existing value untouched. Refresh the observed address on every accepted connection;
+      // null is more accurate than a stale address when the plane cannot observe one.
+      const identity: { arch?: string; agentVersion?: string; addr: string | null } = {
+        addr: presented.addr || null,
+      };
       if (presented.arch) identity.arch = presented.arch;
       if (presented.agent_version) identity.agentVersion = presented.agent_version;
-      if (Object.keys(identity).length > 0) {
-        await db(this.env.DB).update(servers).set(identity).where(eq(servers.id, session.serverId));
-      }
+      await db(this.env.DB).update(servers).set(identity).where(eq(servers.id, session.serverId));
       await this.#setConnected(session.serverId, Date.now());
       ws.send(JSON.stringify({ type: "welcome", server_id: session.serverId, credential }));
       return;
     }
 
-    // Pending claim-code connection: record what the daemon reported so the operator can
-    // confirm it at redeem time (type-design §2.1.1), then wait — no welcome yet.
+    // Pending claim-code connection: record the daemon-reported identity and the address the
+    // plane observed so the operator can confirm them at redeem time (type-design §2.1.1),
+    // then wait — no welcome yet.
     const updated = await db(this.env.DB)
       .update(enrolments)
       .set({ presented: JSON.stringify(presented) })
@@ -334,6 +340,8 @@ interface Session {
   authKind: string | null;
   secretHash: string;
   serverId: string | null;
+  /** The connection's public source address as the plane saw it, null when unavailable. */
+  observedAddr?: string | null;
   enrolled: boolean;
 }
 
