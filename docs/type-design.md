@@ -94,149 +94,90 @@ codes are additionally rate-limited by IP and globally, being short enough to gu
 
 ### 2.2 Project
 
-A project groups related resources on one server. It is a navigation and ownership
-boundary, not an execution unit. One project can contain multiple apps that deploy
-independently.
+A Project is one deployable GitHub-backed Compose stack on one server (ADR-0012). Git owns
+workload topology; the Plane owns only target-specific bindings.
 
 ```ts
 interface Project {
   id: Id<'prj'>
   server_id: Id<'srv'>
+  source_id: Id<'src'>
   name: string
-  created_at: number
-  updated_at: number
-}
-```
-
-### 2.3 Resource
-
-One polymorphic entity for everything Cockpit manages (ADR-0006).
-
-```ts
-type Scope = 'server' | 'account'
-
-/** Server-scoped: exists on a box, dies with it, reported by the daemon. */
-type ServerKind =
-  | 'app' | 'database' | 'proxy' | 'volume' | 'network'
-  | 'cron' | 'daemon' | 'firewall_rule'
-
-/** Account-scoped: outlives any box, linked to the spine rather than inside it. */
-type AccountKind =
-  | 'domain' | 'dns_record' | 'source' | 'secret' | 'secret_provider'
-  | 'backup_destination'
-
-type Kind = ServerKind | AccountKind
-
-interface Resource {
-  id: Id<'res'>
-  /** Null for account-scoped kinds — domain, dns_record, source, secret,
-   *  backup_destination. Those have no box (#11, ADR-0007). */
-  server_id: Id<'srv'> | null
-  /** Required for apps. Null for account-scoped or server-shared resources. */
-  project_id: Id<'prj'> | null
-  kind: Kind
-  name: string                       // unique per (server_id, kind)
-  configuration: Configuration       // saved input for the next deployment or apply
-  configuration_version: number      // schema version of `configuration`
-
-  // The current release, not editable configuration, defines intended running state.
+  repository_id: string              // authoritative identity; survives rename and transfer
+  repository_full_name: string       // display cache only; stale after a rename
+  ref: string
+  base_directory: string
+  compose_path: string
+  auto_deploy: boolean
+  settings: ProjectDeploymentSettings
   current_release_id: Id<'rel'> | null
-
-  // promoted for querying — never dug out of JSON at read time
-  health: Health
-  exposed_at: string | null          // primary domain, if any
-  drifted: boolean
-
-  observed: Observed | null          // last report from the daemon
-  observed_rev: number               // bumped on every daemon state report
-  observed_at: number | null
-
   created_at: number
   updated_at: number
 }
 ```
 
-Saving `configuration` does not change the server. A deployment or configuration apply
-takes an immutable snapshot before execution. `has_unapplied_changes` is derived by
-comparing the saved configuration with the current release's configuration snapshot.
+One repository can back several Projects through different base directories, Compose paths,
+or refs. The Project is the deployment and release boundary.
 
-Configuration is JSON in SQL, so relational constraints cannot police it. Zod at the API
-boundary is the validator, and every write path must pass through it (ADR-0006).
+`repository_id` is the repository's identity. `repository_full_name` is a display cache: it
+is what an operator recognises the Project by, and it is wrong from the moment the repository
+is renamed or transferred on github.com. Nothing may clone, fetch, authorize, or match a
+webhook by the name. The fetch and preflight slice resolves the current clone identity from
+`repository_id` through the installation, and a name that no longer matches is a display
+value to refresh, not a Project to fail.
 
-### 2.4 Configuration, per kind
+### 2.3 Service
 
-Each kind contributes one schema. A new kind is a configuration schema plus a daemon
-handler (ADR-0006).
+A service is derived from the active effective Compose snapshot. It is a read model, not an
+editable row of desired state. A container is an observed instance of a service.
 
 ```ts
-interface AppConfiguration {
-  source:
-    | { type: 'repo'; url: string; ref: string; path?: string }
-    | { type: 'image'; image: string; digest?: string }
-  build?: {
-    dockerfile?: string
-    args?: Record<string, string>
-    limits: { cpu: string; memory: string }     // required (#17) — builds run on the
-                                                // target server and must be bounded
-    prune: { keep_layers: number }              // required (#17) — disk protection
-  }
-  domains: string[]                             // Traefik labels derive from these (#17)
-  ports: { container: number; protocol: 'tcp' | 'udp' }[]
-  env: Record<string, string | SecretRef>        // refs only (#15, ADR-0008)
-  replicas: number
-  healthcheck?: { path: string; interval_s: number; timeout_s: number; retries: number }
-  limits: { cpu: string; memory: string }
-  restart: 'always' | 'unless-stopped' | 'on-failure'
+interface ProjectService {
+  project_id: Id<'prj'>
+  name: string                        // Compose service key
+  image: string | null
+  health: Health
+  exposed_at: string | null
+  observed: Observed | null
+  observed_at: number | null
 }
-
-interface DatabaseConfiguration {
-  engine: 'postgres' | 'redis'
-  version: string
-  volume: string                                // Link to a volume resource
-  credentials: SecretRef                         // generated into the vault, never stored
-  network: string                               // private `db-<name>` network by default
-  expose: 'private' | 'host' | 'public'         // default 'private'
-  backup?: { schedule: string; retain: number; destination: 'r2' }
-}
-
-interface CronConfiguration {
-  schedule: string                              // cron expression
-  timezone: string
-  command: string
-  env: Record<string, string | SecretRef>
-  on_failure: 'ignore' | 'alert'
-}
-
-interface FirewallRuleConfiguration {
-  port: number
-  protocol: 'tcp' | 'udp'
-  source: string                                // CIDR
-  layer: 'ufw' | 'cloud' | 'both'               // UFW / provider firewall mediation
-  purpose: string                               // required: why this rule exists
-}
-
-interface DnsRecordConfiguration {
-  zone: string
-  name: string
-  type: 'A' | 'AAAA' | 'CNAME' | 'TXT'
-  value: string
-  proxied: boolean
-}
-
-// VolumeConfiguration, NetworkConfiguration, ProxyConfiguration, and
-// DaemonConfiguration follow the same shape.
-type Configuration =
-  | AppConfiguration
-  | DatabaseConfiguration
-  | CronConfiguration
-  | FirewallRuleConfiguration
-  | DnsRecordConfiguration
-  /* … */
 ```
 
-`FirewallRuleConfiguration.purpose` is required by design: the `/devops` playbooks
-learned that an
-undocumented open port is unauditable a month later.
+Networks and volumes are Docker-managed primitives from the same Compose model. Domains,
+Sources, and secret providers remain account-level integrations rather than containers.
+
+### 2.4 Project deployment settings
+
+The Plane does not copy or edit Compose service definitions. It stores only settings that
+vary by target environment and generates a standard Compose override from them.
+
+```ts
+interface ProjectDeploymentSettings {
+  ingress: {
+    service: string
+    port: number
+    domains: string[]
+  } | null
+  migration: {
+    service: string
+    command?: string[]                // absent: use the service's Compose command
+  } | null
+  health: {
+    required_services: string[]
+  }
+  variables: Record<string, string | SecretRef>
+}
+```
+
+A variable value is an ordinary string the daemon passes through — including a plain URL —
+or a `SecretRef`. Only the reserved-but-unresolvable schemes above (`aws://`, `vault://`,
+`ck://`) are refused at the boundary, case-insensitively: storing one promises a dereference
+at apply time that no resolver can perform. `https://` and `redis://` are values, not
+references.
+
+The daemon first normalizes the repository model and confirms every configured service
+exists. It then normalizes that model with the Plane-generated override. A Deployment and
+Release snapshot the final effective model; the repository file is never rewritten.
 
 ### 2.5 Observed
 
@@ -261,9 +202,13 @@ type Impact = 'none' | 'reload' | 'restart' | 'replace' | 'destructive'
 
 type ChangeAction = 'create' | 'update' | 'replace' | 'delete'
 
+type ChangeTarget =
+  | { kind: 'service'; project_id: Id<'prj'>; name: string }
+  | { kind: 'network' | 'volume'; project_id: Id<'prj'>; name: string }
+
 interface Change {
   action: ChangeAction
-  target: Id<'res'> | Id<'srv'> | Id<'lnk'>
+  target: ChangeTarget
   before: unknown | null             // null for creates
   after: unknown | null              // null for deletes
   impact: Impact
@@ -272,8 +217,8 @@ interface Change {
 }
 
 interface ChangeSet {
-  /** Observed revisions used to calculate `before`. */
-  basis: Record<Id<'res'>, number>
+  /** Observed revision used to calculate `before`. */
+  basis_rev: number
   changes: Change[]
   max_impact: Impact                 // derived; never supplied by a client
   calculated_at: number
@@ -286,8 +231,7 @@ inside the same run instead of creating a stale review object.
 
 ### 2.7 Deployment
 
-A deployment belongs to one app resource. A project page aggregates the deployments from
-all app resources in that project.
+A deployment belongs to one Project and applies its complete Compose stack.
 
 ```ts
 interface SourceRevision {
@@ -297,7 +241,7 @@ interface SourceRevision {
 }
 
 type DeploymentTrigger =
-  | { kind: 'git_push'; source_id: Id<'res'>; revision: SourceRevision
+  | { kind: 'git_push'; source_id: Id<'src'>; revision: SourceRevision
       delivery_id: string }
   | { kind: 'manual'; commit: string | null }
   | { kind: 'redeploy'; deployment_id: Id<'dep'> }
@@ -309,7 +253,7 @@ type DeploymentStatus =
   | 'succeeded' | 'failed' | 'cancelled'
 
 type DeploymentStepName =
-  | 'source' | 'build' | 'changes' | 'apply' | 'healthcheck'
+  | 'source' | 'normalize' | 'build' | 'migration' | 'apply' | 'healthcheck'
 
 interface DeploymentStep {
   name: DeploymentStepName
@@ -322,14 +266,14 @@ interface DeploymentStep {
 interface Deployment {
   id: Id<'dep'>
   project_id: Id<'prj'>
-  app_id: Id<'res'>
   server_id: Id<'srv'>
   trigger: DeploymentTrigger
   triggered_by: Actor
   status: DeploymentStatus
   source_revision: SourceRevision | null
-  configuration_snapshot: AppConfiguration
-  configuration_version: number
+  settings_snapshot: ProjectDeploymentSettings
+  effective_compose: Record<string, unknown> | null
+  compose_hash: string | null
   steps: DeploymentStep[]
   changes: ChangeSet | null
   workflow_id: string
@@ -340,32 +284,28 @@ interface Deployment {
 }
 ```
 
-A push webhook starts a deployment when its source and ref match an app configuration.
-The deployment snapshots configuration at creation. A later edit cannot alter that run.
+A push webhook starts a deployment when its Source, repository, and ref match a Project.
+The deployment snapshots Plane-owned settings at creation. A later settings edit cannot
+alter that run.
 
 ### 2.8 Operation
 
-An operation records a non-deployment action. Resource configuration applies create a
-release. Commands that leave configuration unchanged do not.
+An operation records a command that does not change the Project's Compose model.
 
 ```ts
 type OperationKind =
-  | 'resource.apply' | 'resource.rollback' | 'resource.delete'
-  | 'resource.start' | 'resource.stop' | 'resource.restart' | 'resource.exec'
+  | 'service.start' | 'service.stop' | 'service.restart' | 'service.exec'
   | 'server.drain' | 'server.forget' | 'daemon.upgrade'
 
 interface Operation {
   id: Id<'opn'>
   server_id: Id<'srv'>
   project_id: Id<'prj'> | null
-  resource_id: Id<'res'> | null
+  service_name: string | null
   kind: OperationKind
   actor: Actor
   status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
-  configuration_snapshot: Configuration | null
-  changes: ChangeSet | null
   workflow_id: string | null
-  release_id: Id<'rel'> | null
   created_at: number
   started_at: number | null
   finished_at: number | null
@@ -380,43 +320,29 @@ before execution when confirmation or authorization is absent.
 ```ts
 interface Release {
   id: Id<'rel'>
-  resource_id: Id<'res'>
-  rev: number                        // monotonic per resource
-  deployment_id: Id<'dep'> | null
-  operation_id: Id<'opn'> | null
-  configuration_snapshot: Configuration
+  project_id: Id<'prj'>
+  rev: number                        // monotonic per Project
+  deployment_id: Id<'dep'>
+  effective_compose: Record<string, unknown>
+  compose_hash: string
   runtime_snapshot: Record<string, unknown>
-  source_revision: SourceRevision | null
-  image_digest: string | null
+  source_revision: SourceRevision
+  images: Record<string, { image: string; digest: string | null }>
   restored_from_release_id: Id<'rel'> | null
   status: 'active' | 'superseded'
   created_at: number
 }
 ```
 
-A release is written only after successful apply and health checks. The current release
-is the intended running state. App rollback starts a deployment from an earlier release.
-A supported non-app restore starts an operation. Both write a new release with
-`restored_from_release_id` set (#8).
+A release is written only after successful apply and health checks. The active release is
+the Project's intended state. Rollback starts a new Deployment from an earlier Release;
+it never reverses migrations or restores volume data.
 
-### 2.10 Link
+### 2.10 Service graph
 
-Stored relationships (#11, ADR-0006). A closed vocabulary, so the graph stays queryable.
-
-```ts
-type LinkKind = 'uses' | 'exposed_at' | 'depends_on' | 'backs_up' | 'routes_to'
-
-interface Link {
-  id: Id<'lnk'>
-  from: Id<'res'>
-  to: Id<'res'>
-  kind: LinkKind
-  created_at: number
-}
-```
-
-Deleting a resource with inbound links creates a destructive operation that names every
-dependant. Dangling links are a tested bug class.
+Service, network, volume, and dependency edges are derived from the active effective Compose
+snapshot. The graph is read-only in Cockpit; changing it requires a source commit and
+Deployment.
 
 ### 2.11 Event
 
@@ -427,7 +353,7 @@ interface Event {
   id: Id<'evt'>
   server_id: Id<'srv'> | null
   project_id: Id<'prj'> | null
-  resource_id: Id<'res'> | null
+  service_name: string | null
   deployment_id: Id<'dep'> | null
   operation_id: Id<'opn'> | null
   type: string                       // 'deployment.succeeded', 'container.died',
@@ -473,6 +399,17 @@ type Up =
                                         'ok' | 'unavailable'> }        // full snapshot,
                                                                        // on connect + interval
   | { type: 'event';    event: Omit<Event, 'id' | 'actor'> }
+  | { type: 'deployment_progress'; deployment_id: Id<'dep'>
+                        step: DeploymentStepName
+                        status: 'started' | 'succeeded' | 'failed'
+                        error?: { kind: string; message: string } }
+  | { type: 'deployment_prepared'; deployment_id: Id<'dep'>
+                        compose_hash: string
+                        effective_compose: Record<string, unknown>
+                        changes: ChangeSet }
+  | { type: 'deployment_finished'; deployment_id: Id<'dep'>
+                        images: Record<string, { image: string; digest: string | null }>
+                        runtime: Record<string, unknown> }
   | { type: 'task_progress'; task_id: string; change_index: number
                         status: 'started' | 'ok' | 'error'
                         changed?: Changed; error?: { kind: string; message: string } }
@@ -483,11 +420,24 @@ type Up =
    *  error:{kind:'refused', …}} at change_index 0. */
   | { type: 'op_result'; op_id: string; changed?: Changed
                          error?: { kind: string; message: string } }
-  | { type: 'stream_data'; stream_id: string; lines: string[] }
+  /** One ordered deployment-output chunk. For deployment logs, stream_id is the
+   *  persisted Deployment id; a second deployment_id field would be ambiguous.
+   *  `dropped` makes daemon-side loss explicit and `final` closes the stream. */
+  | { type: 'stream_data'; stream_id: Id<'dep'>; seq: number
+                          stage: 'fetch' | 'normalize' | 'build' | 'migrate' | 'apply' | 'health'
+                          source: 'stdout' | 'stderr' | 'system'; data: string
+                          at: number; dropped?: number; final?: boolean }
   | { type: 'metrics';  samples: MetricSample[] }
   | { type: 'pong' }
 
-interface ObservedResource { kind: Kind; name: string; observed: Observed }
+interface ObservedResource {
+  kind: string
+  name: string
+  project_id?: Id<'prj'>
+  release_id?: Id<'rel'>
+  service_name?: string
+  observed: Observed
+}
 
 /** Host-level half of a state snapshot (2026-08-06). Raw facts only — bytes,
  *  counts, and the words the source itself used. Thresholds (disk ≥ 80%,
@@ -511,20 +461,27 @@ interface ObservedHost {
 
 ```ts
 type Down =
-  /** Bound to a running deployment or configuration-apply operation. */
+  | { type: 'deployment_prepare'; deployment_id: Id<'dep'>; project_id: Id<'prj'>
+      source: { repository: string; commit: string; token: string }
+      base_directory: string; compose_path: string
+      settings: ProjectDeploymentSettings }
+  | { type: 'deployment_apply'; deployment_id: Id<'dep'>; compose_hash: string }
+  | { type: 'deployment_cancel'; deployment_id: Id<'dep'> }
+  /** Legacy resource-change task; retained until Project Compose execution replaces it. */
   | { type: 'task';   task_id: string
                       run: { kind: 'deployment'; id: Id<'dep'> }
                          | { kind: 'operation'; id: Id<'opn'> }
                       changes: Change[] }
   /** Bound to a recorded operation that leaves configuration unchanged. */
-  | { type: 'op';     op_id: Id<'opn'>
+  | { type: 'op';     op_id: Id<'opn'>; project_id: Id<'prj'>
                       action: 'restart' | 'stop' | 'start'
-                      resource_id: Id<'res'> }
-  | { type: 'op';     op_id: Id<'opn'>; action: 'exec'
-                      resource_id: Id<'res'>; command: string[] }
+                      service_name: string }
+  | { type: 'op';     op_id: Id<'opn'>; project_id: Id<'prj'>; action: 'exec'
+                      service_name: string; command: string[] }
   | { type: 'stream'; stream_id: string; action: 'start' | 'stop'
-                      resource_id: Id<'res'>; source: 'logs' | 'stats' | 'build' }
-  | { type: 'probe';  probe_id: string; kind: 'host' | 'resource'; target?: Id<'res'> }
+                      project_id: Id<'prj'>; service_name: string
+                      source: 'logs' | 'stats' | 'build' }
+  | { type: 'probe';  probe_id: string; project_id: Id<'prj'>; service_name?: string }
   | { type: 'ping' }
   /** The mandatory first frame answering a `hello`. `credential` is present only
    *  when the hello carried an enrolment secret (or a claim code was redeemed):
@@ -536,10 +493,10 @@ type Down =
 
 ### 3.3 Rules
 
-- The daemon accepts exactly two write frames and nothing else: `task`, only for a running
-  deployment or configuration-apply operation, and `op`, only for a recorded direct
-  operation. This is the enforcement point for "nothing mutates unattributably"
-  (ADR-0009) and must be covered by tests.
+- The daemon accepts deployment frames only for a persisted Project Deployment and `op`
+  frames only for a persisted service Operation. The legacy `task` frame remains during
+  migration and is then removed. This is the enforcement point for "nothing mutates
+  unattributably" (ADR-0009) and must be covered by tests.
 - An `op` completing triggers a fresh `state` snapshot. A restart is harmless, but `exec`
   can leave the box different from its current release, so Cockpit detects divergence
   immediately rather than at the next drift sweep.
@@ -577,25 +534,21 @@ tool derives from the same definitions (ADR-0005). Listed by shape, not exhausti
   GET    /enrolments                     pending, incl. claim codes awaiting redemption
   POST   /enrolments/:code/redeem        direct  — bind a claim-code daemon to a Server
 
-  GET    /resources                      ?server= &kind= &project= &health=
-  GET    /resources/:id                  detail + links + current release
-  PATCH  /resources/:id/configuration    save only; does not change the server
-  GET    /resources/:id/deployments      app resources only
-  POST   /resources/:id/deployments      manual deploy, redeploy, or rollback
-  POST   /resources/:id/apply            apply non-app configuration → Operation
-  GET    /resources/:id/links
-  GET    /resources/:id/logs             SSE/WS stream, or historical from R2
-  GET    /resources/:id/metrics
-  POST   /resources/:id/restart          direct Operation
-  POST   /resources/:id/stop             direct Operation
-  POST   /resources/:id/start            direct Operation
-  POST   /resources/:id/exec             direct Operation
+  GET    /source-connections/:id/repositories  repositories granted to the installation
 
   GET    /projects                       ?server=
-  GET    /projects/:id
-  POST   /projects                       direct  — grouping metadata only
-  PATCH  /projects/:id/layout            direct  — canvas node positions
-  GET    /projects/:id/deployments       aggregate deployments from project apps
+  POST   /projects/import                bind source + repository + ref + Compose path
+  GET    /projects/:id                   project + active services
+  PATCH  /projects/:id/settings          target-specific bindings; deploy separately
+  GET    /projects/:id/services          derived from active effective Compose
+  GET    /projects/:id/deployments
+  POST   /projects/:id/deployments       manual deploy, redeploy, or rollback
+  GET    /projects/:id/services/:name/logs
+  GET    /projects/:id/services/:name/metrics
+  POST   /projects/:id/services/:name/restart    direct Operation
+  POST   /projects/:id/services/:name/stop       direct Operation
+  POST   /projects/:id/services/:name/start      direct Operation
+  POST   /projects/:id/services/:name/exec       direct Operation
 
   GET    /deployments/:id
   POST   /deployments/:id/cancel
@@ -605,7 +558,7 @@ tool derives from the same definitions (ADR-0005). Listed by shape, not exhausti
   GET    /operations/:id
   GET    /operations/:id/logs
 
-  POST   /hooks/sources/:id              source-provider webhook; starts matching apps
+  POST   /hooks/sources/:id              source-provider webhook; starts matching Projects
 
   GET    /domains  /sources  /secrets  /secret-providers
   POST   /domains  /sources  /secrets  /secret-providers    direct — account-scoped
@@ -628,19 +581,19 @@ response schemas. That single definition produces the validation, the OpenAPI en
 the RPC types the web client infers — which is what makes ADR-0005 mechanical rather than
 a convention.
 
-`PATCH /resources/:id/configuration` changes stored input only. It does not send a daemon
-frame. An app deployment or non-app apply operation snapshots that configuration before it
-changes the server (ADR-0009).
+`PATCH /projects/:id/settings` changes only Plane-owned target bindings. It does not send a
+daemon frame. A Project Deployment snapshots those settings and an exact source revision
+before changing the server (ADR-0009, ADR-0012).
 
 A configured source webhook is an authorized deployment trigger. Manual Deploy, Redeploy,
-and Rollback actions call the same deployment endpoint. Direct commands such as restart
-and exec create attributable operations but no release.
+and Rollback actions call the same Project deployment endpoint. Direct service commands
+such as restart and exec create attributable Operations but no Release.
 
 ### MCP tools
 
 Generated from the same schemas. Write tools mirror the API one-to-one. Read tools may be
-grouped for agent ergonomics — for example one `resource.context` tool returning a
-resource with its logs, metrics, recent events, deployments, and links — but a read
+grouped for agent ergonomics — for example one `project.context` tool returning a Project
+with its services, logs, recent events, Deployments, and active Release — but a read
 grouping may never become a write path that composes what the API cannot express
 (ADR-0005).
 
@@ -651,34 +604,33 @@ grouping may never become a write path that composes what the API cannot express
 These are the properties that make the design true rather than aspirational. Each should
 have a test that fails loudly if it erodes.
 
-1. **Nothing mutates unattributably.** The daemon accepts `task` frames bound to a running
-   deployment or operation, and `op` frames bound to a recorded direct operation. It
+1. **Nothing mutates unattributably.** The daemon accepts deployment frames bound to a
+   persisted Project Deployment and `op` frames bound to a recorded service Operation. It
    accepts nothing else (ADR-0009).
-2. **Immutable run input.** A deployment or configuration apply snapshots the source
-   revision and saved configuration before execution. Later edits cannot alter the run.
+2. **Immutable run input.** A Deployment snapshots the source revision and Plane-owned
+   Project settings before execution. Later edits cannot alter the run.
 3. **Authorized pushes continue.** A valid webhook for a configured branch starts a
    deployment without creating a pending approval state.
-4. **Drift uses the current release.** Saved but unapplied configuration does not mark a
-   resource as drifted. An out-of-band runtime change does.
+4. **Drift uses the current release.** Plane settings alone do not mark a Project as
+   drifted. Runtime differing from the active effective Compose snapshot does.
 5. **Fresh changes.** The planning step calculates against observed state immediately
    before apply. If the basis changes, Cockpit recalculates inside the same serialized run.
-6. **Idempotence.** Re-sending a task after reconnect produces `no_op`, not a duplicate
-   resource.
-7. **No secret values anywhere.** Assert that no `Configuration`, release snapshot, event
-   payload, git snapshot, or API response contains anything but `SecretRef` in a secret
+6. **Idempotence.** Re-sending a deployment phase after reconnect does not duplicate a
+   build, migration, service, network, or volume.
+7. **No secret values anywhere.** Assert that no Project settings, Release snapshot, Event
+   payload, source snapshot, or API response contains anything but `SecretRef` in a secret
    position. The plane has no code path that dereferences one (ADR-0008).
 8. **Client parity.** For every write operation in `packages/schema`, assert that a REST
    route and an MCP tool exist and derive from the same definition.
 9. **Impact is derived.** Clients cannot supply `max_impact`. Destructive endpoints require
    explicit confirmation before they create an operation.
-10. **Links never dangle.** Deleting a linked resource either fails or records removal of
-    its links and names the dependants.
-11. **Deployment ownership.** Every app belongs to one project. A deployment targets one
-    app and copies that app's project and server ids.
+10. **Git owns topology.** No Plane API edits a Compose service, network, or volume.
+11. **Deployment ownership.** Every Deployment targets one Project and copies that
+    Project's source, repository, ref, server id, and target settings.
 12. **Determinism.** Plane logic contains no `Date.now()` or `Math.random()`; clock and id
     generation are injected.
-13. **Kind extensibility.** Adding a kind touches one configuration schema and one daemon
-    handler. Generic operation, release, event, and API paths need no change.
+13. **Compose policy is explicit.** Unsupported host access fails before build or apply;
+    the daemon never silently drops or rewrites a requested capability.
 14. **The git mirror is never read.** No code path in the plane reads from the mirror
     repository (ADR-0004).
 15. **Enrolment secrets are single-use and expiring.** A consumed or expired token or claim

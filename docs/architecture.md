@@ -57,7 +57,7 @@ everything else depends on them:
 | relational state | D1 + Drizzle | servers, projects, resources, deployments, operations, releases, events, links |
 | long-running work | Workflows | one instance per deployment or long operation; durable pipeline steps |
 | fan-out / scheduled | Queues + Cron Triggers | health sweeps, backups, notification dispatch |
-| live connections | Durable Objects | `ServerDO` (one per server, holds the daemon WSS), `StreamDO` (per resource log/metric stream). WebSocket hibernation so idle connections cost nothing |
+| live connections | Durable Objects | `ServerDO` (one per server, holds the daemon WSS), `StreamDO` (one per deployment, operation, or service stream). WebSocket hibernation so idle connections cost nothing |
 | blobs | R2 | log archives, build logs, backup artifacts |
 | validation | Zod 4 | from `packages/schema`; the single source for REST, MCP, and UI |
 | MCP | Cloudflare Agents SDK (`McpAgent`, DO-backed) | same Worker; tools generated from the same schemas |
@@ -292,26 +292,27 @@ to Coolify's UX.
 
 ### 2.7 Projects
 
-A **project** groups resources inside one server — an app plus the database, volume, and
-cron that serve it. It is a nullable `project_id` on `Resource`, not a level above the
-server and not a scope of its own (ADR-0007). A resource in no project is shared with the
-whole server, and *shared* is derived rather than declared: anything two projects use, or
-none do, is shared by definition.
+A **project** is one GitHub-backed Docker Compose stack on one server (ADR-0012). It binds
+a connected Source, repository, ref, base directory, and Compose path. One repository can
+produce several Projects by selecting different paths in a monorepo.
 
-Every app belongs to one project. Non-app resources can remain outside a project when they
-are shared across the server. The project's own view is its **dependency graph**, rendered
-from `Link` — see §3.6.
+The repository's standard Compose file defines services, networks, volumes, commands, and
+health checks. The Plane owns only target-specific bindings: variables and secret refs,
+ingress service and domains, an optional migration service, and required health services.
+It generates a standard Compose override; it never rewrites the repository file.
+
+The Project is the deployment and release boundary. Compose services are derived, read-only
+resources, and containers are observed instances. Cockpit does not maintain a parallel
+editable app configuration.
 
 ```text
 Server
-└── Project
+└── Project (repository + Compose path)
     ├── Overview
-    ├── Resources
+    ├── Services
     ├── Deployments
     └── Settings
 ```
-
-`Deployments` aggregates runs from the project's apps. It is not a global destination.
 
 ---
 
@@ -358,68 +359,71 @@ There is no break-glass path inside cockpit. If a daemon is down, the box is opa
 operator diagnoses over their own SSH and re-runs the install script, which is idempotent
 and re-enrols. That is the trade for holding no standing fleet-wide credential anywhere.
 
-### 3.2 Deploy an app
-
-One project can contain multiple app resources. Each app deploys independently. The
-project deployment page aggregates their runs.
+### 3.2 Deploy a project
 
 ```text
-push or Deploy -> fetch -> build -> calculate changes -> apply -> health -> release
+push or Deploy -> fetch -> normalize -> build -> migrate -> compose up -> health -> release
 ```
 
-1. A source webhook matches an app's configured repository and deployment branch. A
-   manual Deploy, Redeploy, or Rollback action can start the same pipeline.
-2. The plane creates a `Deployment` and snapshots the exact source revision and saved app
-   configuration. A later configuration edit cannot alter the running deployment.
-3. A Workflow asks the daemon to clone and build **on the target server** (#17), under the
-   configuration's build limits. Build logs stream to a `StreamDO`.
-4. After the build resolves the image digest, the plane calculates `before`, `after`, and
-   `impact` against the daemon's observed state. It stores the change set on the
-   deployment and continues automatically (ADR-0009).
-5. The daemon applies each change with ensure-semantics and reports `create | in_place |
-   replace | no_op` (#14).
-6. The container starts with Traefik labels. Health checks run until the deployment
-   succeeds or fails.
-7. On success, a `Release` records the configuration snapshot, runtime snapshot, source
-   revision, image digest, and deployment id. Events are emitted throughout. The git
-   mirror commit runs best-effort (ADR-0004).
+1. A source webhook matches a Project's repository and ref. Manual Deploy and Rollback use
+   the same Project endpoint.
+2. The Plane creates a `Deployment` and snapshots the exact source revision and the
+   Project's target-specific settings.
+3. A Workflow asks the daemon to fetch that commit on the target server. A short-lived,
+   repository-scoped installation token is neither stored nor logged.
+4. The daemon resolves the repository Compose file with the Plane-generated override,
+   validates the effective model, and reports its change set. Every path the model names —
+   build contexts, Dockerfiles, env files, config and secret files — is checked against the
+   checkout with symlinks resolved on disk, before Docker is allowed to open it. Compose
+   `include` and `extends.file` must be contained the same way, but cannot be checked after
+   the fact: Docker follows them while producing the model. Containing them requires running
+   normalization inside a filesystem sandbox, which is deferred to the fetch slice that
+   creates the checkout and is not implemented yet (ADR-0012). The repository file remains
+   untouched.
+5. Every buildable service is built to an immutable release image before apply. Build logs
+   stream to a `StreamDO`.
+6. The optional migration service runs as a one-shot container and must succeed.
+7. The daemon runs `docker compose up` without building or removing named volumes, then
+   waits for required services and the Traefik route to become healthy.
+8. On success, a Project `Release` records the effective Compose snapshot, image
+   identities, runtime snapshot, source revision, and deployment id.
 
-A push to a configured branch is already authorized. It does not wait for approval.
-Rollback starts a new deployment from an earlier release snapshot (#8).
+A push to the configured ref is already authorized and does not wait for approval. The
+first implementation uses one stable Compose project name and accepts brief replacement
+downtime. Rollback reapplies an earlier Compose and image snapshot; it does not reverse
+migrations or restore volume data.
 
-### 3.3 Resource operations
+### 3.3 Service operations
 
-Saving configuration does not change a server. An app uses a deployment to apply saved
-configuration. A non-app resource uses an `Operation`:
+Restart, stop, start, and exec target a service derived from the active Compose release.
+They create attributable `Operation` records but no Release because they do not change the
+Project's desired Compose model.
 
 ```text
-Save configuration -> Apply -> Operation -> Release
-```
-
-Restart, stop, start, and exec also create operations, but they do not create releases
-because they leave configuration unchanged.
-
-```text
-client -> POST /resources/:id/restart
+client -> POST /projects/:id/services/:name/restart
        -> plane records the Operation and actor
        -> ServerDO sends an `op` frame to the daemon
-       -> daemon executes, reports, and re-syncs observed state
+       -> daemon executes against that Project service and re-syncs observed state
 ```
 
-The daemon accepts mutation frames only when they reference a persisted deployment or
-operation. Destructive actions use separate endpoints with confirmation at request time.
-They do not enter a general approval queue (ADR-0009).
+The daemon accepts mutations only when they reference a persisted Deployment or Operation.
+Destructive actions use separate endpoints with confirmation at request time. They do not
+enter a general approval queue (ADR-0009).
 
 ### 3.4 Log streaming
 
 ```
-docker logs -f ──▶ cockpitd ──WSS──▶ ServerDO ──▶ StreamDO ──WS──▶ browser
-                                                          └──────▶ MCP
+Compose fetch/build/migrate/apply/health ─┐
+                                          ├─▶ cockpitd ─WSS─▶ ServerDO ─▶ StreamDO ─WS─▶ browser
+service logs (`docker compose logs -f`) ──┘                                  └──────────▶ MCP
 ```
 
-Recent lines live in the `StreamDO`; older lines archive to R2 on a rolling window. One
-path, all clients (#1). The `/devops` observability playbook deliberately punted logs;
-cockpit cannot.
+Deployment output is a live product surface, not delayed Workflow state. Every chunk carries
+the deployment stream id, stage, stdout/stderr source, and a monotonic sequence. `StreamDO`
+fans it out immediately and replays missed chunks after a browser reconnect. Recent chunks
+live in the `StreamDO`; older lines archive to R2 on a rolling window. One path, all clients
+(#1). Tokens, resolved secrets, and environment values never enter this stream. The `/devops`
+observability playbook deliberately punted logs; cockpit cannot.
 
 ### 3.5 Observation and drift
 
@@ -430,12 +434,9 @@ unapplied configuration is not drift.
 
 ### 3.6 The project canvas
 
-A project renders as its dependency graph, drawn directly from `Link` rows — not a
-visualisation layer over a list. It authors **composition** (add, remove, arrange) but not
-connections: a link is created where it is configured, and the edge appears as a
-consequence. This is Railway's split too, where connections come from reference variables
-rather than a gesture. Node positions are persisted per project, since they are the
-operator's mental map and cannot be recomputed on load.
+A project renders the services, networks, and volumes from its active effective Compose
+snapshot. It is an operational view, not a second authoring surface: composition changes
+in Git and arrive through a Deployment. Runtime status overlays the versioned service graph.
 
 ### 3.7 An agent operating Cockpit
 
