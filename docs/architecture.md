@@ -375,11 +375,14 @@ push or Deploy -> fetch -> normalize -> build -> migrate -> compose up -> health
    validates the effective model, and reports its change set. Every path the model names —
    build contexts, Dockerfiles, env files, config and secret files — is checked against the
    checkout with symlinks resolved on disk, before Docker is allowed to open it. Compose
-   `include` and `extends.file` must be contained the same way, but cannot be checked after
-   the fact: Docker follows them while producing the model. Containing them requires running
-   normalization inside a filesystem sandbox, which is deferred to the fetch slice that
-   creates the checkout and is not implemented yet (ADR-0012). The repository file remains
-   untouched.
+   `include` and `extends.file` cannot be checked after the fact, because Docker follows them
+   while producing the model, so normalization runs inside a container: a digest-pinned
+   official Docker CLI image with the checkout bind-mounted read-only at a fixed path, no
+   Docker socket, no network, a read-only root filesystem, no capabilities, and a non-root
+   user (ADR-0012). A path a document names resolves against that filesystem, not the box's.
+   Build, migration, and apply run through the host Docker Compose, with the same fixed
+   Compose environment the sandbox gets, so a document interpolates the same values in both
+   and neither can read the daemon's own. The repository file remains untouched.
 5. Every buildable service is built to an immutable release image before apply. Build logs
    stream to a `StreamDO`.
 6. The optional migration service runs as a one-shot container and must succeed.

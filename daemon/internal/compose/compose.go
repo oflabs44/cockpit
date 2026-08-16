@@ -109,12 +109,23 @@ type Request struct {
 	Files []string
 }
 
-// args builds the whole docker argument list for one Compose verb. Every verb
-// goes through here so the project name, the project directory, and the file
-// order cannot diverge between normalizing, building, migrating, and applying.
+// args builds the whole docker argument list for one Compose verb, resolved
+// against the request's own directory. Every verb goes through here so the
+// project name, the project directory, and the file order cannot diverge
+// between normalizing, building, migrating, and applying.
 func (r Request) args(verb ...string) []string {
+	return r.argsIn(r.Dir, verb...)
+}
+
+// argsIn is args with the project directory named explicitly, for the one
+// caller that runs Compose somewhere other than the checkout: normalization,
+// where the checkout is bind-mounted at a fixed path inside the sandbox and the
+// documents resolve against that path instead. Everything else about the
+// identity — the project name, the file order, the files themselves — is the
+// same, so the sandbox normalizes the stack the host then builds and applies.
+func (r Request) argsIn(projectDir string, verb ...string) []string {
 	args := make([]string, 0, 6+2*len(r.Files)+len(verb))
-	args = append(args, "compose", "--project-name", r.ProjectName, "--project-directory", r.Dir)
+	args = append(args, "compose", "--project-name", r.ProjectName, "--project-directory", projectDir)
 
 	for _, f := range r.Files {
 		args = append(args, "--file", f)
@@ -125,6 +136,12 @@ func (r Request) args(verb ...string) []string {
 
 // Normalize merges and resolves the request's documents into the effective
 // model. It does not validate policy; see Policy.Validate.
+//
+// It runs Compose inside the sandbox, not against the host filesystem, because
+// this is the verb that opens repository-controlled documents: a document's own
+// `include` or `extends.file` is followed while the model is produced, so
+// containment cannot wait for a model to judge. See sandbox.go. The other verbs
+// run on the host, after policy has judged what Compose read.
 //
 // Path and env-file resolution stay off. Resolved, the output would carry
 // absolute host paths that hide whether the repository asked for a file inside
@@ -137,15 +154,46 @@ func (c *CLI) Normalize(ctx context.Context, req Request) (*Model, error) {
 		return nil, err
 	}
 
-	args := req.args("config", "--format", "json", "--no-env-resolution", "--no-path-resolution")
+	name := sandboxName(req.Dir)
+
+	// The same identity and the same file order, addressed as the sandbox sees
+	// them: the checkout is the project directory in there, and the documents
+	// are relative to it, as they are on the host.
+	args := sandboxRun(req.Dir, name,
+		req.argsIn(sandboxProjectDir, "config", "--format", "json", "--no-env-resolution", "--no-path-resolution"))
 
 	out, err := c.Exec(ctx, req.Dir, c.bin(), args...)
 	if err != nil {
+		// A cancelled command killed the host CLI; the container it started is
+		// still running. Removing it is part of cancelling, so a failure to
+		// remove it is reported instead of the cancellation itself — one is a
+		// deployment that stopped, the other is a container left on the box.
+		if ctx.Err() != nil {
+			if rmErr := c.removeSandbox(name); rmErr != nil {
+				return nil, fmt.Errorf(
+					"normalize compose model: cancelled, and the sandbox container %s was not removed: %w",
+					name, rmErr,
+				)
+			}
+		}
+
+		if sandboxOutOfBudget(err) {
+			return nil, sandboxKilledError(err)
+		}
+
 		return nil, fmt.Errorf("normalize compose model: %w", err)
 	}
 
 	return parseModel(out)
 }
+
+// Build, RunMigration, and Apply run on the host, as the daemon's own user.
+// Callers must run Policy.Validate over the model first, and must not run any
+// of them over a model it rejected. The sandbox contains what normalization
+// reads, not what the model then asks the box to do: a build context, an env
+// file, or a bind mount pointing outside the checkout is something policy
+// refuses, not something Docker refuses. Nothing here enforces that order,
+// because the deployment orchestrator that will own it does not exist yet.
 
 // Build builds every buildable service in the project. Builds finish before
 // apply so no running container is replaced by an image that then fails to
@@ -247,6 +295,15 @@ func (r Request) validate() error {
 		return fmt.Errorf("compose request: no compose files")
 	}
 
+	// Docker's --mount takes comma-separated key=value pairs, and the sandbox
+	// puts this directory in the source of one. A comma in it would end the
+	// source and begin another mount option, which is a different mount than
+	// the one this package describes. It is refused rather than escaped:
+	// nothing that creates a checkout has a reason to put a comma in its path.
+	if strings.Contains(r.Dir, ",") {
+		return fmt.Errorf("compose request: the project directory contains a comma: %s", r.Dir)
+	}
+
 	paths, err := newPathChecker(r.Dir)
 	if err != nil {
 		return fmt.Errorf("compose request: %w", err)
@@ -265,16 +322,65 @@ func (r Request) validate() error {
 	return nil
 }
 
+// composeEnv is the whole environment a Compose command runs with: the host
+// verbs, the `docker run` that starts the sandbox, and — passed in as --env —
+// Compose inside the sandbox. It is built rather than inherited, and it is one
+// list rather than two.
+//
+// Built, because Compose interpolates ${VAR} from the process environment, and
+// the documents it interpolates belong to the repository. An inherited daemon
+// environment would be readable by anything a repository writes: `image:
+// ${GITHUB_TOKEN}` would put the daemon's own credentials into the effective
+// model, the Release snapshot, and the deployment log.
+//
+// One list, because normalization decides what a deployment means and apply
+// re-reads the same documents on the host. A variable one side has and the
+// other does not is a stack that runs differently from the model policy judged.
+// The values are therefore fixed and location-independent, identical on the box
+// and in the container.
+//
+// HOME and DOCKER_CONFIG name a path that does not exist. The Docker CLI has to
+// be told where its configuration lives, and the answer is nowhere: no ambient
+// ~/.docker/config.json on the box decides what normalization reads, which
+// plugins the CLI loads, or which registry a deployment talks to. Private
+// registry credentials and resolved SecretRefs are deferred work; they must use
+// delivery paths that repository interpolation cannot read. Non-secret Plane
+// variables will extend this explicit environment on both sides.
+func composeEnv() []string {
+	return []string{
+		// Where the CLI finds docker, its plugins, and any helper it shells out
+		// to. The ordinary system path, not the daemon's.
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"HOME=/nonexistent",
+		"DOCKER_CONFIG=/nonexistent/docker",
+		// The sandbox's one writable mount is mounted here, so this value is
+		// true on both sides. See sandboxStateDir.
+		"TMPDIR=" + sandboxStateDir,
+	}
+}
+
+// commandError explains a command that failed: what ran, how it failed, and
+// what it said — if it said anything. A command that failed silently gets no
+// dangling colon with nothing behind it.
+func commandError(name string, args []string, err error, detail string) error {
+	if detail == "" {
+		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
+	}
+
+	return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, detail)
+}
+
 func execRun(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
+	cmd.Env = composeEnv()
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		return nil, commandError(name, args, err, strings.TrimSpace(stderr.String()))
 	}
 
 	return stdout.Bytes(), nil
@@ -306,6 +412,7 @@ func execStream(ctx context.Context, dir, name string, args []string, emit Emit)
 
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
+	cmd.Env = composeEnv()
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -318,7 +425,7 @@ func execStream(ctx context.Context, dir, name string, args []string, emit Emit)
 	}
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
+		return commandError(name, args, err, "")
 	}
 
 	// One lock over both pumps, so a sink forwarding to the Plane is never
@@ -350,11 +457,7 @@ func execStream(ctx context.Context, dir, name string, args []string, emit Emit)
 	if waitErr != nil {
 		// The last stderr line is the reason Docker gives for the failure.
 		// Without it a caller with no sink has an exit status and nothing else.
-		if last := tail.lastLine(); last != "" {
-			return fmt.Errorf("%s %s: %w: %s", name, strings.Join(args, " "), waitErr, last)
-		}
-
-		return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), waitErr)
+		return commandError(name, args, waitErr, tail.lastLine())
 	}
 
 	// A command that exited cleanly but whose output could not be read fully

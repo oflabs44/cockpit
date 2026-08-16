@@ -77,7 +77,8 @@ func shopProject(t *testing.T) compose.Request {
 	}
 }
 
-// composePrefix is the docker argument prefix every verb shares for req.
+// composePrefix is the docker argument prefix the host verbs share for req.
+// Normalize runs in the sandbox instead; see sandbox_test.go.
 func composePrefix(req compose.Request) string {
 	return req.Dir + " docker compose --project-name " + req.ProjectName +
 		" --project-directory " + req.Dir + " --file compose.yaml --file cockpit.override.yaml"
@@ -108,27 +109,8 @@ func normalize(t *testing.T, out string) *compose.Model {
 	return m
 }
 
-func TestNormalizeInvokesComposeConfig(t *testing.T) {
-	var calls [][]string
-
-	req := shopProject(t)
-	cli := &compose.CLI{Bin: "docker", Exec: fixedRunner(t, normalized, &calls)}
-
-	if _, err := cli.Normalize(context.Background(), req); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(calls) != 1 {
-		t.Fatalf("calls = %d, want 1", len(calls))
-	}
-
-	// Resolution stays off, so the model shows the repository's own paths and
-	// carries no env file contents.
-	want := composePrefix(req) + " config --format json --no-env-resolution --no-path-resolution"
-	if got := strings.Join(calls[0], " "); got != want {
-		t.Fatalf("call =\n%s\nwant\n%s", got, want)
-	}
-}
+// The command normalization runs, and the sandbox it runs in, are asserted in
+// sandbox_test.go.
 
 func TestNormalizeReportsRunnerFailure(t *testing.T) {
 	cli := &compose.CLI{Bin: "docker", Exec: func(context.Context, string, string, ...string) ([]byte, error) {
@@ -174,8 +156,18 @@ func badRequests(t *testing.T) map[string]compose.Request {
 		t.Fatal(err)
 	}
 
+	// A comma would end the source of the sandbox's `--mount` and start another
+	// option, so a directory with one is refused before the argument is built.
+	comma := filepath.Join(t.TempDir(), "check,out")
+	if err := os.Mkdir(comma, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
 	return map[string]compose.Request{
-		"no project name":   {Dir: dir, Files: []string{"compose.yaml"}},
+		"no project name": {Dir: dir, Files: []string{"compose.yaml"}},
+		"directory with a comma": {
+			ProjectName: "p", Dir: comma, Files: []string{"compose.yaml"},
+		},
 		"no directory":      {ProjectName: "p", Files: []string{"compose.yaml"}},
 		"no files":          {ProjectName: "p", Dir: dir},
 		"missing directory": {ProjectName: "p", Dir: filepath.Join(dir, "gone"), Files: []string{"compose.yaml"}},

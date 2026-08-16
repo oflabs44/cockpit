@@ -87,12 +87,29 @@ checked-out commit, including through symlinks. Inputs that Compose itself would
 checked before normalization or normalized inside a filesystem sandbox. Other policy failures
 happen before build or apply.
 
-Implementation status: the paths the effective model names — Compose files, build contexts,
-Dockerfiles, env files, config and secret files — are checked against the checkout, with
-symlinks resolved on disk. `include` and `extends.file` are **not** yet contained: Docker
-resolves them while producing the effective model, so a check on the model is already too
-late, and the sandbox that has to run normalization under is deferred to the fetch slice
-that creates the checkout. Until it exists, this requirement is stated, not met.
+Implementation status: implemented. The paths the effective model names — Compose files,
+build contexts, Dockerfiles, env files, config and secret files — are checked against the
+checkout, with symlinks resolved on disk. `include` and `extends.file` cannot be checked that
+way, because Docker resolves them while producing the effective model, so normalization runs
+in a sandbox instead: the host Docker CLI starts a container from a digest-pinned official
+Docker CLI image, with the checkout bind-mounted read-only at a fixed path and nothing else
+of the box in it — no Docker socket, no network, no shared IPC namespace, read-only root
+filesystem, no capabilities, no new privileges, an unmapped non-root user, and one bounded
+tmpfs for the CLI's temporary files. Parser memory, CPU, and process count are bounded, and
+a container left behind by a cancelled normalization is removed by name. An absolute or
+climbing path resolves inside that container; the image has its own filesystem, but the
+checkout is the only host content mounted there. Build, migration, and apply keep running
+through the host Docker Compose, after policy has judged the model.
+
+Every Compose command — the sandboxed normalization and the host verbs alike — runs with one
+fixed, built environment rather than the daemon's own: Compose interpolates `${VAR}` from the
+process environment, so an inherited one would let any repository document read the daemon's
+secrets into the effective model, and an environment that differed between the two sides
+would make the applied stack differ from the model policy judged. The Docker CLI's
+configuration path is set to one that does not exist, so no ambient `~/.docker/config.json`
+decides what a deployment reads. Private registry credentials and resolved secret references
+are deferred; they must use delivery paths that repository interpolation cannot read. Plain
+Plane variables will extend the explicit Compose environment on both sides.
 
 ## Consequences
 
