@@ -80,3 +80,20 @@ export async function errorDetail(res: Response): Promise<string> {
 
   return text ? ` — ${text.slice(0, 200)}` : ''
 }
+
+// The plane answers a refusal with `{ "error": "<sentence the operator can act on>" }`.
+// Pulled out on its own so a caller can show that sentence instead of wrapping raw JSON in
+// a status line. Empty when the body is not that shape — the caller falls back.
+export async function planeError(res: Response): Promise<string> {
+  const text = await res.text().catch(() => '')
+
+  try {
+    const body = JSON.parse(text) as { error?: unknown }
+
+    if (typeof body.error === 'string' && body.error) return body.error
+  } catch {
+    // Not JSON: an HTML error page or an empty body. Nothing to quote.
+  }
+
+  return ''
+}

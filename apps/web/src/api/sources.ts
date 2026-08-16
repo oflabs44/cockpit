@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import { errorDetail } from '#/api/servers'
+import { errorDetail, planeError } from '#/api/servers'
 
 // Shape matches the plane's Sources API, kept as a hand-written subset rather than a
 // cross-package import — same convention as #/api/servers.
@@ -45,6 +45,70 @@ export const sourcesQueryOptions = queryOptions({
   queryKey: ['sources'],
   queryFn: fetchSources,
 })
+
+// ADR-0012 — what an operator picks from when importing a project. Read live from GitHub on
+// every request and never mirrored here, so a repository added or removed on github.com
+// shows up on the next fetch.
+export type Repository = {
+  id: string
+  full_name: string
+  // Empty on a repository with no commits yet: there is nothing to clone or deploy.
+  default_branch: string
+  private: boolean
+  archived: boolean
+}
+
+// The plane's own maximum, so the walk below takes the fewest requests it can.
+const REPOSITORY_PAGE_SIZE = 100
+
+// The grant is paged, and a large one does not fit in a page — so every page is fetched in
+// order until the plane says there are no more. Stopping at the first page would present a
+// truncated grant as the whole grant.
+export async function fetchSourceRepositories(sourceId: string): Promise<Repository[]> {
+  const all: Repository[] = []
+
+  for (let page = 1; ; page++) {
+    const res = await fetch(
+      `/source-connections/${encodeURIComponent(sourceId)}/repositories?page=${page}&per_page=${REPOSITORY_PAGE_SIZE}`,
+    )
+
+    if (res.status === 404) {
+      throw new Error('this GitHub connection no longer exists; reconnect it under Sources')
+    }
+
+    if (!res.ok) {
+      const detail = await planeError(res)
+
+      // 502 is GitHub's answer, not the plane's — worth saying so, since retrying is the
+      // right move and there is nothing to fix on this side.
+      if (res.status === 502) {
+        throw new Error(detail || "GitHub wouldn't list the repositories for this installation")
+      }
+
+      throw new Error(
+        `GET /source-connections/${sourceId}/repositories failed: ${res.status}${detail ? ` — ${detail}` : ''}`,
+      )
+    }
+
+    const body = (await res.json()) as { repositories?: Repository[]; has_more?: boolean }
+
+    if (!Array.isArray(body.repositories)) {
+      throw new Error(`GET /source-connections/${sourceId}/repositories: unexpected response shape`)
+    }
+
+    all.push(...body.repositories)
+
+    // The empty-page guard is the backstop: `has_more` comes from a total count GitHub
+    // reports, and a wrong one must not turn this walk into an endless loop.
+    if (!body.has_more || body.repositories.length === 0) return all
+  }
+}
+
+export const sourceRepositoriesQueryOptions = (sourceId: string) =>
+  queryOptions({
+    queryKey: ['sources', sourceId, 'repositories'],
+    queryFn: () => fetchSourceRepositories(sourceId),
+  })
 
 // The plane answers with GitHub's App install page for the configured App — the caller's
 // move is to leave for `url` and come back through the plane's callback. An unconfigured
