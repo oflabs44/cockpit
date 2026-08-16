@@ -76,6 +76,7 @@ export async function fetchInstallationFacts(
   const jwt = await appJwt(env.GITHUB_APP_ID!, env.GITHUB_APP_PRIVATE_KEY!, nowMs);
   const res = await fetch(`https://api.github.com/app/installations/${installationId}`, {
     headers: githubHeaders(`Bearer ${jwt}`),
+    redirect: "manual",
   });
   if (!res.ok) {
     // 404: see the note above GitHubEnv.
@@ -113,6 +114,7 @@ export async function deleteInstallation(
   const res = await fetch(`https://api.github.com/app/installations/${installationId}`, {
     method: "DELETE",
     headers: githubHeaders(`Bearer ${jwt}`),
+    redirect: "manual",
   });
 
   if (res.status === 404) return "not-found";
@@ -167,12 +169,19 @@ export async function fetchInstallationRepositories(
   url.searchParams.set("per_page", String(page.perPage));
   url.searchParams.set("page", String(page.page));
 
-  const res = await fetch(url, { headers: githubHeaders(`Bearer ${token}`) });
-  if (!res.ok) {
-    throw new GitHubApiError(res.status, `github repository listing failed: ${res.status}`);
-  }
+  try {
+    const res = await fetch(url, {
+      headers: githubHeaders(`Bearer ${token}`),
+      redirect: "manual",
+    });
+    if (!res.ok) {
+      throw new GitHubApiError(res.status, `github repository listing failed: ${res.status}`);
+    }
 
-  return parseRepositoryPage(await readJson(res, "repository listing"));
+    return parseRepositoryPage(await readJson(res, "repository listing"));
+  } finally {
+    await revokeInstallationToken(token);
+  }
 }
 
 /**
@@ -241,20 +250,141 @@ async function readJson(res: Response, what: string): Promise<unknown> {
   }
 }
 
+// --- repository grants ---------------------------------------------------------------
+// ADR-0012's fetch/preflight foundation. A Project deploys from `repository_id`, never from
+// `repository_full_name` (docs/type-design.md §2.2): the name is a display cache that is
+// wrong from the moment the repository is renamed or transferred. So the clone identity is
+// resolved here, from the id, through the installation, every time it is needed.
+
+/** A repository resolved from its id, plus the credential that can read it, for one call. */
+interface RepositoryGrant {
+  /** GitHub's numeric id, as GitHub itself confirmed it. Always equals the id asked for. */
+  repository_id: number;
+  /** The repository's name on github.com *now* — the Project's cached name may differ. */
+  full_name: string;
+  /** Canonical HTTPS clone URL, built from `full_name`. Carries no credential. */
+  clone_url: string;
+  /**
+   * Installation access token scoped to this one repository, read-only on contents. Valid
+   * for the callback only: it must not be stored, returned to a client, or logged.
+   */
+  token: string;
+}
+
+/** Digits only: the text form of a JSON number, with no sign, point or exponent. */
+const REPOSITORY_ID_PATTERN = /^[0-9]+$/;
+
+/** owner/name, the only shape that can be pasted into a clone URL unescaped. */
+const FULL_NAME_PATTERN = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+
+function isFullName(value: unknown): value is string {
+  if (typeof value !== "string" || !FULL_NAME_PATTERN.test(value)) return false;
+
+  // A malformed upstream response must not turn URL path segments into traversal.
+  return value.split("/").every((segment) => segment !== "." && segment !== "..");
+}
+
+/**
+ * Resolve a repository by its authoritative numeric id and lend the callback a grant that
+ * can read it. It resolves the grant with two GitHub calls:
+ *
+ * 1. `POST /app/installations/{id}/access_tokens`, as the app (Bearer JWT), with
+ *    `repository_ids: [id]` and `permissions: { contents: "read" }` — the documented way to
+ *    narrow an installation token to one repository and one permission. Without a body the
+ *    token would carry the installation's whole grant.
+ * 2. `GET /repositories/{id}`, as that installation — the id-addressed form of the
+ *    repository endpoint, which is what survives a rename or a transfer.
+ *
+ * The token is never persisted, logged, returned to a route, or placed in an error. A revoke
+ * is attempted after `use`; if it fails, GitHub expires the token within one hour.
+ */
+export async function withRepositoryGrant(
+  env: GitHubEnv,
+  installationId: number,
+  repositoryId: string,
+  nowMs: number,
+  use: (grant: RepositoryGrant) => Promise<void> | void,
+): Promise<void> {
+  if (githubConfigState(env) !== "configured") throw new GitHubConfigError(env);
+
+  const id = parseRepositoryId(repositoryId);
+  const token = await mintInstallationToken(env, installationId, nowMs, {
+    repository_ids: [id],
+    permissions: { contents: "read" },
+  });
+
+  try {
+    const res = await fetch(`https://api.github.com/repositories/${id}`, {
+      headers: githubHeaders(`Bearer ${token}`),
+      redirect: "manual",
+    });
+    if (!res.ok) {
+      throw new GitHubApiError(res.status, `github repository lookup failed: ${res.status}`);
+    }
+
+    const repo = (await readJson(res, "repository")) as { id?: unknown; full_name?: unknown } | null;
+
+    if (repo?.id !== id) {
+      throw new GitHubApiError(502, "github returned a different repository than the one asked for");
+    }
+    if (!isFullName(repo.full_name)) {
+      throw new GitHubApiError(502, "github returned a repository this plane cannot read");
+    }
+
+    await use({
+      repository_id: id,
+      full_name: repo.full_name,
+      clone_url: `https://github.com/${repo.full_name}.git`,
+      token,
+    });
+  } finally {
+    await revokeInstallationToken(token);
+  }
+}
+
+/**
+ * `ProjectSourceBinding.repository_id` is text (schema.ts), so an id that is not a positive
+ * safe integer never reaches GitHub: `repository_ids` is a JSON number array, and a value
+ * past 2^53-1 would silently become a *different* id on the way out.
+ */
+function parseRepositoryId(repositoryId: string): number {
+  const id = REPOSITORY_ID_PATTERN.test(repositoryId) ? Number(repositoryId) : Number.NaN;
+
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    throw new GitHubApiError(500, "the project's stored repository id is not a github repository id");
+  }
+
+  return id;
+}
+
 /**
  * Exchange the app JWT for an installation access token (GitHub expires it after an hour;
  * cockpit discards it immediately). Deliberately not exported: a token that no caller can
  * hold is a token no caller can store, return in a response, or log.
+ *
+ * `scope` narrows the token: POST /app/installations/{id}/access_tokens accepts
+ * `repository_ids` (integers) and `permissions`, and omitting them mints a token carrying
+ * everything the installation granted. Only `withRepositoryGrant` passes a scope; the
+ * listing above deliberately does not, because it must see the whole grant.
  */
 async function mintInstallationToken(
   env: GitHubEnv,
   installationId: number,
   nowMs: number,
+  scope?: { repository_ids: number[]; permissions: Record<string, string> },
 ): Promise<string> {
   const jwt = await appJwt(env.GITHUB_APP_ID!, env.GITHUB_APP_PRIVATE_KEY!, nowMs);
+  const headers = githubHeaders(`Bearer ${jwt}`);
+  if (scope) headers["content-type"] = "application/json";
+
   const res = await fetch(
     `https://api.github.com/app/installations/${installationId}/access_tokens`,
-    { method: "POST", headers: githubHeaders(`Bearer ${jwt}`) },
+    {
+      method: "POST",
+      headers,
+      body: scope ? JSON.stringify(scope) : undefined,
+      redirect: "manual",
+    },
   );
   if (!res.ok) {
     throw new GitHubApiError(res.status, `github installation token exchange failed: ${res.status}`);
@@ -266,6 +396,19 @@ async function mintInstallationToken(
   }
 
   return data.token;
+}
+
+/** Best-effort cleanup; a failed revoke leaves GitHub's one-hour expiry as the bound. */
+async function revokeInstallationToken(token: string): Promise<void> {
+  try {
+    await fetch("https://api.github.com/installation/token", {
+      method: "DELETE",
+      headers: githubHeaders(`Bearer ${token}`),
+      redirect: "manual",
+    });
+  } catch {
+    // Revocation must not replace the repository operation's result.
+  }
 }
 
 function githubHeaders(authorization: string): Record<string, string> {

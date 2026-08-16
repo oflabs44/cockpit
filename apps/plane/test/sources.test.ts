@@ -500,8 +500,7 @@ describe("sources: disconnect", () => {
 });
 
 // --- repositories ----------------------------------------------------------------------
-// ADR-0012. Two GitHub calls per request — mint an installation token, then spend it — so
-// these assert on both, and on the token never coming back out of the plane.
+// ADR-0012. Each request mints, spends, then revokes an installation token.
 
 const INSTALLATION_TOKEN = "ghs_test_installation_token_do_not_leak";
 
@@ -535,6 +534,9 @@ function githubRepositoryApi(listing: (call: GithubCall) => Response) {
         JSON.stringify({ token: INSTALLATION_TOKEN, expires_at: "2023-11-14T22:13:20Z" }),
         { status: 201, headers: { "content-type": "application/json" } },
       );
+    }
+    if (call.url.endsWith("/installation/token")) {
+      return new Response(null, { status: 204 });
     }
 
     return listing(call);
@@ -578,7 +580,7 @@ describe("sources: repositories", () => {
       async (calls) => {
         const response = await listRepositories(app, source.id, "", withGithubConfig());
 
-        expect(calls).toHaveLength(2);
+        expect(calls).toHaveLength(3);
         // As the app, to mint the token...
         expect(calls[0]?.method).toBe("POST");
         expect(calls[0]?.url).toBe(
@@ -591,6 +593,11 @@ describe("sources: repositories", () => {
           "https://api.github.com/installation/repositories?per_page=100&page=1",
         );
         expect(calls[1]?.authorization).toBe(`Bearer ${INSTALLATION_TOKEN}`);
+        expect(calls[2]).toEqual({
+          method: "DELETE",
+          url: "https://api.github.com/installation/token",
+          authorization: `Bearer ${INSTALLATION_TOKEN}`,
+        });
 
         return response;
       },

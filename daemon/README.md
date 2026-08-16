@@ -180,7 +180,25 @@ internal/executor     Docker, Host, Firewall, Systemd, Cron interfaces
   /fake               in-memory executors for tier 1 tests
 internal/config       the plane URL, server id, and credential; nothing about the box
                       plus the ephemeral runtime state file, which is never mixed into it
+internal/checkout     one deployment's working tree: an exact commit, fetched and verified
+internal/compose      the effective compose model, cockpit's policy over it, and the
+                      build -> migrate -> apply order
 ```
+
+A checkout lives at `/run/cockpitd/deployments/<deployment-id>/checkout`. The
+runtime root and each deployment's directory are `0700`; the checkout inside is
+`0755`, with files `0644` or `0755`. That split is what lets Compose
+normalization read the tree as an unmapped container user through its own bind
+mount while no other user on the box can walk down to it. The package resolves
+no refs — a deployment names one full commit SHA — and re-preparing the same
+deployment at the same commit refetches nothing, because a marker written beside
+the checkout after every step succeeded, plus a verified `HEAD`, is what says a
+previous run finished.
+
+The installation token reaches git through one seam: the environment of the
+fetch subprocess, readable by the daemon's own user and gone when the fetch
+exits. It is kept out of argv, out of the clone URL, out of everything written
+under `.git`, and out of every value and error the package returns.
 
 The dial carries `Authorization: Bearer <secret>` — the credential, the
 enrolment token, or the claim code, whichever applies — because the plane
