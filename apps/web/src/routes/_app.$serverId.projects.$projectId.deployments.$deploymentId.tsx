@@ -10,6 +10,7 @@ import {
 import { projectQueryOptions } from '#/api/projects'
 import { serverResourcesQueryOptions } from '#/api/resources'
 import { serverDetailQueryOptions } from '#/api/server-detail'
+import { DeploymentLogs } from '#/components/deployment-logs'
 import { DeploymentStatusValue, StepStatusValue } from '#/components/status'
 import { formatTimestamp, formatTiming } from '#/lib/format'
 import type { CrumbSegment } from '#/routes/_app'
@@ -177,9 +178,15 @@ function DeploymentDetail() {
         <div className="card"><pre className="record-json">{json(deployment.configuration_snapshot)}</pre></div>
       </div>
 
+      <div className="sec"><span className="label">Live output</span></div>
+      {/* Keyed by deployment: the stream state (rendered chunks, last sequence) belongs to one
+          deployment, so a param change must start a new viewer rather than resume the old one
+          against a different stream. */}
+      <DeploymentLogs key={deployment.id} deploymentId={deployment.id} />
+
       <div className="capability-note">
         <span className="label">Unavailable</span>
-        <p>Live logs and Workflow progress are not available from the Plane API. This page shows only the stored deployment record.</p>
+        <p>Workflow progress is not available from the Plane API. The steps above are the stored deployment record, not live execution state.</p>
       </div>
     </>
   )

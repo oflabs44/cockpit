@@ -20,6 +20,7 @@ import {
   listServerResourcesHandler,
 } from "./routes/servers-resources-list";
 import { createProjectRoute, createProjectHandler } from "./routes/projects-create";
+import { importProjectRoute, importProjectHandler } from "./routes/projects-import";
 import { listProjectsRoute, listProjectsHandler } from "./routes/projects-list";
 import { getProjectRoute, getProjectHandler } from "./routes/projects-detail";
 import {
@@ -56,10 +57,16 @@ import {
   githubSourceCallbackHandler,
 } from "./routes/sources-github-callback";
 import { disconnectSourceRoute, disconnectSourceHandler } from "./routes/sources-disconnect";
+import {
+  listSourceRepositoriesRoute,
+  listSourceRepositoriesHandler,
+} from "./routes/sources-repositories-list";
 import { daemonWsHandler } from "./routes/daemon-ws";
+import { deploymentLogsHandler } from "./routes/deployment-logs";
 import { accessAuth } from "./access";
 import type { AccessOptions, Identity } from "./access";
 import type { ServerDO } from "./durable-objects/server-do";
+import type { StreamDO } from "./durable-objects/stream-do";
 
 export type Variables = { deps: Deps; identity: Identity };
 // `wrangler types` cannot know SERVER_DO's RPC surface, so it generates a bare
@@ -71,6 +78,8 @@ export type Variables = { deps: Deps; identity: Identity };
 export interface Bindings {
   DB: D1Database;
   SERVER_DO: DurableObjectNamespace<ServerDO>;
+  /** One per deployment, holding its log tail and subscribers — src/durable-objects/stream-do.ts. */
+  STREAM_DO: DurableObjectNamespace<StreamDO>;
   ASSETS: Fetcher;
   // GitHub App config (ADR-0010). Optional at the type level because local dev/tests may
   // omit them, but the Sources connect/callback flow refuses to run unless all three are
@@ -107,32 +116,53 @@ export function createApp(deps: Deps = realDeps, access: AccessOptions = {}) {
     },
   });
 
-  // `/daemon`'s 101 response carries a live `webSocket` with headers the runtime makes
-  // immutable — `secureHeaders()`/`requestId()` mutating them after `next()` throws
-  // ("Can't modify immutable headers"), found by running the WS handshake test, not from
-  // memory. None of the JSON-request middleware below applies to an upgrade anyway, so the
-  // whole stack skips this one path rather than special-casing each middleware.
+  // A 101 response carries a live `webSocket` with headers the runtime makes immutable —
+  // `secureHeaders()`/`requestId()` mutating them after `next()` throws ("Can't modify
+  // immutable headers"), found by running the WS handshake test, not from memory. None of
+  // the JSON-request middleware below applies to an upgrade anyway, so the whole stack skips
+  // every upgrade rather than special-casing each middleware.
+  //
+  // Both conditions, never the header alone: `Upgrade: websocket` is request-controlled, so
+  // keying on it by itself hands any caller a switch that turns off the body limit, csrf,
+  // and the secure headers on every mutating JSON route. A POST /projects carrying that
+  // header is not an upgrade — it is an ordinary request wearing one — and gets the full
+  // stack. A non-upgrade GET on a socket path also gets the full stack and is answered 426
+  // by its handler. A new socket must be added here; that is the cost of not trusting the
+  // header, and it is the cheaper mistake.
+  const SOCKET_PATHS = /^\/daemon$|^\/deployments\/[^/]+\/logs$/;
+
+  const exceptUpgrades = (mw: MiddlewareHandler<AppEnv>): MiddlewareHandler<AppEnv> => {
+    return (c, next) =>
+      c.req.header("upgrade")?.toLowerCase() === "websocket" && SOCKET_PATHS.test(c.req.path)
+        ? next()
+        : mw(c, next);
+  };
+
+  // Authentication is the one thing an upgrade must NOT skip: `/deployments/:id/logs` is an
+  // operator route and a socket is exactly as sensitive as the JSON it streams. `/daemon` is
+  // excluded by path — a daemon holds a per-server credential, cannot perform an Access
+  // login, and authenticates that credential itself in daemon-ws.ts.
   const exceptDaemon = (mw: MiddlewareHandler<AppEnv>): MiddlewareHandler<AppEnv> => {
     return (c, next) => (c.req.path === "/daemon" ? next() : mw(c, next));
   };
 
-  app.use("*", exceptDaemon(requestId({ generator: () => deps.ids.id("req") })));
-  app.use("*", exceptDaemon(secureHeaders()));
+  app.use("*", exceptUpgrades(requestId({ generator: () => deps.ids.id("req") })));
+  app.use("*", exceptUpgrades(secureHeaders()));
   // No `cors()`: Hono's `csrf()` below only inspects form-encoded/multipart/text-plain bodies
   // (it checks Content-Type, not method) and lets `application/json` requests through
   // regardless of origin. The absence of `cors()` is therefore the ONLY thing stopping a
   // cross-origin page from POSTing JSON to this Worker today — adding `cors()` back would
   // silently remove that defence, not just permit reads.
-  app.use("*", exceptDaemon(bodyLimit({ maxSize: 1 * 1024 * 1024 }))); // 1mb; no route needs more yet
+  app.use("*", exceptUpgrades(bodyLimit({ maxSize: 1 * 1024 * 1024 }))); // 1mb; no route needs more yet
   // csrf() only inspects state-changing methods (POST/PUT/PATCH/DELETE) and passes GET/HEAD
   // through untouched, so mounting it on "*" already matches "csrf on mutating routes"
   // (docs/architecture.md §2.1) without a per-route split.
-  app.use("*", exceptDaemon(csrf()));
+  app.use("*", exceptUpgrades(csrf()));
   // Scoped to GET/HEAD: etag hashes the body to produce a cache-validation header, which is
   // meaningless (and wasteful) on errors and on mutating responses once those exist.
   app.use(
     "*",
-    exceptDaemon(async (c, next) => {
+    exceptUpgrades(async (c, next) => {
       if (c.req.method === "GET" || c.req.method === "HEAD") return etag()(c, next);
       return next();
     }),
@@ -157,6 +187,7 @@ export function createApp(deps: Deps = realDeps, access: AccessOptions = {}) {
   app.openapi(redeemEnrolmentRoute, redeemEnrolmentHandler);
   app.openapi(listServerResourcesRoute, listServerResourcesHandler);
   app.openapi(createProjectRoute, createProjectHandler);
+  app.openapi(importProjectRoute, importProjectHandler);
   app.openapi(listProjectsRoute, listProjectsHandler);
   app.openapi(getProjectRoute, getProjectHandler);
   app.openapi(createProjectResourceRoute, createProjectResourceHandler);
@@ -172,7 +203,11 @@ export function createApp(deps: Deps = realDeps, access: AccessOptions = {}) {
   app.openapi(connectGithubSourceRoute, connectGithubSourceHandler);
   app.openapi(githubSourceCallbackRoute, githubSourceCallbackHandler);
   app.openapi(disconnectSourceRoute, disconnectSourceHandler);
+  app.openapi(listSourceRepositoriesRoute, listSourceRepositoriesHandler);
   app.get("/daemon", daemonWsHandler);
+  // Behind `accessAuth` above, unlike `/daemon`. Registered outside the OpenAPI document
+  // because a 101 upgrade has no response body to describe.
+  app.get("/deployments/:id/logs", deploymentLogsHandler);
 
   // `run_worker_first: ["/*", ...]` (apps/plane/wrangler.jsonc) routes every request through
   // this Worker, including the UI's own paths — so an unmatched route here falls back to the

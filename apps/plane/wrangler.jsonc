@@ -62,6 +62,13 @@
       {
         "name": "SERVER_DO",
         "class_name": "ServerDO"
+      },
+      // One object per deployment, holding its ordered log tail and the browsers watching
+      // it (docs/architecture.md §3.4). Separate from SERVER_DO on purpose: a subscriber
+      // must never end up on the object that holds a daemon's socket.
+      {
+        "name": "STREAM_DO",
+        "class_name": "StreamDO"
       }
     ]
   },
@@ -69,6 +76,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["ServerDO"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["StreamDO"]
     }
   ]
 }

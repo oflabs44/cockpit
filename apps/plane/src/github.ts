@@ -2,8 +2,9 @@
 // behind one question the routes ask: "what does this installation look like?"
 //
 // No tokens are persisted anywhere in this file or its callers: the app private key is a
-// Worker secret, the app JWT lives for one request, and installation access tokens are a
-// later slice (minted on demand at deploy time, never stored).
+// Worker secret, the app JWT lives for one request, and an installation access token is
+// minted on demand, used for the one call that needs it, and never returned, stored or
+// logged — it stays inside this module.
 
 // A 404 from api.github.com/app/installations/{id} means *this* App has no such
 // installation, and the two causes are indistinguishable from here: it was uninstalled on
@@ -74,12 +75,7 @@ export async function fetchInstallationFacts(
 
   const jwt = await appJwt(env.GITHUB_APP_ID!, env.GITHUB_APP_PRIVATE_KEY!, nowMs);
   const res = await fetch(`https://api.github.com/app/installations/${installationId}`, {
-    headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${jwt}`,
-      "user-agent": "cockpit-plane",
-      "x-github-api-version": "2022-11-28",
-    },
+    headers: githubHeaders(`Bearer ${jwt}`),
   });
   if (!res.ok) {
     // 404: see the note above GitHubEnv.
@@ -116,12 +112,7 @@ export async function deleteInstallation(
   const jwt = await appJwt(env.GITHUB_APP_ID!, env.GITHUB_APP_PRIVATE_KEY!, nowMs);
   const res = await fetch(`https://api.github.com/app/installations/${installationId}`, {
     method: "DELETE",
-    headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${jwt}`,
-      "user-agent": "cockpit-plane",
-      "x-github-api-version": "2022-11-28",
-    },
+    headers: githubHeaders(`Bearer ${jwt}`),
   });
 
   if (res.status === 404) return "not-found";
@@ -130,6 +121,160 @@ export async function deleteInstallation(
   }
 
   return "revoked";
+}
+
+// --- repositories --------------------------------------------------------------------
+
+/** One repository the installation can reach, reduced to what an operator selects it by. */
+export interface RepositoryFacts {
+  /** GitHub's numeric id as text, the form ProjectSourceBinding.repository_id expects. */
+  id: string;
+  full_name: string;
+  default_branch: string;
+  private: boolean;
+  archived: boolean;
+}
+
+export interface RepositoryPage {
+  repositories: RepositoryFacts[];
+  /** Every repository granted to the installation, not just this page. */
+  total_count: number;
+}
+
+/** GitHub's own ceiling for `per_page`; asking for more silently gets 100 back. */
+export const MAX_REPOSITORY_PAGE_SIZE = 100;
+
+/**
+ * One page of the repositories granted to this installation. Paging is the caller's
+ * (and the operator's) to drive: an account can grant more than one page, and quietly
+ * returning the first 100 of 300 would look like the grant itself is short.
+ *
+ * Authenticated as the *installation*, not the app — `/app/installations/{id}` (above) is
+ * the endpoint that accepts the app JWT, but repository access needs an access token minted
+ * for that installation. The token is created here, spent on the one request below, and
+ * never leaves this function.
+ */
+export async function fetchInstallationRepositories(
+  env: GitHubEnv,
+  installationId: number,
+  page: { page: number; perPage: number },
+  nowMs: number,
+): Promise<RepositoryPage> {
+  if (githubConfigState(env) !== "configured") throw new GitHubConfigError(env);
+
+  const token = await mintInstallationToken(env, installationId, nowMs);
+  const url = new URL("https://api.github.com/installation/repositories");
+  url.searchParams.set("per_page", String(page.perPage));
+  url.searchParams.set("page", String(page.page));
+
+  const res = await fetch(url, { headers: githubHeaders(`Bearer ${token}`) });
+  if (!res.ok) {
+    throw new GitHubApiError(res.status, `github repository listing failed: ${res.status}`);
+  }
+
+  return parseRepositoryPage(await readJson(res, "repository listing"));
+}
+
+/**
+ * A 200 is not on its own a repository listing, and the two obvious ways of being lenient
+ * are both wrong. `total_count ?? 0` with `repositories ?? []` turns an unreadable answer
+ * into "this installation grants nothing", which an operator reads as a revoked grant; and
+ * mapping an entry blindly throws a TypeError, which the route's last branch reports as an
+ * unusable GITHUB_APP_PRIVATE_KEY — a fault on this side, sending the operator to fix a key
+ * that is fine. Anything short of the shape below is GitHub failing upstream, said as such.
+ *
+ * Nothing from the body travels in the error: these messages are fixed text.
+ */
+function parseRepositoryPage(data: unknown): RepositoryPage {
+  const page = (data ?? {}) as { total_count?: unknown; repositories?: unknown };
+
+  if (!Number.isSafeInteger(page.total_count) || (page.total_count as number) < 0) {
+    throw new GitHubApiError(502, "github returned a repository listing with no total_count");
+  }
+
+  if (!Array.isArray(page.repositories)) {
+    throw new GitHubApiError(502, "github returned a repository listing with no repositories");
+  }
+
+  return {
+    total_count: page.total_count as number,
+    repositories: page.repositories.map(parseRepository),
+  };
+}
+
+function parseRepository(entry: unknown): RepositoryFacts {
+  const repo = (entry ?? {}) as Record<string, unknown>;
+  const branch = repo.default_branch;
+
+  if (
+    !Number.isSafeInteger(repo.id) ||
+    (repo.id as number) <= 0 ||
+    typeof repo.full_name !== "string" ||
+    repo.full_name === "" ||
+    typeof repo.private !== "boolean" ||
+    typeof repo.archived !== "boolean" ||
+    !(branch === undefined || branch === null || typeof branch === "string")
+  ) {
+    throw new GitHubApiError(502, "github returned a repository this plane cannot read");
+  }
+
+  return {
+    id: String(repo.id),
+    full_name: repo.full_name,
+    // Absent on a repository with no commits yet; there is no branch to deploy, and
+    // inventing one would put a ref in the import body that does not exist.
+    default_branch: typeof branch === "string" ? branch : "",
+    private: repo.private,
+    archived: repo.archived,
+  };
+}
+
+/**
+ * A body GitHub said was JSON and is not — a proxy's error page, a truncated response — is
+ * an upstream failure like any other status, not a parse bug to surface as an internal one.
+ */
+async function readJson(res: Response, what: string): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    throw new GitHubApiError(502, `github returned an unreadable ${what}`);
+  }
+}
+
+/**
+ * Exchange the app JWT for an installation access token (GitHub expires it after an hour;
+ * cockpit discards it immediately). Deliberately not exported: a token that no caller can
+ * hold is a token no caller can store, return in a response, or log.
+ */
+async function mintInstallationToken(
+  env: GitHubEnv,
+  installationId: number,
+  nowMs: number,
+): Promise<string> {
+  const jwt = await appJwt(env.GITHUB_APP_ID!, env.GITHUB_APP_PRIVATE_KEY!, nowMs);
+  const res = await fetch(
+    `https://api.github.com/app/installations/${installationId}/access_tokens`,
+    { method: "POST", headers: githubHeaders(`Bearer ${jwt}`) },
+  );
+  if (!res.ok) {
+    throw new GitHubApiError(res.status, `github installation token exchange failed: ${res.status}`);
+  }
+
+  const data = (await readJson(res, "token exchange")) as { token?: unknown } | null;
+  if (typeof data?.token !== "string" || data.token === "") {
+    throw new GitHubApiError(502, "github returned no installation token");
+  }
+
+  return data.token;
+}
+
+function githubHeaders(authorization: string): Record<string, string> {
+  return {
+    accept: "application/vnd.github+json",
+    authorization,
+    "user-agent": "cockpit-plane",
+    "x-github-api-version": "2022-11-28",
+  };
 }
 
 export class GitHubApiError extends Error {

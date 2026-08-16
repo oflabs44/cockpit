@@ -104,15 +104,162 @@ export const RedeemResponse = z.object({
   server: ServerSchema,
 });
 
-export const ProjectSchema = z.object({
-  id: z.string(),
-  server_id: z.string(),
-  name: z.string(),
-  created_at: z.number(),
-  updated_at: z.number(),
-});
+// ADR-0012 / docs/type-design.md §2.2–§2.4. Git owns the workload topology; the plane owns
+// only the target-specific bindings below. No Compose service definition is stored here.
+
+// A Compose service key, as it appears in the repository's Compose file.
+const ComposeServiceName = z
+  .string()
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/, "not a Compose service name")
+  .max(63);
+
+// A variable value is ordinarily a literal the daemon passes through — `production`, a
+// `https://` callback, a `redis://` address — or a pointer to a secret, never the secret
+// itself (docs/type-design.md §1). Only the SecretRef schemes type-design reserves for a
+// later resolver are refused: storing one would promise a dereference at apply time that
+// the daemon cannot perform. `op://` is the one v1 resolves.
+//
+// Case-insensitive because a scheme is, and `AWS://` must not be the way past this.
+const RESERVED_SECRET_SCHEMES = ["aws://", "vault://", "ck://"] as const;
+
+const VariableValueSchema = z.string().refine(
+  (value) =>
+    !RESERVED_SECRET_SCHEMES.some((scheme) => value.toLowerCase().startsWith(scheme)),
+  {
+    message: `${RESERVED_SECRET_SCHEMES.join(", ")} secret references are reserved but not resolvable yet; v1 resolves op://`,
+  },
+);
+
+const EnvironmentName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "not an env var name");
+
+// A hostname; deliberately not a URL — Traefik routes a host, not a path.
+const DomainSchema = z
+  .string()
+  .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/, "not a domain")
+  .max(253);
+
+export const ProjectSettingsSchema = z.object({
+  ingress: z
+    .object({
+      service: ComposeServiceName,
+      port: z.number().int().min(1).max(65535),
+      domains: z.array(DomainSchema).min(1),
+    })
+    .strict()
+    .nullable(),
+  migration: z
+    .object({
+      service: ComposeServiceName,
+      // Absent: use the service's own Compose command.
+      command: z.array(z.string().min(1)).min(1).optional(),
+    })
+    .strict()
+    .nullable(),
+  health: z.object({ required_services: z.array(ComposeServiceName) }).strict(),
+  variables: z.record(EnvironmentName, VariableValueSchema),
+})
+  // Strict: a Compose service definition must never reach the plane through settings.
+  .strict();
+
+export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
+
+// A path inside the repository: relative, no traversal, no absolute or Windows separators.
+const RepositoryPath = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[A-Za-z0-9._\-/]+$/, "not a repository path")
+  .refine((value) => !value.startsWith("/") && !value.endsWith("/"), {
+    message: "must be relative to the repository root",
+  })
+  .refine((value) => !value.split("/").includes(".."), { message: "must not traverse upwards" });
+
+export const ProjectSourceBinding = {
+  source_id: z.string().min(1),
+  // GitHub's numeric repository id, held as text: it outlives a rename, and text keeps the
+  // column provider-neutral without losing precision on a large id. This is the
+  // authoritative identity of the repository a Project deploys from — see
+  // `repository_full_name` below and docs/type-design.md §2.2.
+  repository_id: z.string().regex(/^[0-9]+$/, "not a repository id"),
+  // A display cache, not an identity: the operator recognises a Project by it, and it goes
+  // stale the moment the repository is renamed or transferred on github.com. Nothing may
+  // clone, fetch, or authorize by this field; the fetch/preflight slice resolves the current
+  // clone identity from `repository_id`.
+  repository_full_name: z
+    .string()
+    .regex(/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/, "not an owner/repository name"),
+  // A branch or tag name. Git's own rules, reduced to what a deployable ref looks like.
+  ref: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^[A-Za-z0-9._\-/]+$/, "not a git ref")
+    .refine((value) => !value.split("/").includes("..") && !value.endsWith(".lock"), {
+      message: "not a git ref",
+    })
+    // A leading dash is not a name git will accept, and it is the shape that reads as an
+    // option to every command the ref is later handed to — refused at the boundary rather
+    // than relied on being quoted correctly by each caller.
+    .refine((value) => !value.startsWith("-"), { message: "a git ref must not begin with -" }),
+  // "." is the repository root.
+  base_directory: z.union([z.literal("."), RepositoryPath]),
+  // Relative to base_directory.
+  compose_path: RepositoryPath.refine(
+    (value) => value.endsWith(".yaml") || value.endsWith(".yml"),
+    { message: "must be a .yaml or .yml file" },
+  ),
+  auto_deploy: z.boolean(),
+} as const;
+
+export const ProjectSchema = z
+  .object({
+    id: z.string(),
+    server_id: z.string(),
+    name: z.string(),
+    // Null on projects created before ADR-0012 and by POST /projects. An imported project
+    // carries the whole binding or none of it.
+    source_id: ProjectSourceBinding.source_id.nullable(),
+    repository_id: ProjectSourceBinding.repository_id.nullable(),
+    repository_full_name: ProjectSourceBinding.repository_full_name.nullable(),
+    ref: ProjectSourceBinding.ref.nullable(),
+    base_directory: ProjectSourceBinding.base_directory.nullable(),
+    compose_path: ProjectSourceBinding.compose_path.nullable(),
+    auto_deploy: z.boolean(),
+    settings: ProjectSettingsSchema,
+    created_at: z.number(),
+    updated_at: z.number(),
+  })
+  .refine(
+    (project) => {
+      const binding = [
+        project.source_id,
+        project.repository_id,
+        project.repository_full_name,
+        project.ref,
+        project.base_directory,
+        project.compose_path,
+      ];
+      if (binding.every((field) => field !== null)) return true;
+
+      // Unbound: there is no repository, ref, or Compose file to deploy, so `auto_deploy`
+      // has nothing it could act on. A true here would describe a project that reacts to
+      // pushes it can never receive.
+      return binding.every((field) => field === null) && project.auto_deploy === false;
+    },
+    {
+      message:
+        "a project's source binding must be complete or absent, and an unbound project cannot auto-deploy",
+    },
+  );
 
 export type Project = z.infer<typeof ProjectSchema>;
+
+export const EMPTY_PROJECT_SETTINGS: ProjectSettings = {
+  ingress: null,
+  migration: null,
+  health: { required_services: [] },
+  variables: {},
+};
 
 export const HealthSchema = z.enum([
   "healthy",
@@ -267,6 +414,72 @@ export const DeploymentSchema = z.object({
 
 export type Deployment = z.infer<typeof DeploymentSchema>;
 
+// Deployment log transport (ADR-0012). Mirrors `StreamData` in
+// daemon/internal/protocol/protocol.go, which is authoritative for the wire names.
+
+export const DeploymentLogStageSchema = z.enum([
+  "fetch",
+  "normalize",
+  "build",
+  "migrate",
+  "apply",
+  "health",
+]);
+
+/** `system` is the daemon narrating its own steps — neither of the child process's streams. */
+export const DeploymentLogSourceSchema = z.enum(["stdout", "stderr", "system"]);
+
+/** Matches `protocol.MaxLogChunkBytes`. One unbounded line must not become one huge frame. */
+export const MAX_LOG_CHUNK_BYTES = 8192;
+
+/**
+ * The limit is bytes, as Go's `len()` counts them — not JavaScript characters. A string of
+ * 8192 emoji is 8192 `.length` and 32768 bytes on the wire, so a character-counting check
+ * would admit four times the payload the daemon's own limit allows and quietly blow the
+ * storage bound the tail is sized against.
+ */
+function utf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+/**
+ * One chunk of a deployment's live output, as the daemon sends it.
+ *
+ * `stream_id` IS the Deployment id — the plane authorizes the frame, looks the deployment
+ * up, and addresses its StreamDO by this one value. The frame carries no second copy of it:
+ * two fields naming the same thing can disagree, and then the plane has to pick which half
+ * of a self-contradicting frame to believe.
+ *
+ * This is a closed schema and that is the security property, not a formality: zod strips
+ * every key it does not name, so a daemon that appends `env`, `token`, or any other
+ * metadata field to the frame cannot get it persisted in the replay tail or fanned out to a
+ * browser. Resolved environment values and GitHub installation tokens never leave the box
+ * (ADR-0012), and nothing here provides a channel for them.
+ *
+ * Loss-aware by construction: `seq` is monotonic per stream as the daemon produced it, and
+ * `dropped` counts what the daemon discarded before this chunk. A jump in `seq` with a
+ * non-zero `dropped` is legitimate and means output is missing — a reader says so rather
+ * than rendering a silent hole. `final` is the terminal marker; see StreamDO's archive seam.
+ */
+export const StreamDataFrameSchema = z.object({
+  type: z.literal("stream_data"),
+  stream_id: z.string().min(1).max(128),
+  seq: z.number().int().nonnegative(),
+  stage: DeploymentLogStageSchema,
+  source: DeploymentLogSourceSchema,
+  data: z.string().refine((value) => utf8ByteLength(value) <= MAX_LOG_CHUNK_BYTES, {
+    message: `data exceeds ${MAX_LOG_CHUNK_BYTES} utf-8 bytes`,
+  }),
+  at: z.number().int().positive(),
+  dropped: z.number().int().nonnegative().default(0),
+  final: z.boolean().default(false),
+});
+
+export type StreamDataFrame = z.infer<typeof StreamDataFrameSchema>;
+
+/** What a subscriber receives: the frame minus its wire discriminator. */
+export type DeploymentLogEntry = Omit<StreamDataFrame, "type">;
+
 export const OperationKindSchema = z.enum([
   "resource.apply",
   "resource.rollback",
@@ -391,6 +604,32 @@ export const DisconnectSourceResponse = z.object({
       "False when GitHub had no such installation for this App: already uninstalled, or " +
       "belonging to a different App than this plane is configured with. Removed either way",
   }),
+});
+
+// ADR-0012 — what an operator chooses from when importing a Project. Read straight from
+// GitHub on request and never mirrored: the grant changes on github.com, not here.
+export const RepositorySchema = z.object({
+  id: ProjectSourceBinding.repository_id,
+  full_name: ProjectSourceBinding.repository_full_name,
+  default_branch: z.string().openapi({
+    description: "Empty on a repository with no commits yet; there is nothing to deploy",
+  }),
+  private: z.boolean(),
+  archived: z.boolean(),
+});
+
+export type Repository = z.infer<typeof RepositorySchema>;
+
+// Paged, and explicitly so: a grant can be larger than one page, and answering with the
+// first page alone would read as the whole grant.
+export const RepositoryListResponse = z.object({
+  repositories: z.array(RepositorySchema),
+  page: z.number().int().positive(),
+  per_page: z.number().int().positive(),
+  total_count: z.number().int().nonnegative().openapi({
+    description: "Repositories granted to the installation in total, not on this page",
+  }),
+  has_more: z.boolean().openapi({ description: "Ask for page + 1 to continue" }),
 });
 
 export const ConnectGitHubResponse = z.object({

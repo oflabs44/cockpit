@@ -4,8 +4,10 @@ import type {
   ChangeSet,
   DeploymentStep,
   DeploymentTrigger,
+  ProjectSettings,
   SourceRevision,
 } from "../schema";
+import { EMPTY_PROJECT_SETTINGS } from "../schema";
 import {
   check,
   foreignKey,
@@ -47,6 +49,9 @@ export const enrolments = sqliteTable("enrolments", {
   createdAt: integer("created_at").notNull(),
 });
 
+// ADR-0012 — a project is one GitHub-backed Compose stack on one server. The binding
+// columns are nullable because projects predating the ADR (and POST /projects) have no
+// source; POST /projects/import requires all of them together.
 export const projects = sqliteTable(
   "projects",
   {
@@ -55,6 +60,22 @@ export const projects = sqliteTable(
       .notNull()
       .references(() => servers.id),
     name: text("name").notNull(),
+    sourceId: text("source_id").references(() => sources.id),
+    // GitHub's stable numeric id, and the authoritative identity of the repository.
+    repositoryId: text("repository_id"),
+    // A display cache only. It goes stale on a rename or transfer, so nothing clones,
+    // fetches, or authorizes by it — see ProjectSourceBinding in src/schema.ts.
+    repositoryFullName: text("repository_full_name"),
+    ref: text("ref"),
+    baseDirectory: text("base_directory"),
+    composePath: text("compose_path"), // relative to base_directory
+    autoDeploy: integer("auto_deploy", { mode: "boolean" }).notNull().default(false),
+    // Mirrors the column's SQL default, so an insert that predates ADR-0012 settings still
+    // writes the same empty object the migration gave existing rows.
+    settings: text("settings", { mode: "json" })
+      .$type<ProjectSettings>()
+      .notNull()
+      .$defaultFn(() => EMPTY_PROJECT_SETTINGS),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
   },
@@ -62,6 +83,18 @@ export const projects = sqliteTable(
     uniqueIndex("idx_projects_server_name").on(table.serverId, table.name),
     uniqueIndex("idx_projects_id_server").on(table.id, table.serverId),
     index("idx_projects_server").on(table.serverId),
+    index("idx_projects_source").on(table.sourceId),
+    // One stack per server: the same repository, ref, base directory, and Compose file.
+    // `ref` is part of the key so the same file on `main` and on `staging` can be two
+    // Projects — see drizzle/0004_adr_0012_project_source_binding.sql.
+    uniqueIndex("idx_projects_stack").on(
+      table.serverId,
+      table.sourceId,
+      table.repositoryId,
+      table.ref,
+      table.baseDirectory,
+      table.composePath,
+    ),
   ],
 );
 

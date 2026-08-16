@@ -1,8 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
 import { and, eq, isNull } from "drizzle-orm";
-import { db, servers, enrolments } from "../db";
+import { db, servers, enrolments, deployments } from "../db";
 import { sha256Hex, issueCredential } from "../secrets";
 import { realDeps } from "../deps";
+import { StreamDataFrameSchema } from "../schema";
+import { streamName } from "./stream-do";
 
 // docs/architecture.md §2.1 / §3.1, docs/type-design.md §3 — one ServerDO per server,
 // holding the daemon's WebSocket and the latest observed snapshot. This class also serves
@@ -83,8 +85,12 @@ export class ServerDO extends DurableObject<Env> {
         return;
       }
       if (frame.type === "pong") return;
+      if (frame.type === "stream_data") {
+        await this.#handleStreamData(ws, session, frame);
+        return;
+      }
 
-      // task_progress/stream_data/metrics/event: out of scope this slice.
+      // task_progress/metrics/event: out of scope this slice.
       ws.close(POLICY_VIOLATION, "unsupported frame");
     } catch (err) {
       // An uncaught throw here would otherwise leave the socket open but unresponsive — the
@@ -281,6 +287,79 @@ export class ServerDO extends DurableObject<Env> {
     await this.ctx.storage.put("snapshot", snapshot);
     if (session.serverId) await this.#setConnected(session.serverId, Date.now());
   }
+
+  /**
+   * One chunk of a deployment's live output, on its way to the StreamDO a browser is
+   * watching (docs/architecture.md §3.4, ADR-0012).
+   *
+   * Three checks stand between a daemon and an operator's log pane, and none of them trusts
+   * the frame:
+   *
+   *   1. The socket is enrolled and bound to a server. A claim-mode connection has
+   *      `serverId: null` and "may do nothing but enrol" (type-design §3) — it cannot write
+   *      into anyone's log.
+   *   2. The frame parses against the closed `StreamDataFrameSchema`. Zod strips every key
+   *      the schema does not name, so no `env`, `token`, or other metadata field a daemon
+   *      attaches can reach storage or a subscriber. What is forwarded is a projection, not
+   *      the frame.
+   *   3. The Deployment exists AND belongs to *this* server. Without the ownership half, an
+   *      enrolled daemon on box A could stream fabricated build output into a deployment
+   *      running on box B — a cross-tenant write dressed as a log line.
+   *
+   * A frame failing (2) or (3) closes the socket rather than being ignored. A daemon sending
+   * either is not having a bad line, it is misbehaving or misrouted, and its normal
+   * backoff-redial is the cheapest correct response.
+   */
+  async #handleStreamData(ws: WebSocket, session: Session, frame: Record<string, unknown>) {
+    if (!session.serverId) {
+      ws.close(POLICY_VIOLATION, "stream_data requires a server-bound connection");
+      return;
+    }
+
+    const parsed = StreamDataFrameSchema.safeParse(frame);
+    if (!parsed.success) {
+      ws.close(1008, "malformed stream_data frame");
+      return;
+    }
+    const { type: _discriminator, ...entry } = parsed.data;
+
+    // `stream_id` is the Deployment id (see StreamDataFrameSchema) — the same value
+    // authorizes the frame and addresses the object it is written to, so there is no way for
+    // a daemon to have one deployment checked and another one written.
+    if (!(await this.#ownsDeployment(session.serverId, entry.stream_id))) {
+      ws.close(POLICY_VIOLATION, "stream_data references a deployment this server does not own");
+      return;
+    }
+
+    // Awaited, not fired and forgotten: the StreamDO's ordering guarantee is only as good as
+    // the order chunks arrive in, and an unawaited RPC would race the next frame off the
+    // same socket. It is also the only backpressure this path has.
+    await this.env.STREAM_DO.get(this.env.STREAM_DO.idFromName(streamName(entry.stream_id))).append(entry);
+  }
+
+  /** D1 says whether this server owns the deployment; the answer is memoised because a
+   *  deployment produces one chunk per output line and a read per line would make the log
+   *  path cost more in D1 than in transport. Only positive answers are cached — a refusal
+   *  closes the socket, so it is never asked twice — and the cache is per-instance, so it
+   *  vanishes on hibernation and is simply rebuilt. */
+  async #ownsDeployment(serverId: string, deploymentId: string): Promise<boolean> {
+    if (this.#ownedDeployments.has(deploymentId)) return true;
+
+    const row = await db(this.env.DB)
+      .select({ id: deployments.id })
+      .from(deployments)
+      .where(and(eq(deployments.id, deploymentId), eq(deployments.serverId, serverId)))
+      .get();
+    if (!row) return false;
+
+    // A server runs a handful of deployments at once; the bound only stops an unbounded set
+    // accumulating across a long-lived instance.
+    if (this.#ownedDeployments.size >= 64) this.#ownedDeployments.clear();
+    this.#ownedDeployments.add(deploymentId);
+    return true;
+  }
+
+  #ownedDeployments = new Set<string>();
 
   /** Outcome of a direct op (type-design §3.1, added 2026-08-06). Nothing consumes this yet — a
    *  later operation slice does — so it's just validated and logged; critically it must not fall

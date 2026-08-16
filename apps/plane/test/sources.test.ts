@@ -498,3 +498,352 @@ describe("sources: disconnect", () => {
     expect(await sourceRow(source.id)).toBeDefined();
   });
 });
+
+// --- repositories ----------------------------------------------------------------------
+// ADR-0012. Two GitHub calls per request — mint an installation token, then spend it — so
+// these assert on both, and on the token never coming back out of the plane.
+
+const INSTALLATION_TOKEN = "ghs_test_installation_token_do_not_leak";
+
+function githubRepository(id: number, fullName: string, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    full_name: fullName,
+    default_branch: "main",
+    private: false,
+    archived: false,
+    // Everything else GitHub sends and cockpit must not pass through.
+    clone_url: `https://github.com/${fullName}.git`,
+    owner: { login: fullName.split("/")[0] },
+    ...overrides,
+  };
+}
+
+/** What GitHub answers a listing request with: one page, and the size of the whole grant. */
+function repositoryListing(repositories: unknown[], totalCount = repositories.length) {
+  return new Response(JSON.stringify({ total_count: totalCount, repositories }), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+/** Answers the token exchange, then hands the listing request to `listing`. */
+function githubRepositoryApi(listing: (call: GithubCall) => Response) {
+  return (call: GithubCall) => {
+    if (call.url.endsWith("/access_tokens")) {
+      return new Response(
+        JSON.stringify({ token: INSTALLATION_TOKEN, expires_at: "2023-11-14T22:13:20Z" }),
+        { status: 201, headers: { "content-type": "application/json" } },
+      );
+    }
+
+    return listing(call);
+  };
+}
+
+function listRepositories(
+  app: ReturnType<typeof authedApp>,
+  id: string,
+  query: string,
+  bindings: typeof env,
+) {
+  const suffix = query ? `?${query}` : "";
+
+  return app.fetch(
+    authedRequest(`http://plane.test/source-connections/${id}/repositories${suffix}`),
+    bindings,
+  );
+}
+
+type RepositoryListBody = {
+  repositories: { id: string; full_name: string; default_branch: string; private: boolean; archived: boolean }[];
+  page: number;
+  per_page: number;
+  total_count: number;
+  has_more: boolean;
+};
+
+describe("sources: repositories", () => {
+  it("exchanges the app JWT for an installation token, then lists what the grant covers", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      githubRepositoryApi(() =>
+        repositoryListing([
+          githubRepository(4_567, "oflabs44/cockpit", { private: true }),
+          githubRepository(89, "oflabs44/retired", { archived: true, default_branch: "trunk" }),
+        ]),
+      ),
+      async (calls) => {
+        const response = await listRepositories(app, source.id, "", withGithubConfig());
+
+        expect(calls).toHaveLength(2);
+        // As the app, to mint the token...
+        expect(calls[0]?.method).toBe("POST");
+        expect(calls[0]?.url).toBe(
+          `https://api.github.com/app/installations/${source.installationId}/access_tokens`,
+        );
+        expect(calls[0]?.authorization).toMatch(/^Bearer eyJ/);
+        // ...then as the installation, which is the only identity that can see repositories.
+        expect(calls[1]?.method).toBe("GET");
+        expect(calls[1]?.url).toBe(
+          "https://api.github.com/installation/repositories?per_page=100&page=1",
+        );
+        expect(calls[1]?.authorization).toBe(`Bearer ${INSTALLATION_TOKEN}`);
+
+        return response;
+      },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as RepositoryListBody;
+    // Exactly the five fields an import needs — GitHub's numeric id as text, as
+    // ProjectSourceBinding.repository_id expects it — and nothing else.
+    expect(body.repositories).toEqual([
+      {
+        id: "4567",
+        full_name: "oflabs44/cockpit",
+        default_branch: "main",
+        private: true,
+        archived: false,
+      },
+      {
+        id: "89",
+        full_name: "oflabs44/retired",
+        default_branch: "trunk",
+        private: false,
+        archived: true,
+      },
+    ]);
+    expect(body).toMatchObject({ page: 1, per_page: 100, total_count: 2, has_more: false });
+  });
+
+  it("pages explicitly rather than passing off one page as the whole grant", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      githubRepositoryApi(() => repositoryListing([githubRepository(1, "oflabs44/one")], 250)),
+      async (calls) => {
+        const response = await listRepositories(
+          app,
+          source.id,
+          "page=2&per_page=100",
+          withGithubConfig(),
+        );
+
+        expect(calls[1]?.url).toBe(
+          "https://api.github.com/installation/repositories?per_page=100&page=2",
+        );
+
+        return response;
+      },
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as RepositoryListBody;
+    expect(body).toMatchObject({ page: 2, per_page: 100, total_count: 250, has_more: true });
+  });
+
+  it("refuses a per_page above GitHub's ceiling instead of quietly returning fewer", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      githubRepositoryApi(() => new Response("{}", { status: 200 })),
+      async (calls) => {
+        const response = await listRepositories(
+          app,
+          source.id,
+          "per_page=500",
+          withGithubConfig(),
+        );
+        expect(calls).toHaveLength(0);
+
+        return response;
+      },
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it("404s an unknown source, and never asks GitHub for a token", async () => {
+    const res = await withGithubApi(
+      githubRepositoryApi(() => new Response("{}", { status: 200 })),
+      async (calls) => {
+        const response = await listRepositories(
+          authedApp(testDeps()),
+          "src_does_not_exist",
+          "",
+          withGithubConfig(),
+        );
+        expect(calls).toHaveLength(0);
+
+        return response;
+      },
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it("reports a refused token exchange as GitHub's failure, and never lists", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      () => new Response(JSON.stringify({ message: "Bad credentials" }), { status: 401 }),
+      async (calls) => {
+        const response = await listRepositories(app, source.id, "", withGithubConfig());
+        // The listing is never attempted without a token.
+        expect(calls).toHaveLength(1);
+
+        return response;
+      },
+    );
+
+    expect(res.status).toBe(502);
+  });
+
+  it("reports a refused listing as GitHub's failure", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      githubRepositoryApi(
+        () => new Response(JSON.stringify({ message: "Forbidden" }), { status: 403 }),
+      ),
+      () => listRepositories(app, source.id, "", withGithubConfig()),
+    );
+
+    expect(res.status).toBe(502);
+    expect(((await res.json()) as { error: string }).error).toContain("403");
+  });
+
+  // A 200 is not on its own a listing. The two ways of being lenient are both wrong: an
+  // empty listing reads as a revoked grant, and mapping a missing field blindly throws a
+  // TypeError the route reports as an unusable private key — a fault on this side.
+  it("treats a 200 that is not a repository listing as GitHub failing, not as an empty grant", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const cases: Record<string, Response> = {
+      "not json at all": new Response("<html>502 Bad Gateway</html>", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+      "truncated json": new Response('{"total_count": 2, "repositories": [', {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+      "no repositories array": new Response(JSON.stringify({ total_count: 12 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+      "repositories is not an array": new Response(
+        JSON.stringify({ total_count: 1, repositories: { id: 1 } }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+      "no total_count": new Response(JSON.stringify({ repositories: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+      "a repository missing its name": new Response(
+        JSON.stringify({
+          total_count: 1,
+          repositories: [{ id: 7, private: false, archived: false }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    };
+
+    for (const [name, answer] of Object.entries(cases)) {
+      const res = await withGithubApi(
+        githubRepositoryApi(() => answer.clone()),
+        () => listRepositories(app, source.id, "", withGithubConfig()),
+      );
+
+      expect(res.status, name).toBe(502);
+      const body = (await res.json()) as { error: string };
+      expect(body.error, name).toContain("github");
+      // Never a private-key diagnosis, and never the body it could not read.
+      expect(body.error, name).not.toContain("GITHUB_APP_PRIVATE_KEY");
+      expect(body.error, name).not.toContain("Bad Gateway");
+    }
+  });
+
+  it("blames the plane, not GitHub, when the app key cannot be used", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await withGithubApi(
+      githubRepositoryApi(() => new Response("{}", { status: 200 })),
+      async (calls) => {
+        const response = await listRepositories(
+          app,
+          source.id,
+          "",
+          withGithubConfig({
+            GITHUB_APP_PRIVATE_KEY:
+              "-----BEGIN RSA PRIVATE KEY-----\nMIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX\n-----END RSA PRIVATE KEY-----",
+          }),
+        );
+        expect(calls).toHaveLength(0);
+
+        return response;
+      },
+    );
+
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { error: string }).error).toContain("GITHUB_APP_PRIVATE_KEY");
+  });
+
+  it("fails loudly on an unconfigured plane, like the other GitHub routes", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+
+    const res = await listRepositories(app, source.id, "", withoutGithubConfig());
+
+    expect(res.status).toBe(500);
+    expect(((await res.json()) as { error: string }).error).toContain("not configured");
+  });
+
+  it("never lets the installation token out — not in a response, not in a log", async () => {
+    const app = authedApp(testDeps());
+    const source = await connectedSource();
+    const logged: string[] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      logged.push(args.map((arg) => String(arg)).join(" "));
+    };
+
+    try {
+      const ok = await withGithubApi(
+        githubRepositoryApi(() => repositoryListing([githubRepository(7, "oflabs44/cockpit")])),
+        () => listRepositories(app, source.id, "", withGithubConfig()),
+      );
+      expect(ok.status).toBe(200);
+      expect(await ok.text()).not.toContain(INSTALLATION_TOKEN);
+
+      // The failure path is where a token most easily reaches a log or an error message.
+      const failed = await withGithubApi(
+        githubRepositoryApi(
+          () =>
+            new Response(JSON.stringify({ message: `bad token ${INSTALLATION_TOKEN}` }), {
+              status: 403,
+            }),
+        ),
+        () => listRepositories(app, source.id, "", withGithubConfig()),
+      );
+      expect(failed.status).toBe(502);
+      expect(await failed.text()).not.toContain(INSTALLATION_TOKEN);
+      expect(logged.join("\n")).not.toContain(INSTALLATION_TOKEN);
+      expect(logged.join("\n")).toContain("github repository listing failed");
+    } finally {
+      console.error = originalError;
+    }
+
+    // Nothing about the exchange is persisted either.
+    expect(JSON.stringify(await sourceRow(source.id))).not.toContain(INSTALLATION_TOKEN);
+  });
+});

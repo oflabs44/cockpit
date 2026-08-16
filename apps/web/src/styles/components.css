@@ -1077,3 +1077,70 @@ button.card:hover {
   width: auto;
   min-width: 76px;
 }
+
+/* ---------------------------- deployment logs ---------------------------- */
+/* The live viewer (src/components/deployment-logs.tsx) is the terminal block with a scrolling
+   body — same surface, head, and mono treatment as the install command, so deployment output
+   reads as the same kind of object rather than a second console idiom. Colour carries exactly
+   two things: connection state and stderr. */
+.logs-status {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-40);
+}
+.logs-status[data-state='live'] {
+  color: var(--color-accent);
+}
+.logs-status[data-state='reconnecting'] {
+  color: var(--color-warn);
+}
+.logs-status[data-state='offline'] {
+  color: var(--color-danger);
+}
+
+/* Bounded height: the record below it — steps, changes, snapshot — must stay reachable while
+   a build is printing. */
+.logs-body {
+  max-height: 420px;
+  overflow-y: auto;
+  color: var(--color-ink-80);
+}
+.logs-body:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: -2px;
+}
+
+.logs-empty {
+  color: var(--color-ink-40);
+}
+
+.logs-chunk[data-source='stderr'] {
+  color: var(--color-danger);
+}
+.logs-chunk[data-source='system'] {
+  color: var(--color-ink-40);
+}
+
+/* The stage boundary and a reported loss are the viewer's own words inside someone else's
+   output, so neither takes full ink — they are annotation, not log. */
+.logs-stage {
+  color: var(--color-ink-40);
+}
+.logs-loss {
+  color: var(--color-warn);
+}
+
+/* Loss stated once, above the output, in sentences — the inline markers say where, this says
+   how much and whether anything can still be read. */
+.logs-notices {
+  margin: 0;
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 3) 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--color-warn);
+}
+.logs-notices li + li {
+  margin-top: calc(var(--spacing) * 1);
+}

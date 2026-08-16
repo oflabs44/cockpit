@@ -36,6 +36,23 @@ describe("plane app", () => {
     expect(res.status).toBe(413);
   });
 
+  // The middleware stack is skipped for WebSocket upgrades because a 101's headers are
+  // immutable — but `Upgrade` is a request header, so keying on it alone would hand any
+  // caller a switch that turns the body limit, csrf, and secure headers off on every
+  // mutating JSON route. An upgrade is a path AND a header, never a header on its own.
+  it("still applies the middleware stack to a mutating route that claims to be an upgrade", async () => {
+    const res = await authedApp().fetch(
+      authedRequest("http://plane.test/projects", {
+        method: "POST",
+        headers: { upgrade: "websocket", "content-type": "application/json" },
+        body: new Uint8Array(2 * 1024 * 1024),
+      }),
+      env,
+    );
+
+    expect(res.status).toBe(413);
+  });
+
   it("rejects a cross-origin form-encoded POST with 403", async () => {
     const res = await authedApp().fetch(
       authedRequest("http://plane.test/health", {

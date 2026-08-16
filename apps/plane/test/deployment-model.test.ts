@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import {
   DeploymentSchema,
+  EMPTY_PROJECT_SETTINGS,
   EventSchema,
   OperationSchema,
   ProjectSchema,
@@ -22,10 +23,39 @@ describe("ADR-0009 public model", () => {
         id: "prj_1",
         server_id: "srv_1",
         name: "jerry",
+        // A project predating ADR-0012 carries no source binding — see projects-import.test.ts.
+        source_id: null,
+        repository_id: null,
+        repository_full_name: null,
+        ref: null,
+        base_directory: null,
+        compose_path: null,
+        auto_deploy: false,
+        settings: EMPTY_PROJECT_SETTINGS,
         created_at: NOW,
         updated_at: NOW,
       }),
     ).toMatchObject({ id: "prj_1", server_id: "srv_1" });
+
+    // ...and it cannot auto-deploy: there is no repository or ref for a push to match, so
+    // the flag would describe a project reacting to something it can never receive.
+    expect(() =>
+      ProjectSchema.parse({
+        id: "prj_2",
+        server_id: "srv_1",
+        name: "jerry-auto",
+        source_id: null,
+        repository_id: null,
+        repository_full_name: null,
+        ref: null,
+        base_directory: null,
+        compose_path: null,
+        auto_deploy: true,
+        settings: EMPTY_PROJECT_SETTINGS,
+        created_at: NOW,
+        updated_at: NOW,
+      }),
+    ).toThrow(/auto-deploy/);
 
     expect(
       ResourceSchema.parse({
