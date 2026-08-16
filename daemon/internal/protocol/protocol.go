@@ -4,7 +4,12 @@
 // section 3 and must not be renamed here.
 package protocol
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"unicode/utf8"
+)
 
 // Frame type discriminators, daemon -> plane (Up).
 const (
@@ -285,6 +290,134 @@ type OpResult struct {
 	OpID    string      `json:"op_id"`
 	Changed string      `json:"changed,omitempty"`
 	Error   *FrameError `json:"error,omitempty"`
+}
+
+// LogStage is the deployment step a log chunk belongs to. The set is
+// ADR-0012's deployment order — fetch -> normalize and validate -> build ->
+// migrate -> compose up -> health — so a reader can group a deployment's
+// output without parsing it.
+type LogStage string
+
+const (
+	LogStageFetch     LogStage = "fetch"
+	LogStageNormalize LogStage = "normalize"
+	LogStageBuild     LogStage = "build"
+	LogStageMigrate   LogStage = "migrate"
+	LogStageApply     LogStage = "apply"
+	LogStageHealth    LogStage = "health"
+)
+
+// IsLogStage reports whether s is a stage a deployment log may carry.
+func IsLogStage(s LogStage) bool {
+	switch s {
+	case LogStageFetch, LogStageNormalize, LogStageBuild, LogStageMigrate, LogStageApply, LogStageHealth:
+		return true
+	default:
+		return false
+	}
+}
+
+// LogSource is where a chunk came from. `system` is the daemon's own narration
+// ("running docker compose build"), which is neither of the child process's
+// two streams and must not be mistaken for one.
+type LogSource string
+
+const (
+	LogSourceStdout LogSource = "stdout"
+	LogSourceStderr LogSource = "stderr"
+	LogSourceSystem LogSource = "system"
+)
+
+// IsLogSource reports whether s is a source a deployment log may carry.
+func IsLogSource(s LogSource) bool {
+	switch s {
+	case LogSourceStdout, LogSourceStderr, LogSourceSystem:
+		return true
+	default:
+		return false
+	}
+}
+
+// MaxLogChunkBytes bounds one chunk's Data. The daemon emits bounded fragments:
+// an unbounded line (a build tool drawing a progress bar with no newline, a
+// base64 blob) must not become one enormous frame. Longer output is split across
+// chunks, which is why Seq and not line count is the ordering key.
+//
+// The limit is UTF-8 bytes, and Data must be valid UTF-8 for the two ends to be
+// counting the same thing: the Plane measures the decoded string's UTF-8 length
+// (apps/plane/src/schema.ts), while an invalid byte here is one byte to len()
+// and three (U+FFFD) once JSON has encoded it. Chunks are made valid where they
+// are produced, in daemon/internal/compose; Validate is where that is enforced.
+const MaxLogChunkBytes = 8192
+
+// StreamData is one chunk of a deployment's live output, daemon -> plane.
+//
+// StreamID is the Plane's Deployment id, and that identity is the contract, not
+// a coincidence: the plane authorizes, looks up, and addresses the log's
+// Durable Object by this one value. A separate deployment_id field would be a
+// second copy of the same fact that could disagree with it, and the plane would
+// then have to choose which half of a self-contradicting frame to trust.
+//
+// The contract is deliberately loss-aware. The transport is a WebSocket that
+// reconnects, and the plane keeps a bounded replay tail, so a reader cannot
+// assume it saw everything:
+//
+//   - Seq is monotonic per StreamID as the daemon produced it, so a consumer
+//     detects reordering and loss rather than silently rendering a hole. It is
+//     NOT a line number and does not restart per stage. It is gap-free only
+//     while Dropped stays 0: a daemon that discards chunks skips their
+//     sequences, so the jump and the count agree.
+//   - Dropped counts chunks the daemon discarded before this one (backpressure,
+//     a disconnected plane). Non-zero means output is missing at this point and
+//     the reader should say so.
+//   - Final marks the last chunk of the stream. It is the terminal signal the
+//     plane needs to close and archive a log; without it a finished deployment
+//     is indistinguishable from a stalled one.
+//
+// Secrets never travel here. The frame carries no environment map, no token,
+// and no arbitrary metadata field — every field is a fixed scalar the plane
+// projects onto a closed schema (apps/plane/src/schema.ts). Resolved
+// environment values and GitHub installation tokens exist on the box only,
+// immediately before Compose execution (ADR-0012), and a daemon that puts one
+// in Data has leaked it into an operator-visible log by its own hand.
+type StreamData struct {
+	Type string `json:"type"`
+	// The Plane Deployment id this output belongs to. See the note above.
+	StreamID string    `json:"stream_id"`
+	Seq      uint64    `json:"seq"`
+	Stage    LogStage  `json:"stage"`
+	Source   LogSource `json:"source"`
+	Data     string    `json:"data"`
+	At       int64     `json:"at"`
+	Dropped  uint64    `json:"dropped,omitempty"`
+	Final    bool      `json:"final,omitempty"`
+}
+
+// Validate reports why the frame is not a well-formed deployment log chunk, or
+// nil when it is. The plane validates independently (a daemon is not trusted to
+// have got this right); this exists so the daemon never emits a frame the plane
+// will close its socket over.
+func (s StreamData) Validate() error {
+	switch {
+	case s.Type != TypeStreamData:
+		return fmt.Errorf("stream_data: type is %q", s.Type)
+	case s.StreamID == "":
+		return errors.New("stream_data: stream_id is empty")
+	case !IsLogStage(s.Stage):
+		return fmt.Errorf("stream_data: unknown stage %q", s.Stage)
+	case !IsLogSource(s.Source):
+		return fmt.Errorf("stream_data: unknown source %q", s.Source)
+	case !utf8.ValidString(s.Data):
+		// Checked before the length: an invalid byte triples in JSON, so the
+		// count below only means what the Plane will measure once this holds.
+		return errors.New("stream_data: data is not valid utf-8")
+	case len(s.Data) > MaxLogChunkBytes:
+		return fmt.Errorf("stream_data: data is %d bytes, over the %d limit", len(s.Data), MaxLogChunkBytes)
+	case s.At <= 0:
+		return errors.New("stream_data: at is not a timestamp")
+	}
+
+	return nil
 }
 
 // ErrRefused is the error kind for a frame the daemon declined to execute, as
